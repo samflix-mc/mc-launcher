@@ -89,6 +89,41 @@ pub struct Profile {
     pub name: String,
 }
 
+/// Profil hors-ligne, pour développer sans jeton Microsoft.
+///
+/// Tant que l'inscription d'application n'est pas approuvée,
+/// `login_with_xbox` répond 403 et aucune session réelle n'est possible. Le
+/// reste du launcher — installation des mods, ligne de commande JVM, Quick
+/// Play, interface — n'a pourtant besoin que d'un pseudo et d'un UUID.
+///
+/// L'UUID suit **exactement** la règle du serveur vanilla :
+/// `UUID.nameUUIDFromBytes("OfflinePlayer:<pseudo>")`, soit un UUID de
+/// version 3 fondé sur MD5. C'est indispensable : les backends du réseau
+/// tournent en `online-mode=false`, ils calculent l'UUID de cette façon, et un
+/// UUID inventé au hasard donnerait un joueur différent à chaque connexion —
+/// inventaire, position et permissions perdus.
+///
+/// Ne produit aucun jeton : la session renvoyée ne permet pas de rejoindre un
+/// serveur en ligne, seulement un serveur en mode hors-ligne.
+pub fn offline_session(name: &str) -> Session {
+    use md5::{Digest, Md5};
+
+    let mut hash: [u8; 16] = Md5::digest(format!("OfflinePlayer:{name}").as_bytes()).into();
+    hash[6] = (hash[6] & 0x0f) | 0x30; // version 3
+    hash[8] = (hash[8] & 0x3f) | 0x80; // variante RFC 4122
+
+    let hex: String = hash.iter().map(|b| format!("{b:02x}")).collect();
+
+    Session {
+        minecraft_token: String::new(),
+        refresh_token: None,
+        profile: Profile {
+            id: hex,
+            name: name.to_owned(),
+        },
+    }
+}
+
 pub struct Session {
     pub minecraft_token: String,
     pub refresh_token: Option<String>,
@@ -332,5 +367,23 @@ impl Auth {
             refresh_token: token.refresh_token,
             profile,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uuid_hors_ligne_conforme_au_serveur_vanilla() {
+        // Valeur de référence : UUID.nameUUIDFromBytes("OfflinePlayer:Notch")
+        // tel que le calcule un serveur Minecraft en online-mode=false.
+        let s = offline_session("Notch");
+        assert_eq!(s.profile.id, "b50ad385829d3141a2167e7d7539ba7f");
+        assert_eq!(s.profile.name, "Notch");
+        assert!(
+            s.minecraft_token.is_empty(),
+            "aucun jeton ne doit être produit"
+        );
     }
 }

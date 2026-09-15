@@ -28,6 +28,29 @@ cargo run --release -p mc-auth -- <CLIENT_ID>
 AZURE_CLIENT_ID=<...> cargo run --release -p mc-auth
 ```
 
+### Mode hors-ligne, pour développer sans attendre
+
+```bash
+cargo run --release -p mc-auth -- --offline thesam1798
+```
+
+Produit un profil local sans contacter Microsoft. L'UUID suit exactement la
+règle du serveur vanilla — `UUID.nameUUIDFromBytes("OfflinePlayer:<pseudo>")`,
+un UUID de version 3 fondé sur MD5. Ce détail n'est pas cosmétique : les
+backends du réseau tournent en `online-mode=false` et calculent l'UUID de cette
+façon. Un UUID tiré au hasard donnerait un joueur différent à chaque connexion,
+avec perte de l'inventaire, de la position et des permissions.
+
+Aucun jeton n'est produit : ce profil ne permet pas de rejoindre un serveur en
+ligne. Il débloque en revanche tout le reste du launcher — installation des
+mods, ligne de commande JVM, Quick Play, interface — qui n'a besoin que d'un
+pseudo et d'un UUID.
+
+**Ce que je n'ai pas fait, et qu'il ne faut pas faire** : réutiliser le Client ID
+d'un launcher public. Un Client ID est l'identité d'une application, pas une clé
+anonyme. L'écran de consentement afficherait le nom de l'autre projet aux
+joueurs, et un usage inattendu ferait suspendre *son* inscription, pas la nôtre.
+
 ### À quoi sert-il tout de suite
 
 Microsoft exige **une tentative de connexion réelle** avant d'accepter une
