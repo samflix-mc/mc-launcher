@@ -11,7 +11,9 @@ use mc_auth::Auth;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let Some(client_id) = std::env::args().nth(1).or_else(|| std::env::var("AZURE_CLIENT_ID").ok())
+    let Some(client_id) = std::env::args()
+        .nth(1)
+        .or_else(|| std::env::var("AZURE_CLIENT_ID").ok())
     else {
         bail!("usage : mc-auth <CLIENT_ID>  (ou variable AZURE_CLIENT_ID)");
     };
@@ -28,6 +30,13 @@ async fn main() -> Result<()> {
     println!("\nConnecté.");
     println!("  pseudo : {}", session.profile.name);
     println!("  uuid   : {}", session.profile.id);
-    println!("  refresh token : {}", if session.refresh_token.is_some() { "reçu" } else { "absent" });
+    println!(
+        "  refresh token : {}",
+        if session.refresh_token.is_some() {
+            "reçu"
+        } else {
+            "absent"
+        }
+    );
     Ok(())
 }

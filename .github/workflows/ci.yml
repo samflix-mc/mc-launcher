@@ -1,0 +1,27 @@
+name: Contrôles
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo build --release --locked
+      - name: Vérifier que le binaire démarre
+        run: |
+          # Un identifiant invalide doit produire l'erreur AADSTS700038 de
+          # Microsoft : ça prouve que la chaîne HTTP fonctionne de bout en bout,
+          # sans exiger de compte ni de secret dans la CI.
+          out=$(./target/release/mc-auth 00000000-0000-0000-0000-000000000000 2>&1 || true)
+          echo "$out"
+          echo "$out" | grep -q "AADSTS700038" \
+            || { echo "::error::réponse inattendue de Microsoft"; exit 1; }

@@ -1,0 +1,18 @@
+name: Release
+
+# Publie les binaires sur tag. Les runners GitHub sont gratuits et illimités
+# sur les dépôts publics, macOS compris — c'est ce qui rend la matrice
+# multi-plateforme indolore ici.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  release:
+    uses: samflix-mc/.github/.github/workflows/release-rust.yml@main
+    with:
+      binary: mc-auth
+    permissions:
+      contents: write

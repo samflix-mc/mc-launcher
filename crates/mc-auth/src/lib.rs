@@ -35,7 +35,11 @@ pub struct StepError {
 
 impl std::fmt::Display for StepError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} a répondu HTTP {} : {}", self.step, self.status, self.body)
+        write!(
+            f,
+            "{:?} a répondu HTTP {} : {}",
+            self.step, self.status, self.body
+        )
     }
 }
 
@@ -164,7 +168,11 @@ impl Auth {
             match err.as_str() {
                 "authorization_pending" => {}
                 "slow_down" => interval += Duration::from_secs(5),
-                _ => bail!(StepError { step: Step::Token, status, body }),
+                _ => bail!(StepError {
+                    step: Step::Token,
+                    status,
+                    body
+                }),
             }
         }
     }
@@ -188,7 +196,13 @@ impl Auth {
             .context("appel Xbox Live")?;
         let body = self.check(Step::XboxLive, resp).await?;
         let r: XboxResponse = serde_json::from_str(&body).context("réponse XBL illisible")?;
-        let uhs = r.display_claims.xui.first().context("uhs absent")?.uhs.clone();
+        let uhs = r
+            .display_claims
+            .xui
+            .first()
+            .context("uhs absent")?
+            .uhs
+            .clone();
         Ok((r.token, uhs))
     }
 
@@ -223,10 +237,20 @@ impl Auth {
             bail!("XSTS a refusé ({xerr}) : {explication}");
         }
         if !(200..300).contains(&status) {
-            bail!(StepError { step: Step::Xsts, status, body });
+            bail!(StepError {
+                step: Step::Xsts,
+                status,
+                body
+            });
         }
         let r: XboxResponse = serde_json::from_str(&body).context("réponse XSTS illisible")?;
-        let uhs = r.display_claims.xui.first().context("uhs absent")?.uhs.clone();
+        let uhs = r
+            .display_claims
+            .xui
+            .first()
+            .context("uhs absent")?
+            .uhs
+            .clone();
         Ok((r.token, uhs))
     }
 
@@ -253,9 +277,14 @@ impl Auth {
             );
         }
         if !(200..300).contains(&status) {
-            bail!(StepError { step: Step::Minecraft, status, body });
+            bail!(StepError {
+                step: Step::Minecraft,
+                status,
+                body
+            });
         }
-        let r: MinecraftToken = serde_json::from_str(&body).context("réponse Minecraft illisible")?;
+        let r: MinecraftToken =
+            serde_json::from_str(&body).context("réponse Minecraft illisible")?;
         Ok(r.access_token)
     }
 
@@ -269,7 +298,8 @@ impl Auth {
             .await
             .context("appel entitlements")?;
         let body = self.check(Step::Entitlements, resp).await?;
-        let v: serde_json::Value = serde_json::from_str(&body).context("entitlements illisibles")?;
+        let v: serde_json::Value =
+            serde_json::from_str(&body).context("entitlements illisibles")?;
         Ok(v["items"].as_array().is_some_and(|a| !a.is_empty()))
     }
 
@@ -297,6 +327,10 @@ impl Auth {
             bail!("ce compte ne possède pas Minecraft Java Edition");
         }
         let profile = self.profile(&mc).await?;
-        Ok(Session { minecraft_token: mc, refresh_token: token.refresh_token, profile })
+        Ok(Session {
+            minecraft_token: mc,
+            refresh_token: token.refresh_token,
+            profile,
+        })
     }
 }
