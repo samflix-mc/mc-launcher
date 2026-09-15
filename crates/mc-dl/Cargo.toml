@@ -1,0 +1,16 @@
+[package]
+name = "mc-dl"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Téléchargement vérifié par empreinte, idempotent et réessayable"
+
+[dependencies]
+anyhow.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+futures-util.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+md-5.workspace = true
+hex.workspace = true
