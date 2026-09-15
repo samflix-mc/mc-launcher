@@ -268,18 +268,21 @@ pub async fn install(major: u32, runtime_dir: &Path) -> Result<Java> {
             break;
         }
     }
-    let asset = asset.with_context(|| {
-        format!("Adoptium ne publie pas de Java {major} pour {os}/{arch}")
-    })?;
+    let asset = asset
+        .with_context(|| format!("Adoptium ne publie pas de Java {major} pour {os}/{arch}"))?;
 
     let home = managed_home(runtime_dir, major);
     let archive = runtime_dir.join(&asset.binary.package.name);
     // Adoptium publie un SHA-256 par paquet : un JDK est du code exécuté avec
     // les droits de l'utilisateur, le vérifier n'est pas optionnel.
     let sum = mc_dl::Checksum::Sha256(asset.binary.package.checksum.clone());
-    dl.to_file(&asset.binary.package.link, &archive, Some(&sum))
-        .await
-        .with_context(|| format!("téléchargement de {}", asset.release_name))?;
+    dl.to_file(
+        &asset.binary.package.link,
+        &archive,
+        mc_dl::Check::Full(&sum),
+    )
+    .await
+    .with_context(|| format!("téléchargement de {}", asset.release_name))?;
 
     if home.exists() {
         std::fs::remove_dir_all(&home)?;
@@ -328,7 +331,10 @@ fn single_child(dir: &Path) -> Result<PathBuf> {
         .collect();
     match entries.len() {
         1 => Ok(entries.remove(0)),
-        n => bail!("archive Temurin inattendue : {n} entrées à la racine de {}", dir.display()),
+        n => bail!(
+            "archive Temurin inattendue : {n} entrées à la racine de {}",
+            dir.display()
+        ),
     }
 }
 

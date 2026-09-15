@@ -153,8 +153,15 @@ impl CurseForge {
             }
             _ => {}
         }
-        let response = response.error_for_status().with_context(|| format!("GET {url}"))?;
-        Ok(Some(response.json().await.with_context(|| format!("réponse de {url}"))?))
+        let response = response
+            .error_for_status()
+            .with_context(|| format!("GET {url}"))?;
+        Ok(Some(
+            response
+                .json()
+                .await
+                .with_context(|| format!("réponse de {url}"))?,
+        ))
     }
 
     async fn project_by_slug(&self, slug: &str) -> Result<Option<ApiMod>> {
@@ -207,15 +214,18 @@ impl CurseForge {
 
     /// Fichier précis, pour un build épinglé dans le manifeste.
     pub async fn candidate_by_file(&self, file_id: &str) -> Result<Option<Candidate>> {
-        let file_id: u32 = file_id
-            .parse()
-            .with_context(|| format!("identifiant de fichier CurseForge non numérique : {file_id}"))?;
+        let file_id: u32 = file_id.parse().with_context(|| {
+            format!("identifiant de fichier CurseForge non numérique : {file_id}")
+        })?;
 
         // La route d'un fichier isolé exige aussi l'identifiant du projet ; on
         // passe donc par la recherche par empreinte de fichier, qui ne
         // l'exige pas.
         let found: Option<Envelope<Vec<ApiFile>>> = self
-            .post_json(&format!("{API}/mods/files"), serde_json::json!({ "fileIds": [file_id] }))
+            .post_json(
+                &format!("{API}/mods/files"),
+                serde_json::json!({ "fileIds": [file_id] }),
+            )
             .await?;
         let Some(file) = found.and_then(|e| e.data.into_iter().next()) else {
             return Ok(None);
@@ -243,7 +253,9 @@ impl CurseForge {
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
         }
-        let response = response.error_for_status().with_context(|| format!("POST {url}"))?;
+        let response = response
+            .error_for_status()
+            .with_context(|| format!("POST {url}"))?;
         Ok(Some(response.json().await?))
     }
 

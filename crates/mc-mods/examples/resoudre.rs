@@ -30,8 +30,7 @@ async fn main() -> Result<()> {
     let options = mc_mods::Options {
         follow_declared: !jars_only,
     };
-    let plan =
-        mc_mods::resolve_with(&registry, &requests, "1.21.1", "neoforge", options).await?;
+    let plan = mc_mods::resolve_with(&registry, &requests, "1.21.1", "neoforge", options).await?;
 
     println!("{} mods", plan.mods.len());
     for entry in &plan.mods {

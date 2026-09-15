@@ -24,8 +24,7 @@ use std::time::Duration;
 /// (contact)` — et limite plus sévèrement les agents anonymes ; Mojang et
 /// Adoptium ne l'exigent pas mais le journalisent. Une seule constante pour
 /// tout le launcher : c'est ce qui rend un abus traçable jusqu'à nous.
-pub const USER_AGENT: &str =
-    "samflix-mc-launcher/0.1 (+https://github.com/samflix-mc/mc-launcher)";
+pub const USER_AGENT: &str = "samflix-mc-launcher/0.1 (+https://github.com/samflix-mc/mc-launcher)";
 
 /// Empreinte publiée par une source. Chacune utilise la sienne : Mojang donne
 /// du SHA-1, Adoptium du SHA-256, Modrinth les deux, CurseForge du SHA-1 ou du
@@ -55,10 +54,7 @@ impl Checksum {
 
     pub fn expected(&self) -> &str {
         match self {
-            Checksum::Sha1(v)
-            | Checksum::Sha256(v)
-            | Checksum::Sha512(v)
-            | Checksum::Md5(v) => v,
+            Checksum::Sha1(v) | Checksum::Sha256(v) | Checksum::Sha512(v) | Checksum::Md5(v) => v,
         }
     }
 
@@ -135,6 +131,50 @@ pub enum Fetched {
     AlreadyPresent,
 }
 
+/// Comment décider qu'un fichier déjà présent n'a pas besoin d'être repris.
+///
+/// La distinction n'est pas cosmétique : les assets d'une version de Minecraft
+/// pèsent plus de 800 Mo répartis sur quelques milliers d'objets. Recalculer
+/// leur SHA-1 à chaque lancement relit tout le disque pour ne presque jamais
+/// rien trouver.
+#[derive(Debug, Clone, Copy)]
+pub enum Check<'a> {
+    /// Empreinte recalculée à chaque passage. Pour ce qui est exécuté — jars,
+    /// bibliothèques, runtimes.
+    Full(&'a Checksum),
+    /// Taille comme première barrière, empreinte vérifiée seulement à
+    /// l'écriture. Pour les gros volumes de petits fichiers inertes : un asset
+    /// tronqué a la mauvaise taille, et une altération silencieuse à taille
+    /// constante donne au pire une texture fausse, jamais du code exécuté.
+    /// La vérification exhaustive reste disponible à la demande.
+    Quick { sum: &'a Checksum, size: u64 },
+    /// Aucune empreinte publiée : seule la présence peut être constatée.
+    Presence,
+}
+
+impl Check<'_> {
+    fn checksum(&self) -> Option<&Checksum> {
+        match self {
+            Check::Full(sum) => Some(sum),
+            Check::Quick { sum, .. } => Some(sum),
+            Check::Presence => None,
+        }
+    }
+
+    /// Le fichier présent peut-il être conservé sans téléchargement ?
+    fn accepts_existing(&self, path: &Path) -> bool {
+        match self {
+            Check::Full(sum) => std::fs::read(path)
+                .map(|b| sum.matches(&b))
+                .unwrap_or(false),
+            Check::Quick { size, .. } => std::fs::metadata(path)
+                .map(|m| m.len() == *size)
+                .unwrap_or(false),
+            Check::Presence => true,
+        }
+    }
+}
+
 pub struct Downloader {
     client: reqwest::Client,
     retries: u32,
@@ -180,35 +220,25 @@ impl Downloader {
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
-            bail!("HTTP {status} : {}", body.chars().take(300).collect::<String>());
+            bail!(
+                "HTTP {status} : {}",
+                body.chars().take(300).collect::<String>()
+            );
         }
         Ok(response.bytes().await?.to_vec())
     }
 
-    /// Télécharge `url` vers `dest`, sauf si `dest` satisfait déjà `expect`.
+    /// Télécharge `url` vers `dest`, sauf si `dest` satisfait déjà `check`.
     ///
-    /// Sans empreinte, la seule vérification possible est la présence du
-    /// fichier — c'est le cas de quelques bibliothèques dont Mojang ne publie
-    /// pas le SHA-1, et il est signalé comme tel par l'appelant.
-    pub async fn to_file(
-        &self,
-        url: &str,
-        dest: &Path,
-        expect: Option<&Checksum>,
-    ) -> Result<Fetched> {
-        if dest.is_file() {
-            match expect {
-                Some(sum) => {
-                    if sum.matches(&std::fs::read(dest)?) {
-                        return Ok(Fetched::AlreadyPresent);
-                    }
-                }
-                None => return Ok(Fetched::AlreadyPresent),
-            }
+    /// Ce qui est écrit est **toujours** vérifié quand une empreinte existe ;
+    /// `check` ne règle que la sévérité du contrôle sur un fichier déjà là.
+    pub async fn to_file(&self, url: &str, dest: &Path, check: Check<'_>) -> Result<Fetched> {
+        if dest.is_file() && check.accepts_existing(dest) {
+            return Ok(Fetched::AlreadyPresent);
         }
 
         let bytes = self.bytes(url).await?;
-        if let Some(sum) = expect {
+        if let Some(sum) = check.checksum() {
             sum.verify(&bytes, &dest.display().to_string())?;
         }
         write_atomic(dest, &bytes)?;
@@ -230,8 +260,7 @@ pub fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
             .unwrap_or_default()
     ));
     std::fs::write(&part, bytes).with_context(|| format!("écriture de {}", part.display()))?;
-    std::fs::rename(&part, dest)
-        .with_context(|| format!("renommage vers {}", dest.display()))?;
+    std::fs::rename(&part, dest).with_context(|| format!("renommage vers {}", dest.display()))?;
     Ok(())
 }
 

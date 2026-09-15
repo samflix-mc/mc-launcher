@@ -205,7 +205,11 @@ pub fn parse_descriptor(text: &str) -> Result<JarInfo> {
             };
             // Un jar multi-mods exige souvent la même bibliothèque plusieurs
             // fois ; on fusionne les côtés plutôt que de dupliquer.
-            match info.requires.iter_mut().find(|r| r.mod_id == requirement.mod_id) {
+            match info
+                .requires
+                .iter_mut()
+                .find(|r| r.mod_id == requirement.mod_id)
+            {
                 Some(existing) => existing.side = existing.side.union(requirement.side),
                 None => info.requires.push(requirement),
             }
@@ -224,7 +228,9 @@ fn is_mandatory(dep: &toml::Value) -> bool {
     if let Some(kind) = dep.get("type").and_then(|v| v.as_str()) {
         return kind.eq_ignore_ascii_case("required");
     }
-    dep.get("mandatory").and_then(|v| v.as_bool()).unwrap_or(false)
+    dep.get("mandatory")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
 }
 
 #[cfg(test)]

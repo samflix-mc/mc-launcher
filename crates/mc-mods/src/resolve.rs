@@ -217,9 +217,8 @@ impl Registry {
             },
         };
 
-        let found = found.with_context(|| {
-            format!("build {file} épinglé pour {} : introuvable", request.slug)
-        })?;
+        let found = found
+            .with_context(|| format!("build {file} épinglé pour {} : introuvable", request.slug))?;
         check_compatible(&found, mc, loader, &request.slug)?;
         Ok(Some(found))
     }
@@ -486,7 +485,8 @@ pub async fn resolve_with(
     }
 
     plan.mods = chosen.into_values().collect();
-    plan.mods.sort_by(|a, b| a.candidate.slug.cmp(&b.candidate.slug));
+    plan.mods
+        .sort_by(|a, b| a.candidate.slug.cmp(&b.candidate.slug));
     Ok(plan)
 }
 
@@ -527,7 +527,13 @@ async fn download_all(
                 .join(&id)
                 .join(&file_name);
             async move {
-                dl.to_file(&url, &dest, sum.as_ref())
+                // Un jar est du code exécuté : son empreinte est recontrôlée à
+                // chaque passage, pas seulement à l'écriture.
+                let check = match &sum {
+                    Some(sum) => mc_dl::Check::Full(sum),
+                    None => mc_dl::Check::Presence,
+                };
+                dl.to_file(&url, &dest, check)
                     .await
                     .with_context(|| format!("téléchargement de {file_name}"))?;
                 Ok(((origin, id), dest))
@@ -563,10 +569,7 @@ fn inspect_all(chosen: &mut BTreeMap<(Origin, String), Installed>) -> Result<()>
 fn missing_requirements(
     chosen: &BTreeMap<(Origin, String), Installed>,
 ) -> Vec<(String, String, Side)> {
-    let provided: BTreeSet<&String> = chosen
-        .values()
-        .flat_map(|m| m.provides.iter())
-        .collect();
+    let provided: BTreeSet<&String> = chosen.values().flat_map(|m| m.provides.iter()).collect();
 
     let mut missing: BTreeMap<String, (String, Side)> = BTreeMap::new();
     for entry in chosen.values() {
@@ -720,7 +723,11 @@ mod tests {
         // Le modId `bookshelf` est publié sous le slug `bookshelf-lib` : c'est
         // le modId du jar qui fait foi, jamais le nom du projet.
         let chosen = map(vec![
-            installed("attributefix", &["attributefix"], &[("bookshelf", Side::Both)]),
+            installed(
+                "attributefix",
+                &["attributefix"],
+                &[("bookshelf", Side::Both)],
+            ),
             installed("bookshelf-lib", &["bookshelf"], &[]),
         ]);
         assert!(missing_requirements(&chosen).is_empty());

@@ -51,6 +51,10 @@ async fn main() -> Result<()> {
 
     println!("Aucun Java {major} détecté, installation de Temurin {major}…");
     let java = mc_java::install(major, &runtime_dir).await?;
-    println!("Java {} installé — {}", java.version.full, java.path.display());
+    println!(
+        "Java {} installé — {}",
+        java.version.full,
+        java.path.display()
+    );
     Ok(())
 }

@@ -9,8 +9,8 @@
 //! Elle demande en revanche un `User-Agent` identifiable et applique une limite
 //! de débit ; les appels par lots sont donc préférés aux boucles de requêtes.
 
-use crate::{Candidate, Channel, DeclaredDep, Origin};
 use crate::jar::Side;
+use crate::{Candidate, Channel, DeclaredDep, Origin};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::sync::Arc;
@@ -97,8 +97,15 @@ impl Modrinth {
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
         }
-        let response = response.error_for_status().with_context(|| format!("GET {url}"))?;
-        Ok(Some(response.json().await.with_context(|| format!("réponse de {url}"))?))
+        let response = response
+            .error_for_status()
+            .with_context(|| format!("GET {url}"))?;
+        Ok(Some(
+            response
+                .json()
+                .await
+                .with_context(|| format!("réponse de {url}"))?,
+        ))
     }
 
     /// Versions publiées d'un projet, compatibles avec `mc` et `loader`.
@@ -113,8 +120,9 @@ impl Modrinth {
         mc: &str,
         loader: &str,
     ) -> Result<Vec<Candidate>> {
-        let Some(project): Option<Project> =
-            self.get_json(&format!("{API}/project/{id_or_slug}"), &[]).await?
+        let Some(project): Option<Project> = self
+            .get_json(&format!("{API}/project/{id_or_slug}"), &[])
+            .await?
         else {
             return Ok(Vec::new());
         };
@@ -136,8 +144,9 @@ impl Modrinth {
 
     /// Version précise, pour un build épinglé dans le manifeste.
     pub async fn candidate_by_version(&self, version_id: &str) -> Result<Option<Candidate>> {
-        let Some(version): Option<ApiVersion> =
-            self.get_json(&format!("{API}/version/{version_id}"), &[]).await?
+        let Some(version): Option<ApiVersion> = self
+            .get_json(&format!("{API}/version/{version_id}"), &[])
+            .await?
         else {
             return Ok(None);
         };
@@ -168,9 +177,8 @@ impl Modrinth {
             return Ok(direct);
         }
 
-        let facets = format!(
-            "[[\"project_type:mod\"],[\"categories:{loader}\"],[\"versions:{mc}\"]]"
-        );
+        let facets =
+            format!("[[\"project_type:mod\"],[\"categories:{loader}\"],[\"versions:{mc}\"]]");
         let query = [
             ("query", mod_id.to_string()),
             ("facets", facets),
