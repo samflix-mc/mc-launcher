@@ -13,6 +13,11 @@
 //! 3. **ce que le jar exige** — `META-INF/neoforge.mods.toml`, la seule source
 //!    que le jeu lise réellement.
 //!
+//! Les mods sont cherchés dans trois sources, de la plus sûre à la moins
+//! contractuelle : [`modrinth`], puis [`curseforge`] si une clé d'API est
+//! configurée, puis [`curseforge_web`] — l'API du site, sans clé, avec les
+//! limites que son module détaille.
+//!
 //! Le troisième point est celui qui décide : après téléchargement, chaque jar
 //! est ouvert, ses `modId` obligatoires comparés à ceux que le pack fournit, et
 //! tout manque relance un tour de résolution. On s'arrête quand plus rien ne
@@ -20,6 +25,7 @@
 //! démarrage.
 
 pub mod curseforge;
+pub mod curseforge_web;
 pub mod jar;
 pub mod modrinth;
 pub mod resolve;

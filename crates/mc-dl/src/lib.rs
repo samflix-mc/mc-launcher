@@ -148,6 +148,11 @@ pub enum Check<'a> {
     /// constante donne au pire une texture fausse, jamais du code exécuté.
     /// La vérification exhaustive reste disponible à la demande.
     Quick { sum: &'a Checksum, size: u64 },
+    /// Aucune empreinte publiée, mais une taille annoncée. C'est tout ce
+    /// qu'offrent certaines sources ; mieux vaut contrôler la taille que rien,
+    /// une réponse d'erreur servie en HTTP 200 ne faisant jamais le bon
+    /// nombre d'octets.
+    Size(u64),
     /// Aucune empreinte publiée : seule la présence peut être constatée.
     Presence,
 }
@@ -157,7 +162,15 @@ impl Check<'_> {
         match self {
             Check::Full(sum) => Some(sum),
             Check::Quick { sum, .. } => Some(sum),
-            Check::Presence => None,
+            Check::Size(_) | Check::Presence => None,
+        }
+    }
+
+    /// Taille attendue, quand la source la publie.
+    fn size(&self) -> Option<u64> {
+        match self {
+            Check::Quick { size, .. } | Check::Size(size) => Some(*size),
+            Check::Full(_) | Check::Presence => None,
         }
     }
 
@@ -167,7 +180,7 @@ impl Check<'_> {
             Check::Full(sum) => std::fs::read(path)
                 .map(|b| sum.matches(&b))
                 .unwrap_or(false),
-            Check::Quick { size, .. } => std::fs::metadata(path)
+            Check::Quick { size, .. } | Check::Size(size) => std::fs::metadata(path)
                 .map(|m| m.len() == *size)
                 .unwrap_or(false),
             Check::Presence => true,
@@ -240,6 +253,17 @@ impl Downloader {
         let bytes = self.bytes(url).await?;
         if let Some(sum) = check.checksum() {
             sum.verify(&bytes, &dest.display().to_string())?;
+        } else if let Some(expected) = check.size() {
+            // Faute d'empreinte, la taille est le seul contrôle possible. Il
+            // suffit à écarter une page d'erreur ou une redirection servie en
+            // HTTP 200, qui est le cas de loin le plus fréquent.
+            if bytes.len() as u64 != expected {
+                bail!(
+                    "{} : {} octets reçus, {expected} annoncés",
+                    dest.display(),
+                    bytes.len()
+                );
+            }
         }
         write_atomic(dest, &bytes)?;
         Ok(Fetched::Downloaded)

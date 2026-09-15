@@ -153,6 +153,9 @@ impl Lockfile {
                 version: None,
                 side: Side::parse(&m.side),
                 channel: None,
+                // Rend vérifiable un build venu d'une source qui ne publie pas
+                // d'empreinte : celle-ci a été calculée au premier passage.
+                expected_sha1: m.sha1.clone(),
             })
             .collect()
     }

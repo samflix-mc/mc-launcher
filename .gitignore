@@ -1,1 +1,5 @@
 /target
+
+# Secrets : la clé d'API CurseForge est nominative et ne se versionne pas.
+.env
+*.key

@@ -56,6 +56,12 @@ pub struct Request {
     pub side: Option<Side>,
     /// Canal le plus instable accepté. `release` par défaut.
     pub channel: Option<Channel>,
+    /// Empreinte connue par ailleurs, typiquement reprise du verrou.
+    ///
+    /// Certaines sources ne publient pas d'empreinte. Celle qu'un premier
+    /// passage a calculée et figée dans le verrou rend les suivants aussi
+    /// vérifiables que pour les autres sources.
+    pub expected_sha1: Option<String>,
 }
 
 impl Request {
@@ -67,6 +73,7 @@ impl Request {
             version: None,
             side: None,
             channel: None,
+            expected_sha1: None,
         }
     }
 }
@@ -141,6 +148,10 @@ pub struct Registry {
     dl: Arc<mc_dl::Downloader>,
     modrinth: crate::modrinth::Modrinth,
     curseforge: Option<crate::curseforge::CurseForge>,
+    curseforge_web: crate::curseforge_web::CurseForgeWeb,
+    /// Mémorise qu'une clé a été refusée, pour ne pas retenter — ni réavertir —
+    /// à chacun des mods qui suivent.
+    key_rejected: std::sync::atomic::AtomicBool,
     cache: PathBuf,
 }
 
@@ -150,6 +161,8 @@ impl Registry {
         Ok(Self {
             modrinth: crate::modrinth::Modrinth::new(dl.clone()),
             curseforge: crate::curseforge::CurseForge::from_env(dl.clone()),
+            curseforge_web: crate::curseforge_web::CurseForgeWeb::new(dl.clone()),
+            key_rejected: std::sync::atomic::AtomicBool::new(false),
             dl,
             cache,
         })
@@ -161,6 +174,10 @@ impl Registry {
 
     /// Candidats pour un projet, dans la source demandée ou dans l'ordre par
     /// défaut.
+    ///
+    /// Un identifiant **numérique** ne peut venir que de CurseForge : le
+    /// proposer à Modrinth ferait une requête vouée à l'échec pour chaque
+    /// dépendance résolue.
     async fn candidates(
         &self,
         id_or_slug: &str,
@@ -168,16 +185,44 @@ impl Registry {
         mc: &str,
         loader: &str,
     ) -> Result<Vec<Candidate>> {
-        if source != Some(Origin::CurseForge) {
+        let numeric = id_or_slug.parse::<u32>().is_ok();
+
+        if source != Some(Origin::CurseForge) && !numeric {
             let found = self.modrinth.candidates(id_or_slug, mc, loader).await?;
             if !found.is_empty() || source == Some(Origin::Modrinth) {
                 return Ok(found);
             }
         }
-        match &self.curseforge {
-            Some(cf) => cf.candidates(id_or_slug, mc, loader).await,
-            None => Ok(Vec::new()),
+        self.curseforge_any(id_or_slug, mc, loader).await
+    }
+
+    /// CurseForge, avec la clé si elle marche, sans elle sinon.
+    ///
+    /// Une clé refusée ne doit pas tout arrêter : elle expire, elle se révoque,
+    /// et le mode sans clé reste capable d'installer. L'avertissement n'est émis
+    /// qu'une fois par exécution — répété à chaque mod, il deviendrait du bruit
+    /// qu'on cesse de lire.
+    async fn curseforge_any(
+        &self,
+        id_or_slug: &str,
+        mc: &str,
+        loader: &str,
+    ) -> Result<Vec<Candidate>> {
+        if let Some(cf) = &self.curseforge
+            && !self.key_rejected.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            match cf.candidates(id_or_slug, mc, loader).await {
+                Ok(found) if !found.is_empty() => return Ok(found),
+                Ok(_) => {}
+                Err(e) if crate::curseforge::is_key_error(&e) => {
+                    self.key_rejected
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                    eprintln!("  ! {e}\n    Repli sur CurseForge sans clé.");
+                }
+                Err(e) => return Err(e),
+            }
         }
+        self.curseforge_web.candidates(id_or_slug, mc, loader).await
     }
 
     /// Cherche un projet par le `modId` que déclare un jar.
@@ -186,10 +231,45 @@ impl Registry {
         if !found.is_empty() {
             return Ok(found);
         }
-        match &self.curseforge {
-            Some(cf) => cf.find_by_mod_id(mod_id, mc, loader).await,
-            None => Ok(Vec::new()),
+        if let Some(cf) = &self.curseforge
+            && !self.key_rejected.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            match cf.find_by_mod_id(mod_id, mc, loader).await {
+                Ok(found) if !found.is_empty() => return Ok(found),
+                Ok(_) => {}
+                Err(e) if crate::curseforge::is_key_error(&e) => {
+                    self.key_rejected
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+                Err(e) => return Err(e),
+            }
         }
+        // Sans clé, la recherche par mot-clé est fermée : seul un `modId` qui
+        // est aussi le slug du projet peut aboutir.
+        self.curseforge_web
+            .find_by_mod_id(mod_id, mc, loader)
+            .await
+            .or_else(|_| Ok(Vec::new()))
+    }
+
+    /// Build CurseForge épinglé, avec la clé si elle marche, sans elle sinon.
+    async fn curseforge_file(&self, id_or_slug: &str, file: &str) -> Result<Option<Candidate>> {
+        if let Some(cf) = &self.curseforge
+            && !self.key_rejected.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            match cf.candidate_by_file(file).await {
+                Ok(Some(found)) => return Ok(Some(found)),
+                Ok(None) => {}
+                Err(e) if crate::curseforge::is_key_error(&e) => {
+                    self.key_rejected
+                        .store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        self.curseforge_web
+            .candidate_by_file(id_or_slug, file)
+            .await
     }
 
     async fn pinned(&self, request: &Request, mc: &str, loader: &str) -> Result<Option<Candidate>> {
@@ -199,21 +279,14 @@ impl Registry {
         // L'épinglage est explicite : si le build n'existe plus, il vaut mieux
         // s'arrêter que retomber en silence sur une autre version — c'est
         // précisément ce que l'épinglage sert à éviter.
+        let numeric = request.slug.parse::<u32>().is_ok();
         let found = match request.source {
-            Some(Origin::CurseForge) => match &self.curseforge {
-                Some(cf) => cf.candidate_by_file(file).await?,
-                None => bail!(
-                    "{} épingle le fichier CurseForge {file}, mais aucune clé d'API n'est configurée",
-                    request.slug
-                ),
-            },
+            Some(Origin::CurseForge) => self.curseforge_file(&request.slug, file).await?,
             Some(Origin::Modrinth) => self.modrinth.candidate_by_version(file).await?,
+            None if numeric => self.curseforge_file(&request.slug, file).await?,
             None => match self.modrinth.candidate_by_version(file).await? {
                 Some(found) => Some(found),
-                None => match &self.curseforge {
-                    Some(cf) => cf.candidate_by_file(file).await?,
-                    None => None,
-                },
+                None => self.curseforge_file(&request.slug, file).await?,
             },
         };
 
@@ -383,6 +456,14 @@ pub async fn resolve_with(
                 );
             }
 
+            // Une source qui ne publie pas d'empreinte n'interdit pas de
+            // vérifier : celle qu'un passage précédent a figée dans le verrou
+            // fait foi.
+            let mut candidate = candidate;
+            if candidate.sha1.is_none() {
+                candidate.sha1 = request.expected_sha1.clone();
+            }
+
             let id = key(&candidate);
             if let Some(existing) = chosen.get_mut(&id) {
                 // Déjà retenu par une autre branche : on ne retélécharge pas,
@@ -424,6 +505,7 @@ pub async fn resolve_with(
                         // minimum ; il sera affiné par le descripteur du jar.
                         side: None,
                         channel: Some(Channel::Beta),
+                        expected_sha1: None,
                     },
                     Reason::Declared { by: parent.clone() },
                 ));
@@ -449,6 +531,7 @@ pub async fn resolve_with(
                 version: None,
                 side: Some(side),
                 channel: Some(Channel::Beta),
+                expected_sha1: None,
             };
             match pick(found, &request) {
                 Some(candidate) => queue.push((
@@ -459,6 +542,7 @@ pub async fn resolve_with(
                         version: None,
                         side: Some(side),
                         channel: Some(Channel::Beta),
+                        expected_sha1: None,
                     },
                     Reason::Implicit {
                         by: required_by,
@@ -484,6 +568,7 @@ pub async fn resolve_with(
         plan.unresolved.clear();
     }
 
+    deduplicate_by_mod_id(&mut chosen);
     plan.mods = chosen.into_values().collect();
     plan.mods
         .sort_by(|a, b| a.candidate.slug.cmp(&b.candidate.slug));
@@ -502,41 +587,49 @@ async fn download_all(
 ) -> Result<()> {
     use futures_util::stream::{self, StreamExt};
 
-    let todo: Vec<(Origin, String, String, String, Option<mc_dl::Checksum>)> = chosen
+    struct Job {
+        key: (Origin, String),
+        url: String,
+        file_name: String,
+        sum: Option<mc_dl::Checksum>,
+        size: u64,
+    }
+
+    let todo: Vec<Job> = chosen
         .iter()
         .filter(|(_, m)| m.path.as_os_str().is_empty())
-        .map(|(key, m)| {
-            (
-                key.0,
-                key.1.clone(),
-                m.candidate.url.clone(),
-                m.candidate.file_name.clone(),
-                m.candidate.checksum(),
-            )
+        .map(|(key, m)| Job {
+            key: key.clone(),
+            url: m.candidate.url.clone(),
+            file_name: m.candidate.file_name.clone(),
+            sum: m.candidate.checksum(),
+            size: m.candidate.size,
         })
         .collect();
 
     let results: Vec<Result<((Origin, String), PathBuf)>> = stream::iter(todo)
-        .map(|(origin, id, url, file_name, sum)| {
+        .map(|job| {
             let dl = registry.dl.clone();
             // Le cache est indexé par source et par projet : deux mods
             // différents publient parfois un jar au même nom.
             let dest = registry
                 .cache
-                .join(origin.as_str())
-                .join(&id)
-                .join(&file_name);
+                .join(job.key.0.as_str())
+                .join(&job.key.1)
+                .join(&job.file_name);
             async move {
                 // Un jar est du code exécuté : son empreinte est recontrôlée à
-                // chaque passage, pas seulement à l'écriture.
-                let check = match &sum {
-                    Some(sum) => mc_dl::Check::Full(sum),
-                    None => mc_dl::Check::Presence,
+                // chaque passage, pas seulement à l'écriture. À défaut
+                // d'empreinte, la taille annoncée est le seul garde-fou.
+                let check = match (&job.sum, job.size) {
+                    (Some(sum), _) => mc_dl::Check::Full(sum),
+                    (None, 0) => mc_dl::Check::Presence,
+                    (None, size) => mc_dl::Check::Size(size),
                 };
-                dl.to_file(&url, &dest, check)
+                dl.to_file(&job.url, &dest, check)
                     .await
-                    .with_context(|| format!("téléchargement de {file_name}"))?;
-                Ok(((origin, id), dest))
+                    .with_context(|| format!("téléchargement de {}", job.file_name))?;
+                Ok((job.key, dest))
             }
         })
         .buffer_unordered(PARALLEL_DOWNLOADS)
@@ -546,6 +639,12 @@ async fn download_all(
     for result in results {
         let (key, path) = result?;
         if let Some(entry) = chosen.get_mut(&key) {
+            // Source sans empreinte : on calcule la nôtre. Elle part dans le
+            // verrou, et les installations suivantes seront vérifiées comme
+            // toutes les autres.
+            if entry.candidate.sha1.is_none() {
+                entry.candidate.sha1 = mc_dl::sha1_of_file(&path).ok();
+            }
             entry.path = path;
         }
     }
@@ -563,6 +662,54 @@ fn inspect_all(chosen: &mut BTreeMap<(Origin, String), Installed>) -> Result<()>
         entry.requires = info.requires;
     }
     Ok(())
+}
+
+/// Écarte les jars qui fournissent un `modId` déjà fourni par un autre.
+///
+/// Le même mod peut arriver deux fois par deux chemins : demandé par son slug
+/// Modrinth, et tiré comme dépendance par son identifiant CurseForge. Les
+/// clés de projet diffèrent, donc rien ne les rapproche — sauf le `modId` que
+/// les deux jars déclarent. Or deux jars du même `modId` dans `mods` font
+/// échouer NeoForge au chargement, avec un message qui n'aide pas.
+///
+/// En cas de doublon, on garde celui qui a une empreinte publiée, puis le mod
+/// demandé explicitement : le plus vérifiable et le plus intentionnel.
+fn deduplicate_by_mod_id(chosen: &mut BTreeMap<(Origin, String), Installed>) {
+    let mut owner: BTreeMap<String, (Origin, String)> = BTreeMap::new();
+    let mut drop_keys: Vec<(Origin, String)> = Vec::new();
+
+    for (key, entry) in chosen.iter() {
+        for mod_id in &entry.provides {
+            match owner.get(mod_id) {
+                None => {
+                    owner.insert(mod_id.clone(), key.clone());
+                }
+                Some(previous) => {
+                    let keep_previous = {
+                        let other = &chosen[previous];
+                        let score = |m: &Installed| {
+                            (m.candidate.sha1.is_some(), m.reason == Reason::Explicit)
+                        };
+                        score(other) >= score(entry)
+                    };
+                    let loser = if keep_previous {
+                        key.clone()
+                    } else {
+                        let loser = previous.clone();
+                        owner.insert(mod_id.clone(), key.clone());
+                        loser
+                    };
+                    if !drop_keys.contains(&loser) {
+                        drop_keys.push(loser);
+                    }
+                }
+            }
+        }
+    }
+
+    for key in drop_keys {
+        chosen.remove(&key);
+    }
 }
 
 /// `modId` exigés par au moins un jar et fournis par aucun.
@@ -789,6 +936,53 @@ mod tests {
         let mut request = Request::new("jei");
         request.channel = Some(Channel::Beta);
         assert!(pick(vec![beta], &request).is_some());
+    }
+
+    #[test]
+    fn un_meme_mod_venu_de_deux_sources_n_est_garde_qu_une_fois() {
+        // Demandé par son slug Modrinth, puis tiré comme dépendance par son
+        // identifiant CurseForge : rien ne rapproche les deux clés de projet,
+        // sauf le modId. Deux jars du même modId feraient échouer NeoForge.
+        let mut depuis_modrinth = installed("jade", &["jade"], &[]);
+        depuis_modrinth.candidate.sha1 = Some("aa".into());
+
+        let mut depuis_cf = installed("jade-cf", &["jade"], &[]);
+        depuis_cf.candidate.origin = Origin::CurseForge;
+        depuis_cf.candidate.sha1 = None;
+        depuis_cf.reason = Reason::Declared { by: "autre".into() };
+
+        let mut chosen = map(vec![depuis_modrinth, depuis_cf]);
+        deduplicate_by_mod_id(&mut chosen);
+
+        assert_eq!(chosen.len(), 1);
+        // Celui qui porte une empreinte est conservé : il est vérifiable.
+        assert!(chosen.values().next().unwrap().candidate.sha1.is_some());
+    }
+
+    #[test]
+    fn a_empreinte_egale_le_mod_demande_l_emporte() {
+        let mut explicite = installed("jade", &["jade"], &[]);
+        explicite.candidate.sha1 = Some("aa".into());
+
+        let mut dependance = installed("jade-bis", &["jade"], &[]);
+        dependance.candidate.sha1 = Some("bb".into());
+        dependance.reason = Reason::Declared { by: "autre".into() };
+
+        let mut chosen = map(vec![explicite, dependance]);
+        deduplicate_by_mod_id(&mut chosen);
+
+        assert_eq!(chosen.len(), 1);
+        assert_eq!(chosen.values().next().unwrap().reason, Reason::Explicit);
+    }
+
+    #[test]
+    fn deux_mods_distincts_ne_sont_pas_deduplicates() {
+        let mut chosen = map(vec![
+            installed("jei", &["jei"], &[]),
+            installed("jade", &["jade"], &[]),
+        ]);
+        deduplicate_by_mod_id(&mut chosen);
+        assert_eq!(chosen.len(), 2);
     }
 
     #[test]

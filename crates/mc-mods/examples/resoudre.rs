@@ -17,15 +17,26 @@ async fn main() -> Result<()> {
     // `--jars-seuls` ignore ce que les API déclarent : tout ce qui apparaît en
     // plus des mods demandés vient alors de la lecture des jars.
     let jars_only = slugs.iter().any(|a| a == "--jars-seuls");
-    slugs.retain(|a| a != "--detail" && a != "--jars-seuls");
+    // `--curseforge` court-circuite Modrinth, pour éprouver l'autre source.
+    let force_cf = slugs.iter().any(|a| a == "--curseforge");
+    slugs.retain(|a| a != "--detail" && a != "--jars-seuls" && a != "--curseforge");
     if slugs.is_empty() {
-        eprintln!("usage : resoudre <slug> [<slug>…]");
+        eprintln!("usage : resoudre [--detail] [--jars-seuls] [--curseforge] <slug> [<slug>…]");
         std::process::exit(2);
     }
 
     let cache = mc_dl::data_dir().join("cache").join("mods");
     let registry = Registry::new(cache)?;
-    let requests: Vec<Request> = slugs.into_iter().map(Request::new).collect();
+    let requests: Vec<Request> = slugs
+        .into_iter()
+        .map(|slug| {
+            let mut request = Request::new(slug);
+            if force_cf {
+                request.source = Some(mc_mods::Origin::CurseForge);
+            }
+            request
+        })
+        .collect();
 
     let options = mc_mods::Options {
         follow_declared: !jars_only,

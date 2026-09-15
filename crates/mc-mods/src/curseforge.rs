@@ -108,6 +108,17 @@ pub fn api_key() -> Option<String> {
     (!key.is_empty()).then_some(key)
 }
 
+/// Marqueur inséré dans le message quand la clé est en cause.
+///
+/// Permet au registre de distinguer « cette clé ne vaut rien » — auquel cas il
+/// bascule sur l'accès sans clé — d'une panne de réseau, qui doit remonter.
+const KEY_REFUSED: &str = "CurseForge refuse la clé d'API";
+
+/// L'erreur vient-elle du rejet de la clé ?
+pub fn is_key_error(error: &anyhow::Error) -> bool {
+    error.chain().any(|e| e.to_string().contains(KEY_REFUSED))
+}
+
 pub fn config_key_path() -> std::path::PathBuf {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .map(std::path::PathBuf::from)
@@ -145,8 +156,8 @@ impl CurseForge {
             reqwest::StatusCode::NOT_FOUND => return Ok(None),
             reqwest::StatusCode::FORBIDDEN | reqwest::StatusCode::UNAUTHORIZED => {
                 bail!(
-                    "CurseForge refuse la clé d'API (HTTP {}). \
-                     Vérifier CURSEFORGE_API_KEY ou {}",
+                    "{KEY_REFUSED} (HTTP {}). Vérifier CURSEFORGE_API_KEY ou {} — \
+                     une clé de la Core API commence par « $2a$10$ », ce n'est pas un UUID",
                     response.status(),
                     config_key_path().display()
                 );
