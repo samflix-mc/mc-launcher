@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "name": "samflix",
+  "version": "0.1.0",
+  "minecraft": "1.21.1",
+  "loader": {
+    "type": "neoforge",
+    "version": "latest"
+  },
+  "mods": [
+    { "slug": "jei" },
+    { "slug": "jade" },
+    { "slug": "modernfix" },
+    { "slug": "farmers-delight" },
+    { "slug": "attributefix" }
+  ]
+}

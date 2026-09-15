@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "pack": "samflix",
+  "generated": "2026-09-15T23:07:45Z",
+  "minecraft": "1.21.1",
+  "loader": {
+    "type": "neoforge",
+    "version": "21.1.250"
+  },
+  "java": 21,
+  "mods": [
+    {
+      "slug": "attributefix",
+      "name": "AttributeFix",
+      "origin": "modrinth",
+      "project": "lOOpEntO",
+      "file": "TyNITLDY",
+      "version": "21.1.3",
+      "file_name": "attributefix-neoforge-1.21.1-21.1.3.jar",
+      "sha1": "7aae849f6d2a6cb1368227407ea5deb552e100ba",
+      "size": 19809,
+      "side": "both",
+      "reason": "demandé par le manifeste",
+      "provides": [
+        "attributefix"
+      ]
+    },
+    {
+      "slug": "bookshelf-lib",
+      "name": "Bookshelf",
+      "origin": "modrinth",
+      "project": "uy4Cnpcm",
+      "file": "1sdJl7J1",
+      "version": "21.1.81",
+      "file_name": "bookshelf-neoforge-1.21.1-21.1.81.jar",
+      "sha1": "efc4cda6da4dd879f24d057ed0a6413764c9ba40",
+      "size": 328813,
+      "side": "both",
+      "reason": "dépendance déclarée de AttributeFix",
+      "provides": [
+        "bookshelf"
+      ]
+    },
+    {
+      "slug": "farmers-delight",
+      "name": "Farmer's Delight",
+      "origin": "modrinth",
+      "project": "R2OftAxM",
+      "file": "XTVZDOol",
+      "version": "1.21.1-1.3.4",
+      "file_name": "FarmersDelight-1.21.1-1.3.4.jar",
+      "sha1": "27675ddfcb8cc37e6ea1ab6c15051c7949d94657",
+      "size": 3160490,
+      "side": "both",
+      "reason": "demandé par le manifeste",
+      "provides": [
+        "farmersdelight"
+      ]
+    },
+    {
+      "slug": "jade",
+      "name": "Jade 🔍",
+      "origin": "modrinth",
+      "project": "nvQzSEkH",
+      "file": "eYz2YBGT",
+      "version": "15.10.6+neoforge",
+      "file_name": "Jade-1.21.1-NeoForge-15.10.6.jar",
+      "sha1": "88ee316e68900080b017f60c12162e2731924cf8",
+      "size": 726853,
+      "side": "both",
+      "reason": "demandé par le manifeste",
+      "provides": [
+        "jade"
+      ]
+    },
+    {
+      "slug": "jei",
+      "name": "Just Enough Items (JEI)",
+      "origin": "modrinth",
+      "project": "u6dRKJwZ",
+      "file": "ufHUqt9b",
+      "version": "19.51.0.418",
+      "file_name": "jei-1.21.1-neoforge-19.51.0.418.jar",
+      "sha1": "d19552586f686eae4ef5e7199f31604d1d3cfca7",
+      "size": 1804792,
+      "side": "both",
+      "reason": "demandé par le manifeste",
+      "provides": [
+        "jei"
+      ]
+    },
+    {
+      "slug": "modernfix",
+      "name": "ModernFix",
+      "origin": "modrinth",
+      "project": "nmDcB62a",
+      "file": "5HLHxQ2F",
+      "version": "5.27.24+mc1.21.1",
+      "file_name": "modernfix-neoforge-5.27.24+mc1.21.1.jar",
+      "sha1": "1fe7f8b4176e86507cc8ed5460b6acdd3dac5529",
+      "size": 604333,
+      "side": "both",
+      "reason": "demandé par le manifeste",
+      "provides": [
+        "modernfix"
+      ]
+    },
+    {
+      "slug": "prickle",
+      "name": "Prickle",
+      "origin": "modrinth",
+      "project": "aaRl8GiW",
+      "file": "EE1FHDyD",
+      "version": "21.1.11",
+      "file_name": "prickle-neoforge-1.21.1-21.1.11.jar",
+      "sha1": "5174059ecf97340a0de5ef211b938de26c4eaa36",
+      "size": 84812,
+      "side": "both",
+      "reason": "dépendance déclarée de AttributeFix",
+      "provides": [
+        "prickle"
+      ]
+    }
+  ]
+}
