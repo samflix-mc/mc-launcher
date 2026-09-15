@@ -4,6 +4,7 @@ members = [
     "crates/mc-auth",
     "crates/mc-dl",
     "crates/mc-java",
+    "crates/mc-mods",
 ]
 
 [workspace.package]

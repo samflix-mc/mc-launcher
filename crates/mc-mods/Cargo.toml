@@ -1,0 +1,17 @@
+[package]
+name = "mc-mods"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Résolution et téléchargement des mods : Modrinth d'abord, CurseForge en repli"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+futures-util.workspace = true
+mc-dl = { path = "../mc-dl" }
+zip.workspace = true
+toml.workspace = true

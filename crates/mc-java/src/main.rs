@@ -29,7 +29,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    let runtime_dir = dir.unwrap_or_else(|| mc_java::default_runtime_dir());
+    let runtime_dir = dir.unwrap_or_else(mc_java::default_runtime_dir);
 
     if let Some(java) = mc_java::detect(major, &runtime_dir).await {
         println!(
