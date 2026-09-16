@@ -60,12 +60,54 @@ pub struct Server {
 }
 
 impl Server {
-    /// `hôte:port`, ou `hôte` seul quand le port est celui par défaut.
+    /// L'adresse telle que `--quickPlayMultiplayer` la lit.
+    ///
+    /// Minecraft confie cette chaîne à `HostAndPort` de Guava, qui refuse tout
+    /// ce qui porte plus d'un « : » sans crochets. Une IPv6 en porte au moins
+    /// deux : écrite nue, elle ne donne pas une mauvaise adresse, elle n'en
+    /// donne aucune, et le jeu s'ouvre sur le menu sans rien annoncer. D'où les
+    /// crochets, posés ici plutôt qu'attendus de la main qui écrit le manifeste.
+    ///
+    /// Le port est écrit dès qu'il est déclaré, même quand il vaut 25565.
+    /// Omettre celui-là paraît sans conséquence, mais Minecraft ne se contente
+    /// pas de composer l'adresse : sans port, il interroge l'enregistrement SRV
+    /// « _minecraft._tcp.<hôte> » avant de se rabattre sur le défaut. Savoir si
+    /// les deux écritures mènent au même serveur demande de connaître la zone
+    /// DNS, que le launcher ne voit pas. On ne jette donc pas ce que le
+    /// manifeste a pris la peine de dire.
     pub fn address(&self) -> String {
+        let host = self.host.trim();
+        let hote = if est_ipv6_nue(host) {
+            format!("[{host}]")
+        } else {
+            host.to_string()
+        };
         match self.port {
-            Some(port) if port != 25565 => format!("{}:{}", self.host, port),
-            _ => self.host.clone(),
+            Some(port) => format!("{hote}:{port}"),
+            None => hote,
         }
+    }
+}
+
+/// Une IPv6 écrite sans ses crochets.
+///
+/// Deux « : » au moins : une IPv6 en contient toujours au minimum deux, là où
+/// « hôte:port » n'en a qu'un. C'est la distinction que fait Guava, donc celle
+/// que fait Minecraft.
+fn est_ipv6_nue(host: &str) -> bool {
+    !host.starts_with('[') && host.matches(':').count() >= 2
+}
+
+/// L'hôte porte-t-il déjà un « :port » ?
+///
+/// Lui en ajouter un second donnerait « hôte:25565:25566 », que Guava refuse
+/// comme elle refuse une IPv6 nue.
+fn porte_deja_un_port(host: &str) -> bool {
+    match host.rsplit_once(':') {
+        Some((avant, apres)) => {
+            (avant.ends_with(']') || !avant.contains(':')) && apres.parse::<u16>().is_ok()
+        }
+        None => false,
     }
 }
 
@@ -233,8 +275,14 @@ impl Manifest {
                 )),
                 Some(_) => {}
             }
-            if serveur.host.trim().is_empty() {
+            let host = serveur.host.trim();
+            if host.is_empty() {
                 problemes.push(format!("le serveur déclaré pour « {cle} » n'a pas d'hôte"));
+            } else if serveur.port.is_some() && porte_deja_un_port(host) {
+                problemes.push(format!(
+                    "l'hôte de « {cle} » porte déjà un port : « {host} » et le champ \
+                     « port » donneraient une adresse à deux ports, que Minecraft refuse"
+                ));
             }
         }
         problemes
@@ -325,8 +373,69 @@ mod tests {
             manifest
                 .server_for(mc_log::Environment::Production)
                 .map(Server::address),
-            Some("mc.ggy.info".into()),
-            "le port par défaut ne s'écrit pas : Minecraft le sous-entend"
+            Some("mc.ggy.info:25565".into()),
+            "un port déclaré s'écrit, fût-il le port par défaut"
+        );
+    }
+
+    fn serveur(host: &str, port: Option<u16>) -> Server {
+        Server {
+            host: host.into(),
+            port,
+        }
+    }
+
+    #[test]
+    fn une_ipv6_est_mise_entre_crochets() {
+        // Guava, dont Minecraft se sert pour lire l'adresse, refuse tout ce qui
+        // porte plus d'un « : » sans crochets. Une IPv6 nue ne donnait donc pas
+        // une mauvaise adresse : elle n'en donnait aucune, et le jeu s'ouvrait
+        // sur le menu comme si le pack n'avait rien déclaré.
+        assert_eq!(
+            serveur("2001:db8::1", Some(25566)).address(),
+            "[2001:db8::1]:25566"
+        );
+        assert_eq!(serveur("2001:db8::1", None).address(), "[2001:db8::1]");
+        assert_eq!(
+            serveur("[2001:db8::1]", Some(25566)).address(),
+            "[2001:db8::1]:25566",
+            "des crochets déjà posés ne se doublent pas"
+        );
+    }
+
+    #[test]
+    fn un_nom_et_une_ipv4_restent_intacts() {
+        assert_eq!(serveur("mc.ggy.info", None).address(), "mc.ggy.info");
+        assert_eq!(
+            serveur("78.46.100.5", Some(25566)).address(),
+            "78.46.100.5:25566"
+        );
+    }
+
+    #[test]
+    fn un_hote_deja_suffixe_d_un_port_est_signale() {
+        // « mc.ggy.info:25566 » plus un champ « port » composerait
+        // « mc.ggy.info:25566:25570 », que Minecraft refuse — et le refus est
+        // muet, comme pour une IPv6 nue.
+        let mut manifest = base();
+        manifest.servers.insert(
+            "production".into(),
+            serveur("mc.ggy.info:25566", Some(25570)),
+        );
+        assert_eq!(manifest.problemes_de_serveurs().len(), 1);
+
+        // Seul le doublon gêne : un hôte suffixé sans champ « port » compose
+        // une adresse valable, et rien ne justifie de la refuser.
+        let mut manifest = base();
+        manifest
+            .servers
+            .insert("production".into(), serveur("mc.ggy.info:25566", None));
+        assert!(manifest.problemes_de_serveurs().is_empty());
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Production)
+                .map(Server::address),
+            Some("mc.ggy.info:25566".into())
         );
     }
 
