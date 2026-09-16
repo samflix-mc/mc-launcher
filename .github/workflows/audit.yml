@@ -1,0 +1,53 @@
+name: Vulnérabilités
+
+# Une faille ne paraît pas au moment où l'on touche au code : la plupart des
+# avis RustSec portent sur des dépendances qu'on n'a pas modifiées depuis des
+# mois. D'où deux déclencheurs — le graphe de dépendances quand il change, et un
+# rendez-vous hebdomadaire pour tout ce qui n'a pas bougé. Sans le second, une
+# faille publiée le lendemain d'un merge attendrait le prochain commit pour être
+# vue, et ce dépôt publie des binaires que des joueurs exécutent.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  schedule:
+    # Lundi matin, avant qu'on ne touche à quoi que ce soit : la semaine
+    # commence sur un état connu plutôt que sur une supposition.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rustsec:
+    name: Avis RustSec
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      # Le binaire précompilé plutôt qu'un « cargo install » : celui-ci
+      # recompile cargo-audit et ses dépendances à chaque exécution, pour un
+      # outil qui ne fait que lire un fichier.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # Le verrou fait foi, et non les intervalles des manifestes : c'est la
+      # liste exacte des versions que la CI compile et que la release publie.
+      #
+      # Trois familles d'avis arrêtent le job. Les vulnérabilités, par défaut.
+      # « unsound », parce qu'une API qui viole les invariants du langage se
+      # manifeste par une corruption mémoire et non par un message. « yanked »,
+      # parce qu'une version retirée de crates.io l'a été pour une raison, et
+      # qu'elle finira par disparaître des caches — une release qui ne compile
+      # plus, sans qu'une ligne du dépôt ait changé.
+      #
+      # « unmaintained » ne bloque pas : l'avis est réel, mais rien ne se corrige
+      # en le lisant, et une crate sans mainteneur peut rester juste pendant des
+      # années. Un seuil qui arrête la CI sur ce qu'on ne peut pas réparer finit
+      # contourné, et emporte avec lui les avis qui comptaient. Il reste lisible
+      # dans le journal du job.
+      - name: Chercher les avis connus sur les dépendances du verrou
+        run: cargo audit --deny unsound --deny yanked
