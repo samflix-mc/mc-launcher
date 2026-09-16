@@ -7,11 +7,24 @@
 
 use anyhow::{Result, bail};
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> ExitCode {
+    // Le guard vit jusqu'au retour de `main` pour que le journal se vide : un
+    // `std::process::exit` au milieu de `run` le laisserait dans la file.
     let _log = mc_log::init("mc-java");
 
+    match run().await {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("Erreur : {error:?}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run() -> Result<ExitCode> {
     let mut major = 21;
     let mut check_only = false;
     let mut dir: Option<PathBuf> = None;
@@ -43,12 +56,12 @@ async fn main() -> Result<()> {
             },
             java.path.display()
         );
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
 
     if check_only {
         eprintln!("Aucun Java {major} ou supérieur sur ce poste.");
-        std::process::exit(1);
+        return Ok(ExitCode::FAILURE);
     }
 
     println!("Aucun Java {major} détecté, installation de Temurin {major}…");
@@ -58,5 +71,5 @@ async fn main() -> Result<()> {
         java.version.full,
         java.path.display()
     );
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
