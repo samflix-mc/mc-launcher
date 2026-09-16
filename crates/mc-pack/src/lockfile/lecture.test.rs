@@ -1,12 +1,5 @@
 use super::*;
-
-#[test]
-fn horodatage_iso8601() {
-    assert_eq!(format_iso8601(0), "1970-01-01T00:00:00Z");
-    assert_eq!(format_iso8601(1_700_000_000), "2023-11-14T22:13:20Z");
-    // Année bissextile, 29 février.
-    assert_eq!(format_iso8601(1_709_164_800), "2024-02-29T00:00:00Z");
-}
+use mc_mods::Origin;
 
 #[test]
 fn le_verrou_se_place_a_cote_du_manifeste() {
@@ -30,7 +23,8 @@ fn le_verrou_oppose_la_plus_forte_empreinte_qu_il_porte() {
     assert_eq!(m.checksum(), Some(mc_dl::Checksum::Sha512("bb".into())));
 }
 
-fn locked(slug: &str, file: &str, version: &str) -> LockedMod {
+
+pub(crate) fn locked(slug: &str, file: &str, version: &str) -> LockedMod {
     LockedMod {
         slug: slug.into(),
         name: slug.into(),
@@ -49,7 +43,7 @@ fn locked(slug: &str, file: &str, version: &str) -> LockedMod {
     }
 }
 
-fn lock(mods: Vec<LockedMod>) -> Lockfile {
+pub(crate) fn lock(mods: Vec<LockedMod>) -> Lockfile {
     Lockfile {
         schema: 1,
         pack: "essai".into(),
@@ -63,30 +57,4 @@ fn lock(mods: Vec<LockedMod>) -> Lockfile {
         mods,
         unresolved: Vec::new(),
     }
-}
-
-#[test]
-fn le_diff_dit_ce_qui_a_bouge() {
-    let avant = lock(vec![
-        locked("jei", "a", "19.51"),
-        locked("jade", "b", "15.10"),
-    ]);
-    let apres = lock(vec![
-        locked("jei", "c", "19.56"),
-        locked("bookshelf-lib", "d", "21.1.81"),
-    ]);
-
-    let lignes = apres.diff(&avant);
-    assert!(lignes.contains(&"~ jei 19.51 → 19.56".to_string()));
-    assert!(lignes.contains(&"+ bookshelf-lib 21.1.81".to_string()));
-    assert!(lignes.contains(&"- jade 15.10".to_string()));
-}
-
-#[test]
-fn rejouer_un_verrou_epingle_chaque_build() {
-    let verrou = lock(vec![locked("jei", "9myHusbW", "19.56")]);
-    let requests = verrou.requests();
-    assert_eq!(requests[0].file.as_deref(), Some("9myHusbW"));
-    assert_eq!(requests[0].source, Some(Origin::Modrinth));
-    assert_eq!(requests[0].side, Some(Side::Both));
 }

@@ -7,12 +7,12 @@ use std::path::PathBuf;
 use crate::resolve::choix::choisir_build;
 use crate::resolve::file::{Cle, Demande, FileDeResolution};
 use crate::resolve::plan::Installed;
-use crate::resolve::raison::{autorite, impasse_implicite, Reason};
+use crate::resolve::raison::{autorite, impasse_implicite};
 use crate::resolve::telechargement::side_for;
 use crate::resolve::{Options, Registry};
 
 use super::arbitrage::confronter;
-use super::derivees::{completer_empreintes, dependance};
+use super::derivees::{completer_empreintes, pousser_dependances};
 
 /// Résout une demande et l'inscrit dans la table des retenus.
 ///
@@ -87,14 +87,6 @@ pub(super) async fn retenir(
         },
     );
 
-    for dep in deps {
-        queue.pousser(
-            dependance(dep, source),
-            Reason::Declared {
-                by: parent.clone(),
-            },
-            Some(id.clone()),
-        );
-    }
+    pousser_dependances(queue, deps, source, &parent, &id);
     Ok(())
 }

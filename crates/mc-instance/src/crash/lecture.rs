@@ -29,10 +29,6 @@ pub struct Crash {
 /// limites d'un événement Sentry ni pour être illisible.
 pub(super) const EXCERPT_LINES: usize = 60;
 
-/// Cherche de quoi expliquer un arrêt anormal.
-///
-/// `started_at` écarte les rapports d'une partie précédente : un crash vieux
-
 /// (`Caused by`, exceptions de fermeture), et c'est celle d'origine qui
 /// identifie le problème.
 pub fn parse(text: &str) -> Option<Crash> {
@@ -56,13 +52,6 @@ pub fn parse(text: &str) -> Option<Crash> {
         source: PathBuf::new(),
     })
 }
-
-/// Reconnaît `paquet.Classe: message` dans une ligne.
-///
-/// Une trace Java nomme sa classe par un chemin pointé finissant par un
-/// identifiant capitalisé. Exiger les deux évite de prendre pour une exception
-/// un horodatage ou un chemin de fichier, qui contiennent aussi des points et
-/// des deux-points.
 
 #[cfg(test)]
 #[path = "lecture.test.rs"]

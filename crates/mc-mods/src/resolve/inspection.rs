@@ -21,17 +21,6 @@ pub(super) fn inspect_all(chosen: &mut BTreeMap<(Origin, String), Installed>) ->
     Ok(())
 }
 
-/// Écarte les jars qui fournissent un `modId` déjà fourni par un autre.
-///
-/// Le même mod peut arriver deux fois par deux chemins : demandé par son slug
-/// Modrinth, et tiré comme dépendance par son identifiant CurseForge. Les
-/// clés de projet diffèrent, donc rien ne les rapproche — sauf le `modId` que
-/// les deux jars déclarent. Or deux jars du même `modId` dans `mods` font
-/// échouer NeoForge au chargement, avec un message qui n'aide pas.
-///
-/// En cas de doublon, on garde celui qui a une empreinte publiée, puis le mod
-
-
 /// `modId` exigés par au moins un jar et fournis par aucun.
 pub(super) fn missing_requirements(
     chosen: &BTreeMap<(Origin, String), Installed>,

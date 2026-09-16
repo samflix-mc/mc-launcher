@@ -43,10 +43,6 @@ fn parse_file(path: &Path) -> Option<Crash> {
     Some(crash)
 }
 
-/// Extrait la première exception d'un texte de journal.
-///
-/// La *première* et non la dernière : les suivantes en découlent souvent
-
 pub fn now() -> std::time::SystemTime {
     std::time::SystemTime::now()
 }

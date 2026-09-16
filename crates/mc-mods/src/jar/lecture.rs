@@ -74,12 +74,6 @@ fn embedded_jars<R: Read + std::io::Seek>(
     Ok(out)
 }
 
-/// Analyse un `neoforge.mods.toml`.
-///
-/// La table `dependencies` est indexée par le `modId` du mod déclarant, ce qui
-/// permet à un jar multi-mods d'avoir des dépendances distinctes par mod. On ne
-/// distingue pas les déclarants : ce qui compte est l'union de ce que le jar
-
 #[cfg(test)]
 #[path = "lecture.test.rs"]
 mod tests;

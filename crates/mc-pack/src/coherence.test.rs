@@ -1,5 +1,5 @@
 use super::*;
-use lockfile::{LockedLoader, LockedMod};
+use crate::lockfile::{LockedLoader, LockedMod};
 use mc_mods::Origin;
 
 fn verrouille(slug: &str, side: &str) -> LockedMod {

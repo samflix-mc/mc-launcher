@@ -34,9 +34,6 @@ fn projet_introuvable_signale_la_source_non_consultee() {
     assert!(!avec_cle.to_string().contains("CurseForge configurée"));
 }
 
-/// Le projet existe, la version demandée non : deux situations qu'un même
-/// message confondrait, alors qu'elles n'appellent pas la même correction.
-
 #[test]
 fn telechargement_interdit_renvoie_vers_la_page_du_mod() {
     let mut interdit = candidat("jade", "15.10.6");

@@ -15,8 +15,6 @@ fn le_build_retenu_est_rendu_tel_quel() {
     assert_eq!(retenu.version_number, "15.10.6");
 }
 
-/// Le cas nominal du rattrapage : un jar exige un modId que personne n'a
-
 #[test]
 fn version_demandee_absente_le_dit_plutot_que_introuvable() {
     let mut request = Request::new("jade");

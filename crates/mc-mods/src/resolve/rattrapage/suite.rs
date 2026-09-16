@@ -79,12 +79,6 @@ pub(super) fn suite_du_rattrapage(
     }
 }
 
-/// Le build à retenir pour une demande, ou l'explication de son absence.
-///
-/// Sortie de [`resolve_with`], dont elle représentait le gros du volume : trois
-/// impasses — version demandée introuvable, projet introuvable, téléchargement
-/// interdit par l'auteur — qui n'ont besoin que de la demande pour être
-
 #[cfg(test)]
 #[path = "suite.test.rs"]
 mod tests;
