@@ -120,6 +120,35 @@ fn autorite(reason: &Reason, request: &Request) -> u8 {
     origine + u8::from(request.file.is_some() || request.version.is_some())
 }
 
+/// Une exigence lue dans un jar vient-elle de perdre définitivement sa place ?
+///
+/// Vrai quand la demande est implicite, qu'un demandeur au moins aussi
+/// autoritaire tient déjà la clé, et qu'il y tient un autre build. Le tour
+/// suivant relèverait le même manque, proposerait le même projet et le
+/// reperdrait à l'identique : la file ne se viderait jamais et la résolution
+/// mourait sur [`MAX_PASSES`], en accusant des dépendances circulaires qui
+/// n'existent pas. Le manque est consigné une fois, et l'installation continue.
+fn impasse_implicite(reason: &Reason, entrante: u8, retenue: u8, meme_build: bool) -> bool {
+    matches!(reason, Reason::Implicit { .. }) && entrante <= retenue && !meme_build
+}
+
+/// Clé d'unicité d'un projet : un mod ne peut être présent qu'une fois.
+type Cle = (Origin, String);
+
+/// Une demande en attente de résolution.
+struct Demande {
+    request: Request,
+    reason: Reason,
+    /// Le build qui a poussé cette demande, quand elle découle d'un autre.
+    ///
+    /// La clé, et non le titre que porte [`Reason::Declared`] : « Jade » se
+    /// publie sous le même nom chez Modrinth et chez CurseForge, et les deux
+    /// projets coexistent dans `chosen` jusqu'à la déduplication finale.
+    /// Retirer les dépendances d'un build écarté par son titre emportait donc
+    /// celles de son homonyme, que plus rien ne repoussait.
+    parent: Option<Cle>,
+}
+
 /// File de résolution : le manifeste d'abord, les dépendances ensuite.
 ///
 /// Une seule file suffisait tant qu'on ne regardait que le résultat. Mais elle
@@ -129,25 +158,30 @@ fn autorite(reason: &Reason, request: &Request) -> u8 {
 /// arrivait sur une clé déjà prise.
 #[derive(Default)]
 struct FileDeResolution {
-    manifeste: Vec<(Request, Reason)>,
-    derivees: Vec<(Request, Reason)>,
+    manifeste: Vec<Demande>,
+    derivees: Vec<Demande>,
 }
 
 impl FileDeResolution {
-    fn pousser(&mut self, request: Request, reason: Reason) {
-        match reason {
-            Reason::Explicit => self.manifeste.push((request, reason)),
-            _ => self.derivees.push((request, reason)),
+    fn pousser(&mut self, request: Request, reason: Reason, parent: Option<Cle>) {
+        let demande = Demande {
+            request,
+            reason,
+            parent,
+        };
+        match demande.reason {
+            Reason::Explicit => self.manifeste.push(demande),
+            _ => self.derivees.push(demande),
         }
     }
 
     /// Dépile en profondeur, mais jamais une dépendance tant que le manifeste
     /// n'est pas entièrement traité.
-    fn suivante(&mut self) -> Option<(Request, Reason)> {
+    fn suivante(&mut self) -> Option<Demande> {
         self.manifeste.pop().or_else(|| self.derivees.pop())
     }
 
-    /// Retire de la file les dépendances qu'un mod avait déclarées.
+    /// Retire de la file les dépendances qu'un build avait déclarées.
     ///
     /// Appelé quand un build en remplace un autre : les dépendances du build
     /// écarté n'ont plus de demandeur. Les laisser ferait installer des jars
@@ -160,9 +194,9 @@ impl FileDeResolution {
     /// L'écart est borné — un jar de bibliothèque en trop, que NeoForge charge
     /// sans se plaindre — et sans commune mesure avec le défaut d'en face,
     /// qui était d'installer le mauvais build épinglé.
-    fn oublier_dependances_de(&mut self, parent: &str) {
+    fn oublier_dependances_de(&mut self, parent: &Cle) {
         self.derivees
-            .retain(|(_, reason)| !matches!(reason, Reason::Declared { by } if by == parent));
+            .retain(|demande| demande.parent.as_ref() != Some(parent));
     }
 
     fn est_vide(&self) -> bool {
@@ -184,6 +218,12 @@ pub struct Installed {
     pub provides: BTreeSet<String>,
     /// `modId` que ce jar exige pour démarrer, hors plateforme.
     pub requires: Vec<crate::jar::Requirement>,
+    /// Au nom de quoi ce build occupe la place — voir [`autorite`].
+    ///
+    /// Porté par l'entrée retenue plutôt que par une seconde table indexée de
+    /// la même façon : deux tables à tenir en phase, c'est une occasion de les
+    /// laisser diverger, et `reason` part dans le verrou.
+    autorite: u8,
 }
 
 /// Résultat complet d'une résolution.
@@ -459,16 +499,17 @@ pub async fn resolve_with(
 ) -> Result<Plan> {
     // Clé d'unicité : un projet ne peut être présent qu'une fois. Deux versions
     // du même mod dans `mods` font échouer NeoForge au chargement.
-    let mut chosen: BTreeMap<(Origin, String), Installed> = BTreeMap::new();
-    // Au nom de quoi chaque clé a été retenue, pour savoir si une demande
-    // arrivée ensuite a le droit de reprendre la place.
-    let mut autorites: BTreeMap<(Origin, String), u8> = BTreeMap::new();
+    let mut chosen: BTreeMap<Cle, Installed> = BTreeMap::new();
     let mut plan = Plan::default();
+    // Les projets qu'une exigence implicite a tenté de prendre, sans l'emporter.
+    // Voir [`impasse_implicite`] : sans cette mémoire, le rattrapage repousse
+    // indéfiniment une demande qui reperd le même arbitrage.
+    let mut impasses: BTreeSet<Cle> = BTreeSet::new();
 
     // --- Tour 1 : ce que le manifeste demande, et ce que les API déclarent ---
     let mut queue = FileDeResolution::default();
     for request in requests {
-        queue.pousser(request.clone(), Reason::Explicit);
+        queue.pousser(request.clone(), Reason::Explicit, None);
     }
 
     let mut pass = 0;
@@ -482,7 +523,10 @@ pub async fn resolve_with(
         }
 
         // Résolution en largeur : les dépendances déclarées rejoignent la file.
-        while let Some((request, reason)) = queue.suivante() {
+        while let Some(Demande {
+            request, reason, ..
+        }) = queue.suivante()
+        {
             let key = |c: &Candidate| (c.origin, c.project_id.clone());
 
             let candidate = match registry.pinned(&request, mc, loader).await? {
@@ -549,18 +593,27 @@ pub async fn resolve_with(
             let entrante = autorite(&reason, &request);
             let mut cote = side_for(&request, &candidate);
 
-            if let Some(existing) = chosen.get(&id) {
-                let retenue = autorites.get(&id).copied().unwrap_or(0);
+            if let Some(existing) = chosen.get_mut(&id) {
                 cote = existing.side.union(cote);
 
                 // Déjà retenu par une branche au moins aussi autoritaire, ou
                 // les deux désignent le même build : on ne retélécharge pas,
                 // mais le côté doit couvrir les deux usages.
-                if entrante <= retenue || existing.candidate.version_id == candidate.version_id {
-                    if let Some(existing) = chosen.get_mut(&id) {
-                        existing.side = cote;
+                let meme_build = existing.candidate.version_id == candidate.version_id;
+                if impasse_implicite(&reason, entrante, existing.autorite, meme_build) {
+                    impasses.insert(id.clone());
+                }
+
+                if entrante <= existing.autorite || meme_build {
+                    existing.side = cote;
+                    // Même build, demandeur plus autoritaire : c'est lui qui
+                    // répond désormais de sa présence. Sans cette reprise, le
+                    // verrou continuait de nommer le premier venu — celui qu'on
+                    // relit pour savoir si un jar peut être retiré.
+                    if entrante > existing.autorite {
+                        existing.autorite = entrante;
+                        existing.reason = reason;
                     }
-                    autorites.insert(id, retenue.max(entrante));
                     continue;
                 }
 
@@ -581,7 +634,7 @@ pub async fn resolve_with(
                 // Les dépendances déclarées par le build écarté n'ont plus de
                 // demandeur : celles du build qui l'emporte vont être poussées
                 // juste après, et peuvent être tout autres.
-                queue.oublier_dependances_de(&existing.candidate.name);
+                queue.oublier_dependances_de(&id);
 
                 // L'insertion ci-dessous écrase l'entrée : le chemin repart
                 // vide, donc le bon jar sera téléchargé, et les dépendances du
@@ -596,14 +649,14 @@ pub async fn resolve_with(
             let parent = candidate.name.clone();
             let source = candidate.origin;
 
-            autorites.insert(id.clone(), entrante);
             chosen.insert(
-                id,
+                id.clone(),
                 Installed {
                     side: cote,
                     path: PathBuf::new(),
                     provides: BTreeSet::new(),
                     requires: Vec::new(),
+                    autorite: entrante,
                     reason,
                     candidate,
                 },
@@ -625,6 +678,7 @@ pub async fn resolve_with(
                         expected_sha1: None,
                     },
                     Reason::Declared { by: parent.clone() },
+                    Some(id.clone()),
                 );
             }
         }
@@ -672,8 +726,14 @@ pub async fn resolve_with(
                 channel: Some(Channel::Beta),
                 expected_sha1: None,
             };
-            match pick(found, &request) {
-                Some(candidate) => queue.pousser(
+            let trouve = pick(found, &request);
+            // Le projet a déjà perdu cet arbitrage : le reproposer relancerait
+            // un tour identique, jusqu'à épuisement de [`MAX_PASSES`].
+            let impasse = trouve
+                .as_ref()
+                .is_some_and(|c| impasses.contains(&(c.origin, c.project_id.clone())));
+            match trouve {
+                Some(candidate) if !impasse => queue.pousser(
                     Request {
                         slug: candidate.project_id.clone(),
                         source: Some(candidate.origin),
@@ -687,16 +747,31 @@ pub async fn resolve_with(
                         by: required_by,
                         mod_id,
                     },
+                    None,
                 ),
-                // Une dépendance introuvable n'arrête pas tout : elle peut être
-                // fournie par un jar non encore analysé, ou relever d'un mod
-                // absent des deux plateformes. L'appelant tranche.
-                None => {
-                    tracing::error!(
-                        mod_id = %mod_id,
-                        exige_par = %required_by,
-                        "« {mod_id} », exigé par {required_by}, est introuvable sur toutes les sources"
-                    );
+                // Introuvable, ou trouvable chez un projet dont la place est
+                // prise : dans les deux cas le mod n'arrivera pas par cette
+                // voie. Cela n'arrête pas l'installation — la dépendance peut
+                // être fournie par un jar non encore analysé, ou relever d'un
+                // mod absent des deux plateformes. L'appelant tranche, sur une
+                // liste qui lui dit laquelle des deux situations il regarde.
+                autre => {
+                    match &autre {
+                        Some(candidate) => tracing::error!(
+                            mod_id = %mod_id,
+                            exige_par = %required_by,
+                            projet = %candidate.slug,
+                            "« {mod_id} », exigé par {required_by}, ne serait fourni que par \
+                             « {} » — dont la place est tenue par un build qu'une demande plus \
+                             autoritaire impose",
+                            candidate.slug
+                        ),
+                        None => tracing::error!(
+                            mod_id = %mod_id,
+                            exige_par = %required_by,
+                            "« {mod_id} », exigé par {required_by}, est introuvable sur toutes les sources"
+                        ),
+                    }
                     plan.unresolved.push(Unresolved {
                         mod_id,
                         required_by,
@@ -955,6 +1030,48 @@ mod tests {
     use super::*;
     use crate::jar::Requirement;
 
+    /// Le scénario qui faisait mourir la résolution sur `MAX_PASSES` : un
+    /// demandeur autoritaire impose un build qui ne fournit pas le `modId`
+    /// qu'un jar exige, et l'exigence rejouait sa demande perdue à chaque tour.
+    #[test]
+    fn une_exigence_implicite_qui_reperd_sa_place_est_une_impasse() {
+        let implicite = Reason::Implicit {
+            by: "build_B".into(),
+            mod_id: "libfoo".into(),
+        };
+        assert!(impasse_implicite(&implicite, 1, 3, false));
+    }
+
+    #[test]
+    fn une_exigence_implicite_qui_emporte_la_place_n_est_pas_une_impasse() {
+        let implicite = Reason::Implicit {
+            by: "build_B".into(),
+            mod_id: "libfoo".into(),
+        };
+        assert!(!impasse_implicite(&implicite, 3, 1, false));
+    }
+
+    /// Perdre l'arbitrage contre un demandeur qui désigne le même jar ne prive
+    /// de rien : le `modId` sera fourni, la demande n'a plus lieu d'être.
+    #[test]
+    fn perdre_contre_le_meme_build_n_est_pas_une_impasse() {
+        let implicite = Reason::Implicit {
+            by: "build_B".into(),
+            mod_id: "libfoo".into(),
+        };
+        assert!(!impasse_implicite(&implicite, 1, 3, true));
+    }
+
+    /// Une dépendance déclarée écartée est repoussée par son parent quand il
+    /// est lui-même remplacé ; elle ne se rejoue pas d'elle-même, et n'a donc
+    /// pas à être retenue comme impasse.
+    #[test]
+    fn seules_les_exigences_implicites_font_impasse() {
+        let declaree = Reason::Declared { by: "Jade".into() };
+        assert!(!impasse_implicite(&declaree, 1, 3, false));
+        assert!(!impasse_implicite(&Reason::Explicit, 1, 3, false));
+    }
+
     fn installed(slug: &str, provides: &[&str], requires: &[(&str, Side)]) -> Installed {
         Installed {
             candidate: Candidate {
@@ -978,6 +1095,7 @@ mod tests {
             },
             side: Side::Both,
             reason: Reason::Explicit,
+            autorite: 4,
             path: PathBuf::from("/cache").join(format!("{slug}.jar")),
             provides: provides.iter().map(|s| s.to_string()).collect(),
             requires: requires
@@ -1131,6 +1249,10 @@ mod tests {
         assert_eq!(chosen.len(), 2);
     }
 
+    fn cle(source: Origin, projet: &str) -> Cle {
+        (source, projet.to_string())
+    }
+
     #[test]
     fn le_manifeste_passe_avant_les_dependances_meme_poussees_en_cours_de_route() {
         // Le défaut d'origine tenait entièrement ici. En pile unique, la
@@ -1139,20 +1261,24 @@ mod tests {
         // ensuite la clé prise. Le joueur installait un autre build que celui du
         // verrou, sans que rien ne le signale.
         let mut queue = FileDeResolution::default();
-        queue.pousser(Request::new("a"), Reason::Explicit);
-        queue.pousser(Request::new("b"), Reason::Explicit);
+        queue.pousser(Request::new("a"), Reason::Explicit, None);
+        queue.pousser(Request::new("b"), Reason::Explicit, None);
 
-        let (premier, _) = queue.suivante().unwrap();
-        assert_eq!(premier.slug, "b");
-        queue.pousser(Request::new("a"), Reason::Declared { by: "b".into() });
+        let premier = queue.suivante().unwrap();
+        assert_eq!(premier.request.slug, "b");
+        queue.pousser(
+            Request::new("a"),
+            Reason::Declared { by: "b".into() },
+            Some(cle(Origin::Modrinth, "b")),
+        );
 
-        let (ensuite, raison) = queue.suivante().unwrap();
-        assert_eq!(ensuite.slug, "a");
-        assert_eq!(raison, Reason::Explicit);
+        let ensuite = queue.suivante().unwrap();
+        assert_eq!(ensuite.request.slug, "a");
+        assert_eq!(ensuite.reason, Reason::Explicit);
 
-        let (enfin, raison) = queue.suivante().unwrap();
-        assert_eq!(enfin.slug, "a");
-        assert_eq!(raison, Reason::Declared { by: "b".into() });
+        let enfin = queue.suivante().unwrap();
+        assert_eq!(enfin.request.slug, "a");
+        assert_eq!(enfin.reason, Reason::Declared { by: "b".into() });
         assert!(queue.est_vide());
     }
 
@@ -1162,15 +1288,56 @@ mod tests {
         // celles de la version retenue, et le verrou les consigne comme
         // dépendances d'un build qui n'est pas là.
         let mut queue = FileDeResolution::default();
-        queue.pousser(Request::new("libA"), Reason::Declared { by: "X".into() });
-        queue.pousser(Request::new("libB"), Reason::Declared { by: "X".into() });
-        queue.pousser(Request::new("libC"), Reason::Declared { by: "Y".into() });
+        let x = cle(Origin::Modrinth, "X");
+        let y = cle(Origin::Modrinth, "Y");
+        queue.pousser(
+            Request::new("libA"),
+            Reason::Declared { by: "X".into() },
+            Some(x.clone()),
+        );
+        queue.pousser(
+            Request::new("libB"),
+            Reason::Declared { by: "X".into() },
+            Some(x.clone()),
+        );
+        queue.pousser(
+            Request::new("libC"),
+            Reason::Declared { by: "Y".into() },
+            Some(y),
+        );
 
-        queue.oublier_dependances_de("X");
+        queue.oublier_dependances_de(&x);
 
         // Celles d'un autre demandeur restent : Y n'a pas été remplacé.
-        let (reste, _) = queue.suivante().unwrap();
-        assert_eq!(reste.slug, "libC");
+        let reste = queue.suivante().unwrap();
+        assert_eq!(reste.request.slug, "libC");
+        assert!(queue.est_vide());
+    }
+
+    #[test]
+    fn oublier_les_dependances_epargne_l_homonyme_venu_de_l_autre_source() {
+        // « Jade » se publie sous le même titre chez les deux sources, et les
+        // deux projets coexistent jusqu'à la déduplication finale. Retirer les
+        // dépendances par le titre emportait celles du jumeau, que plus rien ne
+        // repoussait : le pack partait sans sa bibliothèque.
+        let mut queue = FileDeResolution::default();
+        let modrinth = cle(Origin::Modrinth, "nvQzSEkR");
+        let curseforge = cle(Origin::CurseForge, "324717");
+        queue.pousser(
+            Request::new("libA"),
+            Reason::Declared { by: "Jade".into() },
+            Some(modrinth.clone()),
+        );
+        queue.pousser(
+            Request::new("libB"),
+            Reason::Declared { by: "Jade".into() },
+            Some(curseforge),
+        );
+
+        queue.oublier_dependances_de(&modrinth);
+
+        let reste = queue.suivante().unwrap();
+        assert_eq!(reste.request.slug, "libB");
         assert!(queue.est_vide());
     }
 
@@ -1179,14 +1346,19 @@ mod tests {
         // Un mod du manifeste qui porte le nom d'un parent remplacé n'a pas à
         // disparaître : sa demande ne vient pas de ce parent.
         let mut queue = FileDeResolution::default();
-        queue.pousser(Request::new("libA"), Reason::Explicit);
-        queue.pousser(Request::new("libA"), Reason::Declared { by: "X".into() });
+        let x = cle(Origin::Modrinth, "X");
+        queue.pousser(Request::new("libA"), Reason::Explicit, None);
+        queue.pousser(
+            Request::new("libA"),
+            Reason::Declared { by: "X".into() },
+            Some(x.clone()),
+        );
 
-        queue.oublier_dependances_de("X");
+        queue.oublier_dependances_de(&x);
 
-        let (reste, raison) = queue.suivante().unwrap();
-        assert_eq!(reste.slug, "libA");
-        assert_eq!(raison, Reason::Explicit);
+        let reste = queue.suivante().unwrap();
+        assert_eq!(reste.request.slug, "libA");
+        assert_eq!(reste.reason, Reason::Explicit);
         assert!(queue.est_vide());
     }
 
