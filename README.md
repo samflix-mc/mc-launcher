@@ -184,7 +184,12 @@ Trois destinations, trois usages :
 |---|---|---|
 | console | `info`, réglable par `RUST_LOG` | ce qu'on regarde pendant que ça tourne |
 | fichier | `debug`, rotation quotidienne, 14 jours | ce qu'on joint à un ticket |
-| Sentry | erreurs et paniques | ce qui remonte sans qu'on ait à demander |
+| Sentry — *Issues* | erreurs et paniques | ce qui remonte sans qu'on ait à demander |
+| Sentry — *Logs* | `info` et au-dessus | cherchable, lisible à côté de l'incident |
+
+Un même `tracing::info!` part donc à trois endroits, et ses champs deviennent
+des attributs cherchables dans Sentry. Le niveau `debug` s'arrête au fichier :
+c'est plusieurs milliers de lignes par installation, qu'on lit en local.
 
 ```bash
 mc-pack diagnostic                    # où sont les journaux, télémétrie active ?
@@ -202,6 +207,11 @@ documentation de Sentry propose `send_default_pii: true` ; **c'est le contraire
 qui est fait ici**, et tout texte sortant est censuré au préalable : jetons au
 format JWT, valeurs suivant un mot-clé sensible (`access_token`, `Bearer`,
 `x-api-key`…), et le répertoire personnel réduit à `~`.
+
+Trois filtres, parce que Sentry a trois canaux distincts : `before_send` pour
+les incidents, `before_breadcrumb` pour les fils d'Ariane, et
+**`before_send_log` pour les journaux structurés** — que les deux premiers ne
+voient pas. En oublier un laisserait passer tout ce qui transite par lui.
 
 La censure s'applique à Sentry **et au fichier de journal**. C'est délibéré :
 le fichier est précisément ce qu'on demande à un joueur de coller dans un salon

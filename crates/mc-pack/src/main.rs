@@ -142,6 +142,8 @@ fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<()> {
         println!("  identifiant : {id}");
         if envoye {
             println!("  envoi       : abouti — à retrouver dans Sentry sous cet identifiant");
+            println!("  canaux      : incident (Issues) et journal structuré (Logs)");
+            println!("                le journal contient un faux jeton, à voir censuré");
         } else {
             println!("  envoi       : ÉCHOUÉ (file non vidée avant expiration)");
             println!("                réseau bloqué, DSN erroné ou projet inexistant");

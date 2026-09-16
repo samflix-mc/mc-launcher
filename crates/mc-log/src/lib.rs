@@ -81,6 +81,18 @@ pub fn telemetry_active() -> bool {
 /// le tableau de bord : si les deux correspondent, la chaîne entière — envoi,
 /// réseau, projet, censure — est vérifiée.
 pub fn send_test_event() -> (sentry::types::Uuid, bool) {
+    // Les deux canaux passent par des routes différentes et des filtres
+    // différents : les tester ensemble évite de croire l'un fonctionnel parce
+    // que l'autre l'est.
+    tracing::info!(
+        canal = "journaux structurés",
+        composant = "mc-log",
+        // Faux jeton : il doit apparaître censuré dans l'onglet Logs. C'est la
+        // seule façon de vérifier `before_send_log` de bout en bout.
+        exemple = "access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.dGVzdA",
+        "ligne de journal de test"
+    );
+
     let id = sentry::capture_message(
         "incident de test émis par mc-pack diagnostic --incident-test",
         sentry::Level::Info,
@@ -153,15 +165,30 @@ pub fn init(component: &str) -> Guard {
         layers.push(layer);
     }
 
-    // Seules les erreurs deviennent des incidents ; le reste sert de fil
-    // d'Ariane, joint à l'incident pour raconter ce qui l'a précédé.
+    // Trois traitements distincts, selon ce qu'un niveau signifie :
+    //
+    // - `Event` ouvre un incident. Réservé aux erreurs, sans quoi le tableau de
+    //   bord se remplit de bruit et plus personne ne le regarde ;
+    // - `Log` alimente les journaux structurés, cherchables et lisibles à côté
+    //   de l'incident correspondant ;
+    // - `Breadcrumb` raconte ce qui a précédé, et n'est envoyé qu'attaché à un
+    //   incident — donc gratuit tant que rien n'échoue.
+    //
+    // `debug` reste hors des journaux structurés : c'est le niveau du fichier,
+    // des milliers de lignes par installation, et l'envoyer coûterait un quota
+    // pour un détail qu'on lit de toute façon en local.
     if sentry_guard.is_some() {
         layers.push(
             sentry_tracing::layer()
                 .event_filter(|meta| match *meta.level() {
-                    tracing::Level::ERROR => sentry_tracing::EventFilter::Event,
+                    tracing::Level::ERROR => {
+                        sentry_tracing::EventFilter::Event | sentry_tracing::EventFilter::Log
+                    }
+                    tracing::Level::WARN | tracing::Level::INFO => {
+                        sentry_tracing::EventFilter::Breadcrumb | sentry_tracing::EventFilter::Log
+                    }
+                    tracing::Level::DEBUG => sentry_tracing::EventFilter::Breadcrumb,
                     tracing::Level::TRACE => sentry_tracing::EventFilter::Ignore,
-                    _ => sentry_tracing::EventFilter::Breadcrumb,
                 })
                 .boxed(),
         );
@@ -231,6 +258,16 @@ fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
         }
         Some(crumb)
     }));
+    // Les journaux structurés empruntent un canal distinct : `before_send` ne
+    // les voit pas. Sans ce second filtre, la censure serait contournée par la
+    // voie la plus bavarde de toutes.
+    options.before_send_log = Some(std::sync::Arc::new(|mut log| {
+        log.body = redact(&log.body);
+        for attribute in log.attributes.values_mut() {
+            scrub_log_attribute(attribute);
+        }
+        Some(log)
+    }));
 
     let guard = sentry::init((dsn, options));
 
@@ -263,6 +300,19 @@ fn scrub_event(event: &mut sentry::protocol::Event<'static>) {
     }
     for tag in event.tags.values_mut() {
         *tag = redact(tag);
+    }
+}
+
+/// Censure un attribut de journal structuré.
+///
+/// Les champs d'un événement `tracing` deviennent des attributs : un
+/// `tracing::info!(url = %url, ...)` les expose tels quels. Seules les chaînes
+/// peuvent porter un secret ; les nombres et booléens sont laissés intacts,
+/// puisqu'ils restent utiles au tri et au filtrage.
+fn scrub_log_attribute(attribute: &mut sentry::protocol::LogAttribute) {
+    use sentry::protocol::Value;
+    if let Value::String(text) = &attribute.0 {
+        attribute.0 = Value::String(redact(text));
     }
 }
 
@@ -411,6 +461,35 @@ mod tests {
         unsafe {
             std::env::remove_var("SENTRY_DSN");
         }
+    }
+
+    #[test]
+    fn un_attribut_de_journal_structure_est_censure() {
+        use sentry::protocol::{LogAttribute, Value};
+
+        // Les journaux structurés passent par `before_send_log`, pas par
+        // `before_send` : ce filtre-là est le seul à les voir.
+        let mut attribut = LogAttribute(Value::String(
+            "access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ".into(),
+        ));
+        scrub_log_attribute(&mut attribut);
+        match &attribut.0 {
+            Value::String(text) => {
+                assert!(!text.contains("eyJhbGci"));
+                assert!(text.contains("[secret]"));
+            }
+            other => panic!("type inattendu : {other:?}"),
+        }
+    }
+
+    #[test]
+    fn un_attribut_numerique_reste_exploitable() {
+        use sentry::protocol::{LogAttribute, Value};
+
+        // Tailles, durées, codes HTTP : rien à censurer, et ils servent au tri.
+        let mut attribut = LogAttribute(Value::from(2155935));
+        scrub_log_attribute(&mut attribut);
+        assert_eq!(attribut.0, Value::from(2155935));
     }
 
     #[test]

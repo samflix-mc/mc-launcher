@@ -40,5 +40,9 @@ sentry = { version = "0.49", default-features = false, features = [
     "panic",
     "reqwest",
     "rustls",
+    # Journaux structurés. Activés par défaut dans le SDK, mais
+    # `default-features = false` les éteint — ce qu'on paie pour choisir rustls
+    # plutôt que native-tls.
+    "logs",
 ] }
-sentry-tracing = "0.49"
+sentry-tracing = { version = "0.49", features = ["logs"] }
