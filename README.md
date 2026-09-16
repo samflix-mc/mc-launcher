@@ -33,10 +33,40 @@ en production. Le pack est publié par
 reçoivent les serveurs, et servi en HTTPS par
 [mc-launcher-site](https://github.com/samflix-mc/mc-launcher-site) :
 
-    https://mc-launcher.ggy.info/pack/samflix.json        production
-    https://mc-launcher-dev.ggy.info/pack/samflix.json    dev
+| environnement du binaire | pack téléchargé |
+|---|---|
+| `production` — publié sur tag | `mc-launcher.ggy.info` |
+| `preproduction` — construit sur `main` | `mc-launcher-staging.ggy.info` |
+| `development` — construit ailleurs | `mc-launcher-dev.ggy.info` |
+| `local` — compilé à la main | `mc-launcher-dev.ggy.info` |
 
-C'est l'adresse par défaut de `mc-pack`, et la raison en tient en une ligne :
+**Le binaire sait d'où il vient**, et c'est cela qui choisit le pack. L'adresse
+était auparavant écrite en dur sur la production : une préproduction
+téléchargeait le pack des joueurs, et n'éprouvait donc rien de ce qu'elle était
+censée éprouver.
+
+L'environnement est déclaré, jamais déduit, et dans cet ordre :
+
+1. `SAMFLIX_ENV` **au lancement** — prioritaire sur tout le reste ;
+2. `SAMFLIX_ENV` **figé à la compilation**, ce que pose la CI ;
+3. `local` à défaut.
+
+Le premier point vaut d'être connu dans les deux sens : il permet de rejouer un
+binaire de production contre le pack de dev sans recompiler, et il explique
+qu'un shell où la variable traîne change la cible sans rien annoncer.
+
+Un binaire compilé à la main vise la dev, et c'est le moins coûteux des deux
+choix : personne ne compile ce launcher pour jouer, tandis qu'un binaire de
+travail qui installerait le pack des joueurs serait difficile à remarquer.
+`[source]` reste prioritaire sur tout.
+
+Le manifeste déclare aussi **où se connecter**, par environnement — c'est le
+même fichier partout, servi sous trois noms, donc c'est au client de choisir.
+`launch` rejoint donc le bon serveur sans qu'on ait à le nommer. La
+préproduction n'y figure pas : elle n'a pas de serveurs Minecraft derrière elle,
+et le jeu s'y ouvre sur le menu.
+
+La raison de tout cela tient en une ligne :
 **le client et les serveurs doivent charger les mêmes builds.** Les registres
 NeoForge sont négociés à la connexion ; un mod en version différente d'un côté
 éjecte le joueur, sans message exploitable. Tenir deux inventaires — l'un pour

@@ -309,6 +309,35 @@ pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> R
     })
 }
 
+/// Mods que le verrou annonce côté client et que l'instance n'a pas.
+///
+/// Le verrou et l'instance ne viennent pas du même endroit. Le verrou est rangé
+/// dans le cache du pack, qui est séparé par hôte : un pack de dev et un pack de
+/// production ne se marchent pas dessus. L'instance, elle, est nommée d'après le
+/// pack — « samflix » dans les trois cas, puisque c'est la même image de contenu
+/// servie sous trois noms — et il n'y en a donc qu'une pour les trois.
+///
+/// Un `install` lancé avec un autre SAMFLIX_ENV remplace les jars de cette
+/// instance unique sans que le verrou de l'autre environnement en sache rien.
+/// Les deux se contredisent alors en silence, et c'est le serveur qui tranche,
+/// par une éjection pour listes de mods divergentes — à cent lieues de sa cause.
+///
+/// Comparer les noms de fichiers suffit et ne coûte qu'un `stat` par mod. Les
+/// empreintes sont l'affaire de `verify`, qui a le droit d'être lent.
+pub fn mods_client_absents(lock: &Lockfile, instance: &mc_instance::Instance) -> Vec<String> {
+    let mods_dir = instance.mods_dir();
+    lock.mods
+        .iter()
+        .filter(|entry| {
+            Side::parse(&entry.side)
+                .unwrap_or(Side::Both)
+                .includes(Side::Client)
+        })
+        .filter(|entry| !mods_dir.join(&entry.file_name).is_file())
+        .map(|entry| entry.file_name.clone())
+        .collect()
+}
+
 /// Contrôle une installation existante à partir du manifeste et du verrou.
 ///
 /// Trois questions, dans l'ordre où elles font échouer un démarrage : les
@@ -379,4 +408,66 @@ pub fn verify(source: &Source, options: &Options, deep: bool) -> Result<Vec<Stri
     }
 
     Ok(problems)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lockfile::{LockedLoader, LockedMod};
+    use mc_mods::Origin;
+
+    fn verrouille(slug: &str, side: &str) -> LockedMod {
+        LockedMod {
+            slug: slug.into(),
+            name: slug.into(),
+            origin: Origin::Modrinth,
+            project: slug.into(),
+            file: "1".into(),
+            version: "1.0".into(),
+            file_name: format!("{slug}.jar"),
+            url: format!("https://exemple.invalid/{slug}.jar"),
+            sha1: None,
+            size: 0,
+            side: side.into(),
+            reason: "demandé par le manifeste".into(),
+            provides: vec![slug.into()],
+        }
+    }
+
+    #[test]
+    fn un_mod_du_verrou_absent_de_l_instance_se_voit() {
+        // Le cas réel : « install » relancé avec un autre SAMFLIX_ENV a vidé
+        // puis regarni l'instance — une seule pour les trois environnements —
+        // pendant que le verrou de celui-ci, rangé dans un cache à part, décrit
+        // encore les mods d'avant.
+        let racine = std::env::temp_dir().join(format!("mc-pack-mods-{}", std::process::id()));
+        let layout = mc_instance::Layout::new(racine.clone());
+        let instance = layout.instance("samflix");
+        std::fs::create_dir_all(instance.mods_dir()).unwrap();
+        std::fs::write(instance.mods_dir().join("jei.jar"), b"").unwrap();
+
+        let lock = Lockfile {
+            schema: 1,
+            pack: "samflix".into(),
+            generated: "2025-01-01T00:00:00Z".into(),
+            minecraft: "1.21.1".into(),
+            loader: LockedLoader {
+                kind: "neoforge".into(),
+                version: "21.1.250".into(),
+            },
+            java: 21,
+            mods: vec![
+                verrouille("jei", "both"),
+                verrouille("jade", "client"),
+                // Un mod de serveur n'a rien à faire dans l'instance du client :
+                // le signaler manquant interdirait tout démarrage.
+                verrouille("spark", "server"),
+            ],
+            unresolved: Vec::new(),
+        };
+
+        let manquants = mods_client_absents(&lock, &instance);
+        std::fs::remove_dir_all(&racine).ok();
+        assert_eq!(manquants, vec!["jade.jar".to_string()]);
+    }
 }

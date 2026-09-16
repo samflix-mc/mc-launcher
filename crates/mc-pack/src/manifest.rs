@@ -13,6 +13,7 @@
 use anyhow::{Context, Result, bail};
 use mc_mods::{Channel, Origin, Request, Side};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Version du format, pour pouvoir le faire évoluer sans casser les packs
@@ -34,6 +35,80 @@ pub struct Manifest {
     pub java: Option<u32>,
     #[serde(default)]
     pub mods: Vec<ModEntry>,
+    /// Où se connecter, par environnement.
+    ///
+    /// Le manifeste est le même partout : c'est la même image de contenu,
+    /// servie sous trois noms. Ce n'est donc pas lui qui peut choisir, c'est le
+    /// client — avec son propre environnement, celui que la CI lui a figé à la
+    /// compilation. Un launcher de dev rejoint le serveur de dev.
+    ///
+    /// Les clés sont celles de `mc_log::Environment` : `development`,
+    /// `preproduction`, `production`. Une absence n'est pas une erreur — la
+    /// préproduction n'a pas de serveurs Minecraft derrière elle, et le jeu s'y
+    /// lance sans rejoindre quoi que ce soit.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub servers: BTreeMap<String, Server>,
+}
+
+/// Adresse d'un serveur, telle que `--quickPlayMultiplayer` l'attend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Server {
+    pub host: String,
+    /// Absent = 25565, le port par défaut de Minecraft.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+}
+
+impl Server {
+    /// L'adresse telle que `--quickPlayMultiplayer` la lit.
+    ///
+    /// Minecraft confie cette chaîne à `HostAndPort` de Guava, qui refuse tout
+    /// ce qui porte plus d'un « : » sans crochets. Une IPv6 en porte au moins
+    /// deux : écrite nue, elle ne donne pas une mauvaise adresse, elle n'en
+    /// donne aucune, et le jeu s'ouvre sur le menu sans rien annoncer. D'où les
+    /// crochets, posés ici plutôt qu'attendus de la main qui écrit le manifeste.
+    ///
+    /// Le port est écrit dès qu'il est déclaré, même quand il vaut 25565.
+    /// Omettre celui-là paraît sans conséquence, mais Minecraft ne se contente
+    /// pas de composer l'adresse : sans port, il interroge l'enregistrement SRV
+    /// « _minecraft._tcp.<hôte> » avant de se rabattre sur le défaut. Savoir si
+    /// les deux écritures mènent au même serveur demande de connaître la zone
+    /// DNS, que le launcher ne voit pas. On ne jette donc pas ce que le
+    /// manifeste a pris la peine de dire.
+    pub fn address(&self) -> String {
+        let host = self.host.trim();
+        let hote = if est_ipv6_nue(host) {
+            format!("[{host}]")
+        } else {
+            host.to_string()
+        };
+        match self.port {
+            Some(port) => format!("{hote}:{port}"),
+            None => hote,
+        }
+    }
+}
+
+/// Une IPv6 écrite sans ses crochets.
+///
+/// Deux « : » au moins : une IPv6 en contient toujours au minimum deux, là où
+/// « hôte:port » n'en a qu'un. C'est la distinction que fait Guava, donc celle
+/// que fait Minecraft.
+fn est_ipv6_nue(host: &str) -> bool {
+    !host.starts_with('[') && host.matches(':').count() >= 2
+}
+
+/// L'hôte porte-t-il déjà un « :port » ?
+///
+/// Lui en ajouter un second donnerait « hôte:25565:25566 », que Guava refuse
+/// comme elle refuse une IPv6 nue.
+fn porte_deja_un_port(host: &str) -> bool {
+    match host.rsplit_once(':') {
+        Some((avant, apres)) => {
+            (avant.ends_with(']') || !avant.contains(':')) && apres.parse::<u16>().is_ok()
+        }
+        None => false,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,6 +213,31 @@ impl Manifest {
                 self.loader.kind
             );
         }
+        // « name » désigne un répertoire d'instance : il est joint à la racine
+        // des données, et « deploy » supprime ensuite tous les .jar qu'il
+        // trouve dans le dossier obtenu. Tant que le manifeste venait d'un
+        // fichier qu'on édite soi-même, le champ était de confiance ; depuis
+        // que le pack distant est la source par défaut, il vient du réseau.
+        //
+        // Un « .. » remonte, et un chemin absolu fait mieux : PathBuf::join
+        // écarte purement et simplement le préfixe. Un hôte de pack compromis
+        // ou une faute de frappe obtiendrait alors une suppression de .jar et
+        // une écriture de fichiers là où il veut, à chaque installation.
+        //
+        // On ne refuse que ce qui sort du répertoire. Pas de liste blanche de
+        // caractères : refuser ici ce qui est seulement inhabituel
+        // condamnerait un pack futur chez tous les launchers déjà distribués,
+        // et un launcher qui refuse le pack ne peut plus se dépanner — il
+        // faudrait télécharger le pack qu'il refuse de lire.
+        let nom = self.name.trim();
+        if nom.is_empty() || nom == "." || nom == ".." || nom.contains('/') || nom.contains('\\') {
+            bail!(
+                "« {} » ne peut pas nommer un répertoire d'instance : le pack \
+                 s'installerait hors de la racine des données",
+                self.name
+            );
+        }
+
         let mut seen = std::collections::BTreeSet::new();
         for entry in &self.mods {
             if !seen.insert(entry.slug.to_ascii_lowercase()) {
@@ -151,7 +251,66 @@ impl Manifest {
                 );
             }
         }
+
+        // Les clés de « servers » ne sont pas contrôlées ici : voir
+        // problemes_de_serveurs, et la raison pour laquelle ce contrôle-là ne
+        // peut pas vivre dans check.
         Ok(())
+    }
+
+    /// Clés de `servers` que la lecture ne trouvera jamais, chacune avec sa
+    /// raison. Vide quand tout est lisible.
+    ///
+    /// Délibérément hors de `check` : `check` s'applique à tout manifeste, y
+    /// compris celui qu'on vient de télécharger. Refuser là un pack pour une
+    /// clé inconnue reviendrait à arrêter net tous les launchers déjà
+    /// distribués le jour où mc-content déclare un environnement de plus — un
+    /// binaire compilé avant ne connaît pas les noms inventés après lui, et il
+    /// n'a aucune raison de tenir son ignorance pour une faute du pack. Il sait
+    /// ce qu'il sait lire ; le reste, il l'ignore, et c'est la seule réponse qui
+    /// laisse le format évoluer sans rappeler les binaires.
+    ///
+    /// Le contrôle a donc lieu là où le manifeste s'écrit — `mc-pack lock`,
+    /// qu'on lance avant de publier — et non là où il se lit.
+    pub fn problemes_de_serveurs(&self) -> Vec<String> {
+        let mut problemes = Vec::new();
+        for (cle, serveur) in &self.servers {
+            match mc_log::Environment::parse(cle) {
+                // Une faute de frappe ne provoque rien à la lecture : la clé ne
+                // correspond à aucun environnement, le jeu s'ouvre sur le menu,
+                // et cela ressemble exactement à un pack qui n'aurait rien
+                // déclaré. C'est le pire des silences — celui qui ressemble à
+                // une intention.
+                None => problemes.push(format!(
+                    "« {cle} » n'est pas un environnement : attendus development, \
+                     preproduction ou production"
+                )),
+                Some(mc_log::Environment::Local) => problemes.push(format!(
+                    "« {cle} » ne serait jamais lu : un binaire compilé à la main \
+                     rejoint le serveur de « development »"
+                )),
+                // Le nom canonique, et lui seul. Environment::parse accepte les
+                // alias courants — « dev », « staging » — mais la lecture
+                // cherche « development » : l'entrée passerait ici et resterait
+                // introuvable là-bas.
+                Some(environnement) if environnement.as_str() != cle => problemes.push(format!(
+                    "« {cle} » est un alias ; écrire « {} », qui est le nom cherché \
+                     à la lecture",
+                    environnement.as_str()
+                )),
+                Some(_) => {}
+            }
+            let host = serveur.host.trim();
+            if host.is_empty() {
+                problemes.push(format!("le serveur déclaré pour « {cle} » n'a pas d'hôte"));
+            } else if serveur.port.is_some() && porte_deja_un_port(host) {
+                problemes.push(format!(
+                    "l'hôte de « {cle} » porte déjà un port : « {host} » et le champ \
+                     « port » donneraient une adresse à deux ports, que Minecraft refuse"
+                ));
+            }
+        }
+        problemes
     }
 
     pub fn requests(&self) -> Result<Vec<Request>> {
@@ -161,6 +320,29 @@ impl Manifest {
     /// Version majeure de Java à garantir.
     pub fn java_major(&self, mojang_says: u32) -> u32 {
         self.java.unwrap_or(mojang_says)
+    }
+
+    /// Environnement dont les serveurs s'appliquent à celui-ci.
+    ///
+    /// `local` retombe sur `development` : un binaire compilé à la main est un
+    /// binaire de travail, et le serveur de travail est celui de dev. C'est le
+    /// même raisonnement que pour l'adresse du pack, et il vaut mieux qu'ils ne
+    /// divergent pas — un launcher qui installerait le pack de dev pour
+    /// rejoindre la production ferait exactement ce que tout ceci empêche.
+    ///
+    /// Rendu public parce que l'affichage en a besoin : dire « local » à
+    /// quelqu'un qui diagnostique, alors que l'entrée lue est « development »,
+    /// l'envoie chercher une clé qui n'existe pas.
+    pub fn environnement_serveur(env: mc_log::Environment) -> mc_log::Environment {
+        match env {
+            mc_log::Environment::Local => mc_log::Environment::Development,
+            autre => autre,
+        }
+    }
+
+    /// Serveur à rejoindre pour un environnement donné.
+    pub fn server_for(&self, env: mc_log::Environment) -> Option<&Server> {
+        self.servers.get(Self::environnement_serveur(env).as_str())
     }
 }
 
@@ -180,7 +362,296 @@ mod tests {
             },
             java: None,
             mods: Vec::new(),
+            servers: BTreeMap::new(),
         }
+    }
+
+    #[test]
+    fn un_nom_qui_sort_du_repertoire_est_refuse() {
+        // Le manifeste vient du réseau depuis que le pack distant est la
+        // source par défaut, et « deploy » supprime les .jar du répertoire que
+        // ce nom désigne.
+        for fautif in [
+            "../../../../home/sam/Documents",
+            "/home/sam/.minecraft",
+            "..",
+            ".",
+            "",
+            "   ",
+            "samflix/../..",
+            r"..\..\Windows",
+        ] {
+            let mut manifest = base();
+            manifest.name = fautif.into();
+            assert!(
+                manifest.check().is_err(),
+                "« {fautif} » aurait dû être refusé"
+            );
+        }
+    }
+
+    #[test]
+    fn un_nom_inhabituel_mais_sans_danger_passe() {
+        // Ce contrôle ne juge pas du bon goût. Refuser ici ce qui est
+        // seulement inattendu condamnerait un pack futur chez tous les
+        // launchers déjà distribués — et un launcher qui refuse le pack ne
+        // peut plus se dépanner.
+        for correct in ["samflix", "samflix v2", "pack.été-2026", "SAMFLIX_2"] {
+            let mut manifest = base();
+            manifest.name = correct.into();
+            assert!(
+                manifest.check().is_ok(),
+                "« {correct} » aurait dû être accepté"
+            );
+        }
+    }
+
+    fn avec_serveurs() -> Manifest {
+        let mut manifest = base();
+        manifest.servers.insert(
+            "development".into(),
+            Server {
+                host: "78.46.100.5".into(),
+                port: Some(25566),
+            },
+        );
+        manifest.servers.insert(
+            "production".into(),
+            Server {
+                host: "mc.ggy.info".into(),
+                port: Some(25565),
+            },
+        );
+        manifest
+    }
+
+    #[test]
+    fn le_serveur_suit_l_environnement() {
+        let manifest = avec_serveurs();
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Development)
+                .map(Server::address),
+            Some("78.46.100.5:25566".into())
+        );
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Production)
+                .map(Server::address),
+            Some("mc.ggy.info:25565".into()),
+            "un port déclaré s'écrit, fût-il le port par défaut"
+        );
+    }
+
+    fn serveur(host: &str, port: Option<u16>) -> Server {
+        Server {
+            host: host.into(),
+            port,
+        }
+    }
+
+    #[test]
+    fn une_ipv6_est_mise_entre_crochets() {
+        // Guava, dont Minecraft se sert pour lire l'adresse, refuse tout ce qui
+        // porte plus d'un « : » sans crochets. Une IPv6 nue ne donnait donc pas
+        // une mauvaise adresse : elle n'en donnait aucune, et le jeu s'ouvrait
+        // sur le menu comme si le pack n'avait rien déclaré.
+        assert_eq!(
+            serveur("2001:db8::1", Some(25566)).address(),
+            "[2001:db8::1]:25566"
+        );
+        assert_eq!(serveur("2001:db8::1", None).address(), "[2001:db8::1]");
+        assert_eq!(
+            serveur("[2001:db8::1]", Some(25566)).address(),
+            "[2001:db8::1]:25566",
+            "des crochets déjà posés ne se doublent pas"
+        );
+    }
+
+    #[test]
+    fn un_nom_et_une_ipv4_restent_intacts() {
+        assert_eq!(serveur("mc.ggy.info", None).address(), "mc.ggy.info");
+        assert_eq!(
+            serveur("78.46.100.5", Some(25566)).address(),
+            "78.46.100.5:25566"
+        );
+    }
+
+    #[test]
+    fn un_hote_deja_suffixe_d_un_port_est_signale() {
+        // « mc.ggy.info:25566 » plus un champ « port » composerait
+        // « mc.ggy.info:25566:25570 », que Minecraft refuse — et le refus est
+        // muet, comme pour une IPv6 nue.
+        let mut manifest = base();
+        manifest.servers.insert(
+            "production".into(),
+            serveur("mc.ggy.info:25566", Some(25570)),
+        );
+        assert_eq!(manifest.problemes_de_serveurs().len(), 1);
+
+        // Seul le doublon gêne : un hôte suffixé sans champ « port » compose
+        // une adresse valable, et rien ne justifie de la refuser.
+        let mut manifest = base();
+        manifest
+            .servers
+            .insert("production".into(), serveur("mc.ggy.info:25566", None));
+        assert!(manifest.problemes_de_serveurs().is_empty());
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Production)
+                .map(Server::address),
+            Some("mc.ggy.info:25566".into())
+        );
+    }
+
+    #[test]
+    fn un_binaire_local_rejoint_la_dev() {
+        // Un binaire compilé à la main est un binaire de travail. Le faire
+        // tomber sur la production reviendrait à envoyer quelqu'un qui essaie
+        // là où d'autres jouent.
+        let manifest = avec_serveurs();
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Local)
+                .map(Server::address),
+            manifest
+                .server_for(mc_log::Environment::Development)
+                .map(Server::address),
+        );
+    }
+
+    #[test]
+    fn une_preproduction_sans_serveur_ne_lance_rien() {
+        // Elle n'a pas de serveurs Minecraft derrière elle, et ce n'est pas un
+        // oubli : le nœud est unique, chaque réseau complet coûte de la RAM.
+        assert!(
+            avec_serveurs()
+                .server_for(mc_log::Environment::Preproduction)
+                .is_none()
+        );
+    }
+
+    fn avec_cle(cle: &str, host: &str) -> Manifest {
+        let mut manifest = base();
+        manifest.servers.insert(
+            cle.into(),
+            Server {
+                host: host.into(),
+                port: None,
+            },
+        );
+        manifest
+    }
+
+    #[test]
+    fn une_cle_de_serveur_fautive_est_signalee() {
+        // Sans ce contrôle, une faute de frappe ne provoque rien : la clé ne
+        // correspond à aucun environnement, le jeu s'ouvre sur le menu, et
+        // cela ressemble exactement à un pack qui n'aurait rien déclaré.
+        let problemes = avec_cle("prodution", "mc.ggy.info").problemes_de_serveurs();
+        assert_eq!(problemes.len(), 1);
+        assert!(problemes[0].contains("prodution"));
+    }
+
+    #[test]
+    fn un_alias_est_signale_parce_qu_il_ne_serait_pas_lu() {
+        // Environment::parse accepte « dev », mais server_for cherche
+        // « development » : l'entrée passerait ici et resterait introuvable.
+        let problemes = avec_cle("dev", "mc-dev.ggy.info").problemes_de_serveurs();
+        assert_eq!(problemes.len(), 1);
+        assert!(problemes[0].contains("development"));
+    }
+
+    #[test]
+    fn une_cle_local_est_signalee() {
+        let problemes = avec_cle("local", "mc-dev.ggy.info").problemes_de_serveurs();
+        assert_eq!(problemes.len(), 1);
+        assert!(problemes[0].contains("development"));
+    }
+
+    #[test]
+    fn un_hote_vide_est_signale() {
+        assert_eq!(
+            avec_cle("production", "   ").problemes_de_serveurs().len(),
+            1
+        );
+    }
+
+    #[test]
+    fn les_cles_canoniques_ne_posent_aucun_probleme() {
+        assert!(avec_serveurs().problemes_de_serveurs().is_empty());
+    }
+
+    #[test]
+    fn un_pack_plus_recent_que_le_binaire_reste_installable() {
+        // Le jour où mc-content déclare un environnement de plus, les binaires
+        // déjà chez les joueurs ne le connaîtront pas. S'ils refusaient le
+        // manifeste pour autant, une ligne ajoutée au pack couperait
+        // l'installation de tout le parc d'un coup — et personne ne pourrait
+        // plus rien télécharger pour se réparer.
+        let brut = br#"{"schema":1,"name":"essai","minecraft":"1.21.1",
+                        "loader":{"type":"neoforge","version":"latest"},
+                        "servers":{"production":{"host":"mc.ggy.info"},
+                                   "qualification":{"host":"mc-qa.ggy.info"}},
+                        "nouveau_champ_inconnu":true}"#;
+        let manifest = Manifest::parse(brut).expect("un environnement inconnu n'est pas une faute");
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Production)
+                .map(Server::address),
+            Some("mc.ggy.info".into()),
+            "ce que ce binaire sait lire reste lisible"
+        );
+        assert!(
+            manifest
+                .server_for(mc_log::Environment::Development)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn les_serveurs_survivent_a_un_passage_par_le_cache() {
+        // launch lit le manifeste rangé dans le cache, pas celui du réseau :
+        // un champ perdu à l'écriture ferait s'ouvrir le jeu sur le menu au
+        // lieu de rejoindre le serveur, et seulement hors ligne.
+        let dossier = std::env::temp_dir().join(format!("mc-pack-essai-{}", std::process::id()));
+        std::fs::create_dir_all(&dossier).unwrap();
+        let chemin = dossier.join("samflix.json");
+        avec_serveurs().save(&chemin).unwrap();
+        let relu = Manifest::load(&chemin).unwrap();
+        std::fs::remove_dir_all(&dossier).ok();
+        assert_eq!(
+            relu.server_for(mc_log::Environment::Development)
+                .map(Server::address),
+            Some("78.46.100.5:25566".into())
+        );
+    }
+
+    #[test]
+    fn un_binaire_local_lit_la_cle_development() {
+        assert_eq!(
+            Manifest::environnement_serveur(mc_log::Environment::Local),
+            mc_log::Environment::Development
+        );
+        assert_eq!(
+            Manifest::environnement_serveur(mc_log::Environment::Production),
+            mc_log::Environment::Production
+        );
+    }
+
+    #[test]
+    fn un_manifeste_sans_serveurs_reste_lisible() {
+        // Le champ est arrivé après les premiers packs : les manifestes qui
+        // l'ignorent doivent continuer de se lire tels quels.
+        let brut = br#"{"schema":1,"name":"essai","minecraft":"1.21.1",
+                        "loader":{"type":"neoforge","version":"latest"}}"#;
+        let manifest = Manifest::parse(brut).expect("manifeste sans serveurs");
+        assert!(manifest.servers.is_empty());
+        assert!(
+            manifest
+                .server_for(mc_log::Environment::Production)
+                .is_none()
+        );
     }
 
     #[test]

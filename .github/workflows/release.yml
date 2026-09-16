@@ -13,13 +13,35 @@ on:
 # Sans cette déclaration ils retomberaient sur « local », le défaut prudent :
 # un incident de production classé en local se remarque, l'inverse pollue
 # silencieusement le seul environnement qu'on surveille.
-env:
-  SAMFLIX_ENV: production
+#
+# La valeur passe par une ENTRÉE du workflow réutilisable, jamais par un
+# « env: » posé ici : un env de workflow appelant n'atteint pas le workflow
+# appelé. Il y en avait un, il était bien écrit, et il ne servait à rien — la
+# compilation réussissait, le binaire partait, et il se croyait « local ».
+# Rien ne le signalait, puisque le défaut est précisément le silence.
+#
+# Ce n'était qu'un incident mal classé tant que l'environnement ne servait qu'à
+# Sentry. Depuis qu'il choisit aussi le pack téléchargé et le serveur rejoint,
+# un binaire publié serait allé chercher le pack de DEV et aurait fait entrer
+# les joueurs sur le serveur de dev — la panne que ce dépôt existe pour
+# empêcher, retournée contre la production.
 
+# mc-pack et non mc-auth : le binaire publié doit être celui qu'on lance.
+# mc-auth est une brique d'authentification, utile à qui développe, sans usage
+# pour un joueur — et elle attend toujours l'approbation Azure. mc-pack, lui,
+# installe le pack, vérifie l'installation et lance le jeu ; c'est la commande
+# dont l'existence justifie ce dépôt.
 jobs:
   release:
     uses: samflix-mc/.github/.github/workflows/release-rust.yml@main
     with:
-      binary: mc-auth
+      binary: mc-pack
+      # L'entrée existe dans samflix-mc/.github depuis « Recevoir SAMFLIX_ENV en
+      # input, faute de le voir passer ». Elle y est référencée en @main : cette
+      # ligne n'a donc d'effet qu'une fois cette PR-là fusionnée, ce qui est
+      # l'ordre prévu de toute façon — et un tag posé avant échouerait
+      # franchement sur une entrée non déclarée, plutôt que de publier en
+      # silence un binaire qui se croit local.
+      environnement: production
     permissions:
       contents: write

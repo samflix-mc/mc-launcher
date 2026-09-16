@@ -13,6 +13,16 @@
 //! mc-launcher-site : c'est lui qui décide de la liste des mods, et un joueur
 //! n'a donc rien à cloner. Un chemin reste accepté, c'est ce qu'on édite.
 //!
+//! **Lequel des trois packs** dépend de l'environnement de ce binaire, que la
+//! CI lui fige à la compilation : un launcher de préproduction télécharge le
+//! pack de préproduction. L'adresse était auparavant écrite en dur sur la
+//! production, si bien qu'une préproduction n'éprouvait rien de ce qu'elle était
+//! censée éprouver.
+//!
+//! Le pack désigne aussi le serveur à rejoindre, par environnement — **quand il
+//! en désigne un**. La préproduction n'a pas de serveurs Minecraft derrière
+//! elle, et le jeu s'y ouvre donc sur le menu.
+//!
 //! Options communes :
 //!     --instance <NOM>   nom de l'instance, par défaut celui du pack
 //!     --data <DIR>       racine des données du launcher
@@ -81,7 +91,7 @@ async fn main() -> Result<()> {
     // La source est construite après la boucle : `--data` peut déplacer la
     // racine des données, dont dépend l'emplacement du cache d'un pack distant.
     let source = Source::parse(
-        source_arg.as_deref().unwrap_or(source::DEFAULT_URL),
+        source_arg.as_deref().unwrap_or(source::url_par_defaut()),
         &options.layout,
     );
 
@@ -149,7 +159,7 @@ fn usage() {
          mc-pack diagnostic [--incident-test]\n\n\
          « source » est un chemin vers un manifeste, ou une URL.\n  \
          Par défaut : {}",
-        source::DEFAULT_URL
+        source::url_par_defaut()
     );
 }
 
@@ -263,6 +273,22 @@ async fn lock(source: &Source, options: &mc_pack::Options) -> Result<()> {
         );
     };
     let manifest = Manifest::load(manifest_path)?;
+
+    // C'est ici, et nulle part ailleurs, qu'une clé de « servers » illisible se
+    // refuse. La lecture du manifeste ne peut pas s'en charger : elle s'applique
+    // aussi au pack téléchargé, et un binaire qui refuserait un environnement
+    // inconnu de lui s'arrêterait le jour où mc-content en déclare un de plus.
+    // lock est l'inverse — la commande qu'on lance avant de publier, sur le
+    // fichier qu'on vient d'écrire, avec l'auteur devant l'écran.
+    let problemes = manifest.problemes_de_serveurs();
+    if !problemes.is_empty() {
+        bail!(
+            "{} : des clés de « servers » ne seraient jamais lues —\n  {}",
+            manifest_path.display(),
+            problemes.join("\n  ")
+        );
+    }
+
     let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
     tracing::info!(
         pack = %manifest.name,
@@ -451,6 +477,27 @@ async fn launch(
 
     let layout = &options.layout;
     let instance = layout.instance(options.instance_name.as_deref().unwrap_or(&manifest.name));
+
+    // Le verrou vient du cache de ce pack-ci, qui est séparé par hôte ;
+    // l'instance, elle, porte le nom du pack et il n'y en a qu'une pour les
+    // trois environnements. Un « install » lancé avec un autre SAMFLIX_ENV a
+    // donc pu remplacer ces jars sans que ce verrou en sache rien. Démarrer
+    // quand même, c'est laisser le serveur trancher par une éjection pour
+    // listes de mods divergentes — et cette éjection ne nomme pas sa cause.
+    let manquants = mc_pack::mods_client_absents(&lock, &instance);
+    if !manquants.is_empty() {
+        bail!(
+            "{} mods du verrou manquent dans {} : cette instance a été installée \
+             depuis un autre pack que celui-ci.\n\
+             Relancer « mc-pack install » — environnement « {} », {}.\n  {}",
+            manquants.len(),
+            instance.mods_dir().display(),
+            mc_log::environment::current().as_str(),
+            mc_log::environment::origin(),
+            manquants.join("\n  ")
+        );
+    }
+
     let version_id = mc_instance::neoforge::version_id(&lock.loader.version);
 
     // Le Java du verrou, pas celui du système : c'est avec lui que NeoForge a
@@ -463,9 +510,25 @@ async fn launch(
     let offline = mc_auth::offline_session(&pseudo);
     let session = mc_instance::launch::Session::offline(&offline.profile.name, &offline.profile.id);
 
+    // À défaut de --serveur, celui que le pack déclare pour l'environnement de
+    // ce binaire. Le manifeste est le même partout — c'est la même image de
+    // contenu, servie sous trois noms — donc c'est au client de choisir, et il
+    // choisit avec ce que la CI lui a figé à la compilation.
+    //
+    // Une absence n'est pas une erreur : la préproduction n'a pas de serveurs
+    // Minecraft derrière elle, et le jeu s'y lance sans rejoindre quoi que ce
+    // soit.
+    let environnement = mc_log::environment::current();
+    let demande_explicite = serveur.is_some();
+    let cible = serveur.or_else(|| {
+        manifest
+            .server_for(environnement)
+            .map(mc_pack::manifest::Server::address)
+    });
+
     let launch_options = mc_instance::launch::LaunchOptions {
         memory_mb: memoire,
-        quick_play: serveur.map(mc_instance::launch::QuickPlay::Multiplayer),
+        quick_play: cible.map(mc_instance::launch::QuickPlay::Multiplayer),
         ..Default::default()
     };
 
@@ -482,8 +545,25 @@ async fn launch(
     println!("  version : {version_id}");
     println!("  joueur  : {} ({})", session.name, session.uuid);
     println!("  mods    : {}", instance.mods_dir().display());
-    if let Some(mc_instance::launch::QuickPlay::Multiplayer(hote)) = &launch_options.quick_play {
-        println!("  serveur : {hote}");
+    // La provenance est dite, pas seulement l'adresse : « mc.exemple.fr
+    // (production) » laissait croire que l'hôte venait du pack, alors qu'un
+    // --serveur peut désigner n'importe quoi. Quelqu'un qui diagnostique une
+    // éjection a besoin de savoir lequel des deux il regarde.
+    match (&launch_options.quick_play, demande_explicite) {
+        (Some(mc_instance::launch::QuickPlay::Multiplayer(hote)), true) => {
+            println!("  serveur : {hote} — demandé en ligne de commande")
+        }
+        // La clé réellement lue, pas l'environnement du binaire : en « local »
+        // c'est l'entrée « development » qui sert, et afficher « local »
+        // enverrait chercher dans le manifeste une clé qui n'y est pas.
+        (Some(mc_instance::launch::QuickPlay::Multiplayer(hote)), false) => println!(
+            "  serveur : {hote} — déclaré par le pack pour « {} »",
+            Manifest::environnement_serveur(environnement).as_str()
+        ),
+        _ => println!(
+            "  serveur : aucun pour « {} » — le jeu s'ouvrira sur le menu",
+            Manifest::environnement_serveur(environnement).as_str()
+        ),
     }
     println!();
 
