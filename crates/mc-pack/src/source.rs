@@ -164,10 +164,14 @@ async fn load_remote(url: &str, cache_dir: &Path, dl: &mc_dl::Downloader) -> Res
     let fetched = match fetch_pair(dl, url, &lock_url).await {
         Ok(pair) => Some(pair),
         Err(error) => {
+            // « inutilisable » et non « injoignable » : le serveur peut très
+            // bien avoir répondu, et servi une page d'erreur HTML là où on
+            // attendait du JSON. Nommer la mauvaise cause fait chercher du
+            // côté du réseau un défaut qui est côté contenu.
             tracing::warn!(
                 url,
                 erreur = %error,
-                "Pack distant injoignable, repli sur la dernière copie connue : {error}"
+                "Pack distant inutilisable, repli sur la dernière copie connue : {error}"
             );
             None
         }
