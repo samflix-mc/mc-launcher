@@ -380,14 +380,19 @@ pub fn verify(source: &Source, options: &Options, deep: bool) -> Result<Vec<Stri
                 problems.push(format!("mod manquant : {}", path.display()));
                 continue;
             }
-            let Some(expected) = &entry.sha1 else {
+            // Un verrou sans aucune empreinte ne permet pas de vérifier :
+            // c'est le cas des entrées écrites depuis une source qui n'en
+            // publiait pas, avant qu'on ne les calcule nous-mêmes.
+            let Some(attendue) = entry.checksum() else {
                 continue;
             };
-            match mc_dl::sha1_of_file(&path) {
-                Ok(got) if got.eq_ignore_ascii_case(expected) => {}
-                Ok(got) => problems.push(format!(
-                    "{} : empreinte {got} au lieu de {expected}",
-                    path.display()
+            match std::fs::read(&path) {
+                Ok(bytes) if attendue.matches(&bytes) => {}
+                Ok(bytes) => problems.push(format!(
+                    "{} : empreinte {} au lieu de {}",
+                    path.display(),
+                    attendue.of(&bytes),
+                    attendue.expected()
                 )),
                 Err(e) => problems.push(format!("{} : illisible ({e})", path.display())),
             }
@@ -427,6 +432,7 @@ mod tests {
             file_name: format!("{slug}.jar"),
             url: format!("https://exemple.invalid/{slug}.jar"),
             sha1: None,
+            sha512: None,
             size: 0,
             side: side.into(),
             reason: "demandé par le manifeste".into(),

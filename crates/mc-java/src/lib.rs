@@ -170,7 +170,9 @@ pub async fn detect(major: u32, runtime_dir: &Path) -> Option<Java> {
         if !exe.is_file() {
             continue;
         }
-        let real = std::fs::canonicalize(&exe).unwrap_or_else(|_| exe.clone());
+        let real = tokio::fs::canonicalize(&exe)
+            .await
+            .unwrap_or_else(|_| exe.clone());
         if seen.contains(&real) {
             continue;
         }
@@ -263,7 +265,8 @@ fn platform() -> Result<(&'static str, &'static str)> {
 #[tracing::instrument(name = "installation java", skip(runtime_dir))]
 pub async fn install(major: u32, runtime_dir: &Path) -> Result<Java> {
     let (os, arch) = platform()?;
-    std::fs::create_dir_all(runtime_dir)
+    tokio::fs::create_dir_all(runtime_dir)
+        .await
         .with_context(|| format!("création de {}", runtime_dir.display()))?;
     let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
 
@@ -298,22 +301,23 @@ pub async fn install(major: u32, runtime_dir: &Path) -> Result<Java> {
     .with_context(|| format!("téléchargement de {}", asset.release_name))?;
 
     if home.exists() {
-        std::fs::remove_dir_all(&home)?;
+        tokio::fs::remove_dir_all(&home).await?;
     }
     // Extraction dans un répertoire temporaire : l'archive contient un dossier
     // racine au nom de la version, qu'on ne veut pas dans le chemin final.
     let staging = runtime_dir.join(format!(".temurin-{major}-extraction"));
     if staging.exists() {
-        std::fs::remove_dir_all(&staging)?;
+        tokio::fs::remove_dir_all(&staging).await?;
     }
-    std::fs::create_dir_all(&staging)?;
+    tokio::fs::create_dir_all(&staging).await?;
     extract(&archive, &staging)?;
 
     let root = single_child(&staging)?;
-    std::fs::rename(&root, &home)
+    tokio::fs::rename(&root, &home)
+        .await
         .with_context(|| format!("installation vers {}", home.display()))?;
-    std::fs::remove_dir_all(&staging).ok();
-    std::fs::remove_file(&archive).ok();
+    tokio::fs::remove_dir_all(&staging).await.ok();
+    tokio::fs::remove_file(&archive).await.ok();
 
     // Dernière vérification, et la seule qui prouve quoi que ce soit : le
     // binaire installé démarre et annonce la bonne version.

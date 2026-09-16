@@ -66,6 +66,12 @@ pub struct LockedMod {
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sha1: Option<String>,
+    /// L'empreinte forte, quand la source la publie — Modrinth — ou qu'elle a
+    /// été calculée faute de mieux. Absente des verrous écrits avant qu'elle
+    /// n'existe, d'où le `default` : ceux-là restent lisibles, et leur SHA-1
+    /// continue de faire foi jusqu'au prochain `lock`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha512: Option<String>,
     pub size: u64,
     pub side: String,
     /// En clair : demandé, dépendance déclarée, ou dépendance implicite.
@@ -80,6 +86,20 @@ pub struct LockedMissing {
     pub mod_id: String,
     pub required_by: String,
     pub side: String,
+}
+
+impl LockedMod {
+    /// La plus forte empreinte que le verrou porte pour ce jar.
+    ///
+    /// Le SHA-512 quand Modrinth le publie ou qu'on l'a calculé faute de
+    /// mieux ; le SHA-1 pour ce que CurseForge est seul à donner, et pour les
+    /// verrous écrits avant que le champ n'existe.
+    pub fn checksum(&self) -> Option<mc_dl::Checksum> {
+        self.sha512
+            .clone()
+            .map(mc_dl::Checksum::Sha512)
+            .or_else(|| self.sha1.clone().map(mc_dl::Checksum::Sha1))
+    }
 }
 
 impl Lockfile {
@@ -110,6 +130,7 @@ impl Lockfile {
                     file_name: m.candidate.file_name.clone(),
                     url: m.candidate.url.clone(),
                     sha1: m.candidate.sha1.clone(),
+                    sha512: m.candidate.sha512.clone(),
                     size: m.candidate.size,
                     side: m.side.as_str().to_string(),
                     reason: m.reason.describe(),
@@ -170,6 +191,7 @@ impl Lockfile {
                 // Rend vérifiable un build venu d'une source qui ne publie pas
                 // d'empreinte : celle-ci a été calculée au premier passage.
                 expected_sha1: m.sha1.clone(),
+                expected_sha512: m.sha512.clone(),
             })
             .collect()
     }
@@ -254,6 +276,20 @@ mod tests {
         );
     }
 
+    /// Ce que la vérification profonde opposera au jar : la plus forte des
+    /// deux, et le SHA-1 seul pour les verrous écrits avant le champ.
+    #[test]
+    fn le_verrou_oppose_la_plus_forte_empreinte_qu_il_porte() {
+        let mut m = locked("jade", "f", "1.0");
+        assert_eq!(m.checksum(), None);
+
+        m.sha1 = Some("aa".into());
+        assert_eq!(m.checksum(), Some(mc_dl::Checksum::Sha1("aa".into())));
+
+        m.sha512 = Some("bb".into());
+        assert_eq!(m.checksum(), Some(mc_dl::Checksum::Sha512("bb".into())));
+    }
+
     fn locked(slug: &str, file: &str, version: &str) -> LockedMod {
         LockedMod {
             slug: slug.into(),
@@ -265,6 +301,7 @@ mod tests {
             file_name: format!("{slug}.jar"),
             url: format!("https://exemple.invalid/{slug}.jar"),
             sha1: None,
+            sha512: None,
             size: 0,
             side: "both".into(),
             reason: "demandé par le manifeste".into(),

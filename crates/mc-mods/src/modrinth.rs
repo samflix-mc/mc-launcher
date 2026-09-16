@@ -50,6 +50,7 @@ struct ApiFile {
 #[derive(Debug, Deserialize)]
 struct ApiHashes {
     sha1: Option<String>,
+    sha512: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -251,6 +252,7 @@ fn to_candidate(project: &Project, version: ApiVersion) -> Option<Candidate> {
         file_name: file.filename.clone(),
         url: file.url.clone(),
         sha1: file.hashes.sha1.clone(),
+        sha512: file.hashes.sha512.clone(),
         size: file.size,
         published: version.date_published,
         project_side: side_of(project),
@@ -272,6 +274,25 @@ mod tests {
             client_side: client.into(),
             server_side: server.into(),
         }
+    }
+
+    /// Modrinth publie les deux empreintes ; longtemps seule la plus faible
+    /// était lue, et c'est elle qui partait dans le verrou.
+    #[test]
+    fn le_sha512_publie_par_modrinth_est_retenu() {
+        let brut = r#"{
+            "url": "https://cdn.modrinth.com/jade.jar",
+            "filename": "jade.jar",
+            "primary": true,
+            "size": 1024,
+            "hashes": {
+                "sha1": "0a385a583a1e9413ecf2a47d00000000deadbeef",
+                "sha512": "b6c782de87e7259d997e199200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            }
+        }"#;
+        let file: ApiFile = serde_json::from_str(brut).expect("fichier Modrinth lisible");
+        assert_eq!(file.hashes.sha512.as_deref().map(str::len), Some(128));
+        assert!(file.hashes.sha1.is_some());
     }
 
     #[test]

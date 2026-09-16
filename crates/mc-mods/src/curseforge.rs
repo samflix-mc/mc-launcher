@@ -361,6 +361,8 @@ fn to_candidate(project: &ApiMod, file: ApiFile) -> Option<Candidate> {
         // deviendra un message explicite au moment du téléchargement.
         url: file.download_url.unwrap_or_default(),
         sha1,
+        // CurseForge ne publie que du SHA-1 (algo 1) et du MD5 (algo 2).
+        sha512: None,
         size: file.file_length,
         published: file.file_date,
         // CurseForge ne publie pas la répartition client/serveur ; le côté sera

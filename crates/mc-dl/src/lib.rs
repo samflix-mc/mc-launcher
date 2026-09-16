@@ -118,9 +118,22 @@ pub fn data_dir() -> PathBuf {
 }
 
 /// Empreinte SHA-1 d'un fichier déjà sur le disque.
+///
+/// Conservée pour ce que les sources amont imposent : Mojang adresse tout
+/// vanilla par SHA-1, et CurseForge ne publie rien de plus fort.
 pub fn sha1_of_file(path: &Path) -> Result<String> {
     use sha1::{Digest, Sha1};
     Ok(hex::encode(Sha1::digest(std::fs::read(path)?)))
+}
+
+/// Empreinte SHA-512 d'un fichier déjà sur le disque.
+///
+/// Celle qu'on calcule quand personne n'en publie : rien n'oblige alors à
+/// retenir l'algorithme le plus faible, et c'est elle que le verrou gardera
+/// pour toutes les vérifications suivantes.
+pub fn sha512_of_file(path: &Path) -> Result<String> {
+    use sha2::{Digest, Sha512};
+    Ok(hex::encode(Sha512::digest(std::fs::read(path)?)))
 }
 
 /// Ce qu'a fait [`Downloader::to_file`], pour distinguer un vrai
@@ -307,6 +320,29 @@ pub fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Celle qu'on fige dans le verrou quand la source ne publie rien : elle
+    /// doit valoir exactement ce que `Checksum::Sha512` vérifiera ensuite.
+    #[test]
+    fn l_empreinte_forte_d_un_fichier_est_celle_qu_on_verifiera() {
+        // Un répertoire à soi : les tests du même binaire tournent en
+        // parallèle, et le voisin efface le sien en partant.
+        let dir = std::env::temp_dir().join(format!("mc-dl-empreinte-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("répertoire de test");
+        let fichier = dir.join("vide.jar");
+        std::fs::write(&fichier, b"").expect("fichier de test");
+
+        let calcule = sha512_of_file(&fichier).expect("empreinte lisible");
+        assert!(Checksum::Sha512(calcule.clone()).matches(b""));
+        // Vecteur de la chaîne vide, vérifiable dans n'importe quel outil.
+        assert!(calcule.starts_with("cf83e1357eefb8bd"));
+
+        assert_eq!(
+            sha1_of_file(&fichier).expect("empreinte lisible"),
+            "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn empreintes_connues() {

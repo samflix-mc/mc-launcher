@@ -210,7 +210,8 @@ async fn load_remote(url: &str, cache_dir: &Path, dl: &mc_dl::Downloader) -> Res
     };
 
     if let Some((manifest, lock)) = fetched {
-        std::fs::create_dir_all(cache_dir)
+        tokio::fs::create_dir_all(cache_dir)
+            .await
             .with_context(|| format!("création du cache {}", cache_dir.display()))?;
         manifest.save(&manifest_cache)?;
         lock.save(&lock_cache)?;
