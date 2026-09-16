@@ -1,4 +1,5 @@
 use super::*;
+use crate::emplacements::{candidates, managed_home};
 
 #[test]
 fn majeur_des_deux_schemas_de_version() {
