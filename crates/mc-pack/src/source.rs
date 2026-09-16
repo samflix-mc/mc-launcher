@@ -200,7 +200,7 @@ async fn load_remote(url: &str, cache_dir: &Path, dl: &mc_dl::Downloader) -> Res
 
     if !manifest_cache.is_file() || !lock_cache.is_file() {
         bail!(
-            "pack {url} injoignable, et aucune copie dans {}",
+            "pack {url} inutilisable, et aucune copie dans {}",
             cache_dir.display()
         );
     }
