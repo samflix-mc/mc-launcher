@@ -213,6 +213,31 @@ impl Manifest {
                 self.loader.kind
             );
         }
+        // « name » désigne un répertoire d'instance : il est joint à la racine
+        // des données, et « deploy » supprime ensuite tous les .jar qu'il
+        // trouve dans le dossier obtenu. Tant que le manifeste venait d'un
+        // fichier qu'on édite soi-même, le champ était de confiance ; depuis
+        // que le pack distant est la source par défaut, il vient du réseau.
+        //
+        // Un « .. » remonte, et un chemin absolu fait mieux : PathBuf::join
+        // écarte purement et simplement le préfixe. Un hôte de pack compromis
+        // ou une faute de frappe obtiendrait alors une suppression de .jar et
+        // une écriture de fichiers là où il veut, à chaque installation.
+        //
+        // On ne refuse que ce qui sort du répertoire. Pas de liste blanche de
+        // caractères : refuser ici ce qui est seulement inhabituel
+        // condamnerait un pack futur chez tous les launchers déjà distribués,
+        // et un launcher qui refuse le pack ne peut plus se dépanner — il
+        // faudrait télécharger le pack qu'il refuse de lire.
+        let nom = self.name.trim();
+        if nom.is_empty() || nom == "." || nom == ".." || nom.contains('/') || nom.contains('\\') {
+            bail!(
+                "« {} » ne peut pas nommer un répertoire d'instance : le pack \
+                 s'installerait hors de la racine des données",
+                self.name
+            );
+        }
+
         let mut seen = std::collections::BTreeSet::new();
         for entry in &self.mods {
             if !seen.insert(entry.slug.to_ascii_lowercase()) {
@@ -338,6 +363,46 @@ mod tests {
             java: None,
             mods: Vec::new(),
             servers: BTreeMap::new(),
+        }
+    }
+
+    #[test]
+    fn un_nom_qui_sort_du_repertoire_est_refuse() {
+        // Le manifeste vient du réseau depuis que le pack distant est la
+        // source par défaut, et « deploy » supprime les .jar du répertoire que
+        // ce nom désigne.
+        for fautif in [
+            "../../../../home/sam/Documents",
+            "/home/sam/.minecraft",
+            "..",
+            ".",
+            "",
+            "   ",
+            "samflix/../..",
+            r"..\..\Windows",
+        ] {
+            let mut manifest = base();
+            manifest.name = fautif.into();
+            assert!(
+                manifest.check().is_err(),
+                "« {fautif} » aurait dû être refusé"
+            );
+        }
+    }
+
+    #[test]
+    fn un_nom_inhabituel_mais_sans_danger_passe() {
+        // Ce contrôle ne juge pas du bon goût. Refuser ici ce qui est
+        // seulement inattendu condamnerait un pack futur chez tous les
+        // launchers déjà distribués — et un launcher qui refuse le pack ne
+        // peut plus se dépanner.
+        for correct in ["samflix", "samflix v2", "pack.été-2026", "SAMFLIX_2"] {
+            let mut manifest = base();
+            manifest.name = correct.into();
+            assert!(
+                manifest.check().is_ok(),
+                "« {correct} » aurait dû être accepté"
+            );
         }
     }
 
