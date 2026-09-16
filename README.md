@@ -40,10 +40,20 @@ reçoivent les serveurs, et servi en HTTPS par
 | `development` — construit ailleurs | `mc-launcher-dev.ggy.info` |
 | `local` — compilé à la main | `mc-launcher-dev.ggy.info` |
 
-**Le binaire sait d'où il vient**, la CI le lui fige à la compilation
-(`SAMFLIX_ENV`), et c'est cela qui choisit le pack. L'adresse était auparavant
-écrite en dur sur la production : une préproduction téléchargeait le pack des
-joueurs, et n'éprouvait donc rien de ce qu'elle était censée éprouver.
+**Le binaire sait d'où il vient**, et c'est cela qui choisit le pack. L'adresse
+était auparavant écrite en dur sur la production : une préproduction
+téléchargeait le pack des joueurs, et n'éprouvait donc rien de ce qu'elle était
+censée éprouver.
+
+L'environnement est déclaré, jamais déduit, et dans cet ordre :
+
+1. `SAMFLIX_ENV` **au lancement** — prioritaire sur tout le reste ;
+2. `SAMFLIX_ENV` **figé à la compilation**, ce que pose la CI ;
+3. `local` à défaut.
+
+Le premier point vaut d'être connu dans les deux sens : il permet de rejouer un
+binaire de production contre le pack de dev sans recompiler, et il explique
+qu'un shell où la variable traîne change la cible sans rien annoncer.
 
 Un binaire compilé à la main vise la dev, et c'est le moins coûteux des deux
 choix : personne ne compile ce launcher pour jouer, tandis qu'un binaire de

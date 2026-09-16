@@ -516,13 +516,16 @@ async fn launch(
         (Some(mc_instance::launch::QuickPlay::Multiplayer(hote)), true) => {
             println!("  serveur : {hote} — demandé en ligne de commande")
         }
+        // La clé réellement lue, pas l'environnement du binaire : en « local »
+        // c'est l'entrée « development » qui sert, et afficher « local »
+        // enverrait chercher dans le manifeste une clé qui n'y est pas.
         (Some(mc_instance::launch::QuickPlay::Multiplayer(hote)), false) => println!(
             "  serveur : {hote} — déclaré par le pack pour « {} »",
-            environnement.as_str()
+            Manifest::environnement_serveur(environnement).as_str()
         ),
         _ => println!(
             "  serveur : aucun pour « {} » — le jeu s'ouvrira sur le menu",
-            environnement.as_str()
+            Manifest::environnement_serveur(environnement).as_str()
         ),
     }
     println!();
