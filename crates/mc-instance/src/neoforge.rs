@@ -135,8 +135,8 @@ pub async fn install_client(
     // est une erreur fatale de son point de vue.
     let profiles = shared.join("launcher_profiles.json");
     if !profiles.is_file() {
-        std::fs::create_dir_all(shared)?;
-        std::fs::write(&profiles, br#"{"profiles":{},"version":3}"#)?;
+        tokio::fs::create_dir_all(shared).await?;
+        tokio::fs::write(&profiles, br#"{"profiles":{},"version":3}"#).await?;
     }
 
     run_installer(&installer, "--install-client", shared, java).await?;
@@ -159,7 +159,7 @@ pub async fn install_server(
     java: &Path,
     dl: &Downloader,
 ) -> Result<()> {
-    std::fs::create_dir_all(dir)?;
+    tokio::fs::create_dir_all(dir).await?;
     // L'installateur va dans le cache partagé, pas dans le répertoire du
     // serveur : celui-ci est destiné à être recopié vers l'hôte qui fait
     // tourner le jeu, et n'a pas à emporter six mégaoctets d'outillage.

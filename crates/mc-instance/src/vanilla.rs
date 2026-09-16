@@ -238,7 +238,7 @@ pub async fn install(mc: &str, shared: &Path, dl: &Downloader) -> Result<Vanilla
     .await
     .context("téléchargement du descripteur de version")?;
 
-    let version: VersionJson = serde_json::from_slice(&std::fs::read(&version_json)?)
+    let version: VersionJson = serde_json::from_slice(&tokio::fs::read(&version_json).await?)
         .with_context(|| format!("{} illisible", version_json.display()))?;
 
     let client_jar = shared
@@ -343,7 +343,7 @@ async fn install_assets(index: &AssetIndexRef, shared: &Path, dl: &Downloader) -
     .await
     .context("téléchargement de l'index des assets")?;
 
-    let parsed: AssetIndex = serde_json::from_slice(&std::fs::read(&index_path)?)
+    let parsed: AssetIndex = serde_json::from_slice(&tokio::fs::read(&index_path).await?)
         .context("index des assets illisible")?;
     let objects = shared.join("assets").join("objects");
 
