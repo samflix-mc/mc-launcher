@@ -6,7 +6,6 @@ license.workspace = true
 description = "Journalisation vers la console et un fichier, remontée des incidents à Sentry"
 
 [dependencies]
-anyhow.workspace = true
 mc-dl = { path = "../mc-dl" }
 tracing.workspace = true
 tracing-subscriber.workspace = true

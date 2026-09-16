@@ -110,12 +110,6 @@ pub fn telemetry_active() -> bool {
     dsn().is_some()
 }
 
-/// Envoie un incident de test et renvoie son identifiant.
-///
-/// Sert à répondre à « est-ce que ça remonte vraiment ? » sans avoir à
-/// provoquer une vraie panique. L'identifiant rendu est celui à chercher dans
-/// le tableau de bord : si les deux correspondent, la chaîne entière — envoi,
-/// réseau, projet, censure — est vérifiée.
 /// Remonte un plantage du jeu comme un incident à part entière.
 ///
 /// Minecraft plante dans sa propre JVM : rien n'en arrive au launcher, sinon
@@ -194,6 +188,12 @@ fn truncate(text: &str, max: usize) -> String {
     format!("[…début tronqué…]\n{}", &text[from..])
 }
 
+/// Envoie un incident de test et renvoie son identifiant.
+///
+/// Sert à répondre à « est-ce que ça remonte vraiment ? » sans avoir à
+/// provoquer une vraie panique. L'identifiant rendu est celui à chercher dans
+/// le tableau de bord : si les deux correspondent, la chaîne entière — envoi,
+/// réseau, projet, censure — est vérifiée.
 pub fn send_test_event() -> (sentry::types::Uuid, bool) {
     // Les deux canaux passent par des routes différentes et des filtres
     // différents : les tester ensemble évite de croire l'un fonctionnel parce
@@ -280,8 +280,16 @@ pub fn init(component: &str) -> Guard {
     // La console montre l'essentiel ; le fichier garde tout. RUST_LOG règle la
     // première sans toucher au second, pour qu'un utilisateur qui augmente la
     // verbosité n'ait pas à relancer l'opération qui a échoué.
-    let console_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,hyper=warn,reqwest=warn,rustls=warn"));
+    //
+    // Une RUST_LOG posée mais vide vaut une RUST_LOG absente : recopier le
+    // « .env » d'exemple tel quel la pose ainsi, et `try_from_default_env`
+    // rendrait alors un filtre sans la moindre directive — console muette,
+    // défaut compris, sans que rien ne l'explique.
+    let console_filter = std::env::var("RUST_LOG")
+        .ok()
+        .filter(|niveau| !niveau.trim().is_empty())
+        .and_then(|niveau| EnvFilter::try_new(niveau).ok())
+        .unwrap_or_else(|| EnvFilter::new("info,hyper=warn,reqwest=warn,rustls=warn"));
 
     layers.push(
         tracing_subscriber::fmt::layer()
@@ -646,8 +654,29 @@ fn file_layer(
     (
         Some(layer),
         Some(guard),
-        Some(dir.join(format!("{component}.log"))),
+        Some(current_log_file(&dir, component)),
     )
+}
+
+/// Le fichier que l'appender vient d'ouvrir.
+///
+/// `rolling::daily` date le nom : « mc-pack.log » devient
+/// « mc-pack.log.2026-09-16 ». Annoncer le nom sans sa date envoie le joueur
+/// vers un fichier qui n'existe pas — et c'est justement celui qu'on lui
+/// demande de joindre. Le fichier étant créé dès l'ouverture de l'appender, il
+/// suffit de le retrouver ; la date se trie dans l'ordre alphabétique, donc le
+/// plus grand nom est celui du jour.
+fn current_log_file(dir: &Path, component: &str) -> PathBuf {
+    let prefix = format!("{component}.log");
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.file_name())
+        .filter(|name| name.to_string_lossy().starts_with(&prefix))
+        .max()
+        .map(|name| dir.join(name))
+        .unwrap_or_else(|| dir.join(prefix))
 }
 
 /// Supprime les journaux trop anciens.
@@ -766,6 +795,29 @@ mod tests {
     fn les_journaux_vivent_sous_le_repertoire_de_donnees() {
         assert!(log_dir().ends_with("logs"));
         assert!(log_dir().starts_with(mc_dl::data_dir()));
+    }
+
+    #[test]
+    fn le_chemin_annonce_est_celui_qui_existe_sur_le_disque() {
+        // C'est le fichier qu'on demande au joueur de joindre : le nommer sans
+        // sa date l'envoyait vers un fichier absent.
+        let dir = std::env::temp_dir().join(format!("mc-log-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("mc-pack.log.2026-09-15"), b"hier").unwrap();
+        std::fs::write(dir.join("mc-pack.log.2026-09-16"), b"aujourd'hui").unwrap();
+        // Un autre composant journalise dans le même répertoire.
+        std::fs::write(dir.join("mc-pack-panique.log.2026-09-16"), b"autre").unwrap();
+
+        let trouve = current_log_file(&dir, "mc-pack");
+        assert!(trouve.exists(), "{} n'existe pas", trouve.display());
+        assert!(trouve.ends_with("mc-pack.log.2026-09-16"));
+
+        // Répertoire vide : on retombe sur le nom sans date, faute de mieux.
+        let vide = dir.join("vide");
+        std::fs::create_dir_all(&vide).unwrap();
+        assert!(current_log_file(&vide, "mc-pack").ends_with("mc-pack.log"));
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
