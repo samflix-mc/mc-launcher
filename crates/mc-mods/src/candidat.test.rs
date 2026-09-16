@@ -1,4 +1,5 @@
 use super::*;
+use crate::{Channel, Origin, Side};
 
 fn candidat(sha1: Option<&str>, sha512: Option<&str>) -> Candidate {
     Candidate {
@@ -38,12 +39,4 @@ fn a_defaut_le_sha1_reste_opposable() {
     let c = candidat(Some("aa"), None);
     assert_eq!(c.checksum(), Some(mc_dl::Checksum::Sha1("aa".into())));
     assert_eq!(candidat(None, None).checksum(), None);
-}
-
-#[test]
-fn un_canal_plus_stable_que_la_limite_est_accepte() {
-    assert!(Channel::Release.allowed_by(Channel::Beta));
-    assert!(Channel::Beta.allowed_by(Channel::Beta));
-    assert!(!Channel::Alpha.allowed_by(Channel::Beta));
-    assert!(!Channel::Beta.allowed_by(Channel::Release));
 }

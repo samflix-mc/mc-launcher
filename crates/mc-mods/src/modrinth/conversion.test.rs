@@ -1,4 +1,5 @@
 use super::*;
+use crate::modrinth::api::ApiFile;
 
 fn project(client: &str, server: &str) -> Project {
     Project {
