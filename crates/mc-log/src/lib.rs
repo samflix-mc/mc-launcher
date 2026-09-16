@@ -84,21 +84,29 @@ pub fn send_test_event() -> (sentry::types::Uuid, bool) {
     // Les deux canaux passent par des routes différentes et des filtres
     // différents : les tester ensemble évite de croire l'un fonctionnel parce
     // que l'autre l'est.
+    // Vérifier une censure demande une marque que seule la nôtre produit.
+    //
+    // Deux tentatives ont échoué sur ce point. Un attribut contenant
+    // « access_token » ressort « [Filtered] » : c'est le filtrage serveur de
+    // Sentry, qui reconnaît le mot-clé. Un JWT nu ressort également
+    // « [Filtered] » : Sentry reconnaît aussi la forme. Dans les deux cas le
+    // test passait sans rien dire de `before_send_log`, puisque le résultat
+    // aurait été le même si notre filtre n'avait pas tourné.
+    //
+    // Le chemin du répertoire personnel, lui, n'est un secret pour personne :
+    // aucune règle serveur ne le touche. Notre filtre le réduit à « ~ ». Cette
+    // réécriture-là ne peut venir que de nous.
+    let temoin = std::env::var("HOME").unwrap_or_else(|_| "/home/utilisateur".into());
+
     tracing::info!(
         canal = "journaux structurés",
         composant = "mc-log",
-        // Deux faux jetons, et la différence entre les deux est tout l'intérêt
-        // du test.
-        //
-        // Le premier contient « access_token » : Sentry le filtre lui-même,
-        // côté serveur, et le rend en « [Filtered] ». Il ne prouve donc rien
-        // sur notre propre censure — un premier essai s'y était laissé prendre.
-        //
-        // Le second est un JWT nu, qu'aucune règle serveur ne reconnaît. S'il
-        // ressort en « [secret] », c'est `before_send_log` qui a agi ; s'il
-        // ressort en clair, notre filtre ne fonctionne pas.
+        // Ces deux-là montrent la défense en profondeur, sans rien prouver.
         avec_mot_cle = "access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.dGVzdA",
         jeton_nu = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.dGVzdEp3dE51",
+        // Celui-ci tranche : « ~/… » prouve que before_send_log a tourné,
+        // le chemin complet prouve qu'il n'a pas tourné.
+        temoin_chemin = %format!("{temoin}/.local/share/samflix-mc"),
         "ligne de journal de test"
     );
 

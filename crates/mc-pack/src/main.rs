@@ -143,11 +143,11 @@ fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<()> {
         if envoye {
             println!("  envoi       : abouti — à retrouver dans Sentry sous cet identifiant");
             println!("  canaux      : incident (Issues) et journal structuré (Logs)");
-            println!("\n  Dans l'onglet Logs, l'entrée « ligne de journal de test » porte deux");
-            println!("  attributs, et c'est leur différence qui vaut vérification :");
-            println!("    avec_mot_cle → [Filtered] : Sentry filtre lui-même, ne prouve rien");
-            println!("    jeton_nu     → [secret]   : c'est notre censure qui a agi");
-            println!("  Un jeton lisible en face de « jeton_nu » signalerait une fuite.");
+            println!("\n  Dans l'onglet Logs, sur « ligne de journal de test », un seul");
+            println!("  attribut tranche — les deux autres sont filtrés par Sentry lui-même");
+            println!("  et ne diraient rien de notre censure :");
+            println!("    temoin_chemin → « ~/… »  : before_send_log a tourné");
+            println!("                  → « /home/… » : il n'a pas tourné, il y a une fuite");
         } else {
             println!("  envoi       : ÉCHOUÉ (file non vidée avant expiration)");
             println!("                réseau bloqué, DSN erroné ou projet inexistant");
