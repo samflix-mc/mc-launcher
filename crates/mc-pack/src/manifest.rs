@@ -169,6 +169,7 @@ impl ModEntry {
             // Le manifeste ne porte pas d'empreinte : elle vient du verrou,
             // qui est justement ce que le manifeste ne veut pas répéter.
             expected_sha1: None,
+            expected_sha512: None,
         })
     }
 }

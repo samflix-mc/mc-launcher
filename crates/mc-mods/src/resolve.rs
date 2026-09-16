@@ -62,6 +62,8 @@ pub struct Request {
     /// passage a calculée et figée dans le verrou rend les suivants aussi
     /// vérifiables que pour les autres sources.
     pub expected_sha1: Option<String>,
+    /// Idem, quand le verrou porte l'empreinte forte.
+    pub expected_sha512: Option<String>,
 }
 
 impl Request {
@@ -74,6 +76,7 @@ impl Request {
             side: None,
             channel: None,
             expected_sha1: None,
+            expected_sha512: None,
         }
     }
 }
@@ -475,6 +478,156 @@ impl Default for Options {
     }
 }
 
+/// Cherche un fournisseur pour chaque `modId` qu'aucune API n'annonçait.
+///
+/// Sortie de [`resolve_with`] : ce rattrapage ne touche ni à la table des
+/// retenus ni au décompte des tours, il ne fait qu'alimenter la file — ou la
+/// liste des manques, quand personne ne peut fournir.
+async fn rattraper(
+    registry: &Registry,
+    manques: Vec<(String, String, Side)>,
+    mc: &str,
+    loader: &str,
+    impasses: &BTreeSet<Cle>,
+    queue: &mut FileDeResolution,
+    unresolved: &mut Vec<Unresolved>,
+) -> Result<()> {
+    for (mod_id, required_by, side) in manques {
+        // La trace la plus utile du lot : elle nomme une dépendance que ni
+        // le manifeste ni l'API n'annonçaient, et sans laquelle le jeu ne
+        // démarrerait pas.
+        tracing::info!(
+            mod_id = %mod_id,
+            exige_par = %required_by,
+            "Dépendance implicite : {required_by} exige « {mod_id} », qu'aucune API ne déclarait"
+        );
+        let found = registry.find_by_mod_id(&mod_id, mc, loader).await?;
+        let request = Request {
+            slug: mod_id.clone(),
+            source: None,
+            file: None,
+            version: None,
+            side: Some(side),
+            channel: Some(Channel::Beta),
+            expected_sha1: None,
+            expected_sha512: None,
+        };
+        let trouve = pick(found, &request);
+        // Le projet a déjà perdu cet arbitrage : le reproposer relancerait
+        // un tour identique, jusqu'à épuisement de [`MAX_PASSES`].
+        let impasse = trouve
+            .as_ref()
+            .is_some_and(|c| impasses.contains(&(c.origin, c.project_id.clone())));
+        match trouve {
+            Some(candidate) if !impasse => queue.pousser(
+                Request {
+                    slug: candidate.project_id.clone(),
+                    source: Some(candidate.origin),
+                    file: Some(candidate.version_id.clone()),
+                    version: None,
+                    side: Some(side),
+                    channel: Some(Channel::Beta),
+                    expected_sha1: None,
+                    expected_sha512: None,
+                },
+                Reason::Implicit {
+                    by: required_by,
+                    mod_id,
+                },
+                None,
+            ),
+            // Introuvable, ou trouvable chez un projet dont la place est
+            // prise : dans les deux cas le mod n'arrivera pas par cette
+            // voie. Cela n'arrête pas l'installation — la dépendance peut
+            // être fournie par un jar non encore analysé, ou relever d'un
+            // mod absent des deux plateformes. L'appelant tranche, sur une
+            // liste qui lui dit laquelle des deux situations il regarde.
+            autre => {
+                match &autre {
+                    Some(candidate) => tracing::error!(
+                        mod_id = %mod_id,
+                        exige_par = %required_by,
+                        projet = %candidate.slug,
+                        "« {mod_id} », exigé par {required_by}, ne serait fourni que par \
+                         « {} » — dont la place est tenue par un build qu'une demande plus \
+                         autoritaire impose",
+                        candidate.slug
+                    ),
+                    None => tracing::error!(
+                        mod_id = %mod_id,
+                        exige_par = %required_by,
+                        "« {mod_id} », exigé par {required_by}, est introuvable sur toutes les sources"
+                    ),
+                }
+                unresolved.push(Unresolved {
+                    mod_id,
+                    required_by,
+                    side,
+                })
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Le build à retenir pour une demande, ou l'explication de son absence.
+///
+/// Sortie de [`resolve_with`], dont elle représentait le gros du volume : trois
+/// impasses — version demandée introuvable, projet introuvable, téléchargement
+/// interdit par l'auteur — qui n'ont besoin que de la demande pour être
+/// décrites, et dont aucune ne regarde l'état de la résolution.
+async fn choisir_build(
+    registry: &Registry,
+    request: &Request,
+    mc: &str,
+    loader: &str,
+) -> Result<Candidate> {
+    if let Some(pinned) = registry.pinned(request, mc, loader).await? {
+        return Ok(pinned);
+    }
+
+    let found = registry
+        .candidates(&request.slug, request.source, mc, loader)
+        .await?;
+    let had_candidates = !found.is_empty();
+
+    let candidate = match pick(found, request) {
+        Some(c) => c,
+        None if had_candidates => bail!(
+            "{} : aucune version ne correspond{}",
+            request.slug,
+            match (&request.version, request.channel) {
+                (Some(v), _) => format!(" à la version demandée « {v} »"),
+                (None, Some(ch)) => format!(" au canal {} ou plus stable", ch.as_str()),
+                _ => " au canal release".to_string(),
+            }
+        ),
+        None => {
+            let hint = if registry.has_curseforge() {
+                ""
+            } else {
+                " (aucune clé CurseForge configurée : seul Modrinth a été consulté)"
+            };
+            bail!(
+                "{} : introuvable pour Minecraft {mc} / {loader}{hint}",
+                request.slug
+            );
+        }
+    };
+
+    if !candidate.redistributable || candidate.url.is_empty() {
+        bail!(
+            "{} : l'auteur a désactivé le téléchargement par un launcher tiers. \
+             Récupérer le fichier sur {} et le déposer dans le dossier des apports manuels.",
+            candidate.slug,
+            candidate.page_url.as_deref().unwrap_or("la page du mod")
+        );
+    }
+
+    Ok(candidate)
+}
+
 /// Résout, télécharge et vérifie l'ensemble du pack.
 pub async fn resolve(
     registry: &Registry,
@@ -529,48 +682,7 @@ pub async fn resolve_with(
         {
             let key = |c: &Candidate| (c.origin, c.project_id.clone());
 
-            let candidate = match registry.pinned(&request, mc, loader).await? {
-                Some(pinned) => pinned,
-                None => {
-                    let found = registry
-                        .candidates(&request.slug, request.source, mc, loader)
-                        .await?;
-                    let had_candidates = !found.is_empty();
-                    match pick(found, &request) {
-                        Some(c) => c,
-                        None if had_candidates => bail!(
-                            "{} : aucune version ne correspond{}",
-                            request.slug,
-                            match (&request.version, request.channel) {
-                                (Some(v), _) => format!(" à la version demandée « {v} »"),
-                                (None, Some(ch)) =>
-                                    format!(" au canal {} ou plus stable", ch.as_str()),
-                                _ => " au canal release".to_string(),
-                            }
-                        ),
-                        None => {
-                            let hint = if registry.has_curseforge() {
-                                ""
-                            } else {
-                                " (aucune clé CurseForge configurée : seul Modrinth a été consulté)"
-                            };
-                            bail!(
-                                "{} : introuvable pour Minecraft {mc} / {loader}{hint}",
-                                request.slug
-                            );
-                        }
-                    }
-                }
-            };
-
-            if !candidate.redistributable || candidate.url.is_empty() {
-                bail!(
-                    "{} : l'auteur a désactivé le téléchargement par un launcher tiers. \
-                     Récupérer le fichier sur {} et le déposer dans le dossier des apports manuels.",
-                    candidate.slug,
-                    candidate.page_url.as_deref().unwrap_or("la page du mod")
-                );
-            }
+            let candidate = choisir_build(registry, &request, mc, loader).await?;
 
             // Une source qui ne publie pas d'empreinte n'interdit pas de
             // vérifier : celle qu'un passage précédent a figée dans le verrou
@@ -578,6 +690,9 @@ pub async fn resolve_with(
             let mut candidate = candidate;
             if candidate.sha1.is_none() {
                 candidate.sha1 = request.expected_sha1.clone();
+            }
+            if candidate.sha512.is_none() {
+                candidate.sha512 = request.expected_sha512.clone();
             }
 
             tracing::debug!(
@@ -676,6 +791,7 @@ pub async fn resolve_with(
                         side: None,
                         channel: Some(Channel::Beta),
                         expected_sha1: None,
+                        expected_sha512: None,
                     },
                     Reason::Declared { by: parent.clone() },
                     Some(id.clone()),
@@ -707,79 +823,16 @@ pub async fn resolve_with(
             break;
         }
 
-        for (mod_id, required_by, side) in missing {
-            // La trace la plus utile du lot : elle nomme une dépendance que ni
-            // le manifeste ni l'API n'annonçaient, et sans laquelle le jeu ne
-            // démarrerait pas.
-            tracing::info!(
-                mod_id = %mod_id,
-                exige_par = %required_by,
-                "Dépendance implicite : {required_by} exige « {mod_id} », qu'aucune API ne déclarait"
-            );
-            let found = registry.find_by_mod_id(&mod_id, mc, loader).await?;
-            let request = Request {
-                slug: mod_id.clone(),
-                source: None,
-                file: None,
-                version: None,
-                side: Some(side),
-                channel: Some(Channel::Beta),
-                expected_sha1: None,
-            };
-            let trouve = pick(found, &request);
-            // Le projet a déjà perdu cet arbitrage : le reproposer relancerait
-            // un tour identique, jusqu'à épuisement de [`MAX_PASSES`].
-            let impasse = trouve
-                .as_ref()
-                .is_some_and(|c| impasses.contains(&(c.origin, c.project_id.clone())));
-            match trouve {
-                Some(candidate) if !impasse => queue.pousser(
-                    Request {
-                        slug: candidate.project_id.clone(),
-                        source: Some(candidate.origin),
-                        file: Some(candidate.version_id.clone()),
-                        version: None,
-                        side: Some(side),
-                        channel: Some(Channel::Beta),
-                        expected_sha1: None,
-                    },
-                    Reason::Implicit {
-                        by: required_by,
-                        mod_id,
-                    },
-                    None,
-                ),
-                // Introuvable, ou trouvable chez un projet dont la place est
-                // prise : dans les deux cas le mod n'arrivera pas par cette
-                // voie. Cela n'arrête pas l'installation — la dépendance peut
-                // être fournie par un jar non encore analysé, ou relever d'un
-                // mod absent des deux plateformes. L'appelant tranche, sur une
-                // liste qui lui dit laquelle des deux situations il regarde.
-                autre => {
-                    match &autre {
-                        Some(candidate) => tracing::error!(
-                            mod_id = %mod_id,
-                            exige_par = %required_by,
-                            projet = %candidate.slug,
-                            "« {mod_id} », exigé par {required_by}, ne serait fourni que par \
-                             « {} » — dont la place est tenue par un build qu'une demande plus \
-                             autoritaire impose",
-                            candidate.slug
-                        ),
-                        None => tracing::error!(
-                            mod_id = %mod_id,
-                            exige_par = %required_by,
-                            "« {mod_id} », exigé par {required_by}, est introuvable sur toutes les sources"
-                        ),
-                    }
-                    plan.unresolved.push(Unresolved {
-                        mod_id,
-                        required_by,
-                        side,
-                    })
-                }
-            }
-        }
+        rattraper(
+            registry,
+            missing,
+            mc,
+            loader,
+            &impasses,
+            &mut queue,
+            &mut plan.unresolved,
+        )
+        .await?;
 
         if queue.est_vide() {
             break;
@@ -863,8 +916,8 @@ async fn download_all(
             // Source sans empreinte : on calcule la nôtre. Elle part dans le
             // verrou, et les installations suivantes seront vérifiées comme
             // toutes les autres.
-            if entry.candidate.sha1.is_none() {
-                entry.candidate.sha1 = mc_dl::sha1_of_file(&path).ok();
+            if entry.candidate.checksum().is_none() {
+                entry.candidate.sha512 = mc_dl::sha512_of_file(&path).ok();
             }
             entry.path = path;
         }
@@ -909,7 +962,10 @@ fn deduplicate_by_mod_id(chosen: &mut BTreeMap<(Origin, String), Installed>) {
                     let keep_previous = {
                         let other = &chosen[previous];
                         let score = |m: &Installed| {
-                            (m.candidate.sha1.is_some(), m.reason == Reason::Explicit)
+                            (
+                                m.candidate.checksum().is_some(),
+                                m.reason == Reason::Explicit,
+                            )
                         };
                         score(other) >= score(entry)
                     };
@@ -986,9 +1042,9 @@ pub fn deploy(plan: &Plan, side: Side, mods_dir: &Path) -> Result<Deployed> {
     for entry in plan.for_side(side) {
         let dest = mods_dir.join(&entry.candidate.file_name);
         if dest.exists() {
-            let same = match &entry.candidate.sha1 {
-                Some(expected) => mc_dl::sha1_of_file(&dest)
-                    .map(|got| got.eq_ignore_ascii_case(expected))
+            let same = match entry.candidate.checksum() {
+                Some(attendue) => std::fs::read(&dest)
+                    .map(|bytes| attendue.matches(&bytes))
                     .unwrap_or(false),
                 None => true,
             };
@@ -1086,6 +1142,7 @@ mod tests {
                 file_name: format!("{slug}.jar"),
                 url: format!("https://exemple/{slug}.jar"),
                 sha1: None,
+                sha512: None,
                 size: 0,
                 published: "2025-01-01".into(),
                 project_side: Side::Both,

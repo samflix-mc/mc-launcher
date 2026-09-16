@@ -316,6 +316,7 @@ fn to_candidate(project_id: u32, slug: &str, name: &str, file: WebFile) -> Candi
         // Aucune empreinte publiée par cette source : le SHA-1 sera calculé au
         // téléchargement puis figé dans le verrou.
         sha1: None,
+        sha512: None,
         size: file.file_length,
         published: file.date_created,
         project_side: Side::Both,

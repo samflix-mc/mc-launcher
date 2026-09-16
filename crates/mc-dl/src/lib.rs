@@ -118,9 +118,22 @@ pub fn data_dir() -> PathBuf {
 }
 
 /// Empreinte SHA-1 d'un fichier déjà sur le disque.
+///
+/// Conservée pour ce que les sources amont imposent : Mojang adresse tout
+/// vanilla par SHA-1, et CurseForge ne publie rien de plus fort.
 pub fn sha1_of_file(path: &Path) -> Result<String> {
     use sha1::{Digest, Sha1};
     Ok(hex::encode(Sha1::digest(std::fs::read(path)?)))
+}
+
+/// Empreinte SHA-512 d'un fichier déjà sur le disque.
+///
+/// Celle qu'on calcule quand personne n'en publie : rien n'oblige alors à
+/// retenir l'algorithme le plus faible, et c'est elle que le verrou gardera
+/// pour toutes les vérifications suivantes.
+pub fn sha512_of_file(path: &Path) -> Result<String> {
+    use sha2::{Digest, Sha512};
+    Ok(hex::encode(Sha512::digest(std::fs::read(path)?)))
 }
 
 /// Ce qu'a fait [`Downloader::to_file`], pour distinguer un vrai

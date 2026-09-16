@@ -380,13 +380,19 @@ pub fn verify(source: &Source, options: &Options, deep: bool) -> Result<Vec<Stri
                 problems.push(format!("mod manquant : {}", path.display()));
                 continue;
             }
-            let Some(expected) = &entry.sha1 else {
-                continue;
+            // La plus forte empreinte que le verrou porte pour ce jar : le
+            // SHA-512 quand Modrinth le publie ou qu'on l'a calculé, le SHA-1
+            // pour ce que CurseForge est seul à donner et pour les verrous
+            // écrits avant que le champ n'existe.
+            let verification = match (&entry.sha512, &entry.sha1) {
+                (Some(attendu), _) => mc_dl::sha512_of_file(&path).map(|got| (got, attendu)),
+                (None, Some(attendu)) => mc_dl::sha1_of_file(&path).map(|got| (got, attendu)),
+                (None, None) => continue,
             };
-            match mc_dl::sha1_of_file(&path) {
-                Ok(got) if got.eq_ignore_ascii_case(expected) => {}
-                Ok(got) => problems.push(format!(
-                    "{} : empreinte {got} au lieu de {expected}",
+            match verification {
+                Ok((got, attendu)) if got.eq_ignore_ascii_case(attendu) => {}
+                Ok((got, attendu)) => problems.push(format!(
+                    "{} : empreinte {got} au lieu de {attendu}",
                     path.display()
                 )),
                 Err(e) => problems.push(format!("{} : illisible ({e})", path.display())),
@@ -427,6 +433,7 @@ mod tests {
             file_name: format!("{slug}.jar"),
             url: format!("https://exemple.invalid/{slug}.jar"),
             sha1: None,
+            sha512: None,
             size: 0,
             side: side.into(),
             reason: "demandé par le manifeste".into(),
