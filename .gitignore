@@ -3,3 +3,6 @@
 # Secrets : la clé d'API CurseForge est nominative et ne se versionne pas.
 .env
 *.key
+
+# Rapport de couverture produit par cargo-llvm-cov.
+/lcov.info

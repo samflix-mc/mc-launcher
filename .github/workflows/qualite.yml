@@ -1,0 +1,110 @@
+name: Qualité
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  # Le même environnement que les contrôles. Plusieurs tests lisent SAMFLIX_ENV,
+  # et une couverture mesurée ailleurs ne couvre pas le même code.
+  SAMFLIX_ENV: ${{ github.ref == 'refs/heads/main' && 'preproduction' || 'development' }}
+
+  # Le cliquet, et non l'objectif. Le dépôt couvre aujourd'hui 42 % de ses
+  # lignes : ce seuil interdit de redescendre, et se remonte à mesure qu'on
+  # monte — jamais l'inverse.
+  #
+  # L'exigence des 80 % est ailleurs, et porte sur le code NOUVEAU : c'est la
+  # porte de qualité de SonarQube Cloud, déclarée dans sonar-project.properties.
+  # C'est la seule façon de l'exiger sans rendre la CI rouge le jour où on
+  # l'installe, et c'est ce que le « Clean as You Code » de Sonar décrit : la
+  # dette existante se résorbe en la traversant, pas en bloquant tout le monde
+  # devant. Le jour où le dépôt entier passe 80 %, ce seuil vaut 80 et les deux
+  # phrases disent la même chose.
+  #
+  # Les trois plus gros manques, pour qui veut faire monter le chiffre :
+  # mc-pack/src/main.rs (0 %, l'analyse des arguments et l'affichage),
+  # mc-mods/src/curseforge.rs (9 %) et mc-mods/src/modrinth.rs (19 %) — les deux
+  # clients d'API, qui demandent un serveur de test pour être couverts.
+  SEUIL_LIGNES: 42
+
+jobs:
+  couverture:
+    name: Couverture et analyse Sonar
+    # x86 et non ARM comme les contrôles : le scanner Sonar ne documente pas de
+    # binaire aarch64-linux. Le prix est un cache de compilation distinct de
+    # celui du workflow Contrôles ; le payer ici évite de découvrir la
+    # limitation un jour de panne.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Sonar date chaque ligne pour savoir laquelle est neuve. Sans
+          # l'historique complet, tout le dépôt paraît écrit aujourd'hui : la
+          # porte sur le code nouveau porterait alors sur le code de tout le
+          # monde, et bloquerait la première PR venue.
+          fetch-depth: 0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      # llvm-cov instrumente la compilation : les tests tournent donc une
+      # seconde fois, après le workflow Contrôles. C'est le prix d'une mesure
+      # exacte — l'alternative, compter les lignes exécutées sans
+      # instrumentation, donne un chiffre qu'on ne peut pas opposer à quelqu'un.
+      - name: Mesurer la couverture
+        run: >
+          cargo llvm-cov --workspace --locked
+          --lcov --output-path lcov.info
+          --fail-under-lines ${{ env.SEUIL_LIGNES }}
+
+      # Conservé même quand le seuil n'est pas tenu : c'est précisément le cas
+      # où l'on veut savoir quelle ligne manque.
+      - name: Conserver le rapport
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: couverture-lcov
+          path: lcov.info
+          retention-days: 14
+          if-no-files-found: warn
+
+      # Le secret n'existe pas tant que le projet n'est pas créé sur
+      # SonarQube Cloud. Sans cette garde, chaque PR échouerait sur une analyse
+      # qu'on n'a pas les moyens de faire — alors que le seuil de couverture
+      # ci-dessus, lui, tient déjà tout seul. Le test passe par le shell et non
+      # par une expression : un secret absent et un secret vide se valent ici,
+      # et aucune des deux valeurs n'apparaît dans le journal.
+      - name: Le projet Sonar est-il configuré ?
+        id: sonar
+        env:
+          JETON: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$JETON" ]; then
+            echo "configure=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configure=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Analyser avec SonarQube Cloud
+        if: steps.sonar.outputs.configure == 'true'
+        uses: SonarSource/sonarqube-scan-action@v8
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Sonar non configuré
+        if: steps.sonar.outputs.configure != 'true'
+        run: >
+          echo "::notice title=Analyse Sonar ignorée::SONAR_TOKEN absent des
+          secrets Actions. La couverture a été mesurée et le seuil appliqué ;
+          seule l'analyse Sonar est passée. Marche à suivre dans
+          sonar-project.properties."

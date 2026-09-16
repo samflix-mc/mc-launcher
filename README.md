@@ -414,3 +414,44 @@ az ad app create --display-name mc-launcher \
 Tant que Microsoft n'a pas approuvé l'application, `login_with_xbox` répond
 **403**. Cette tentative est l'activité exigée avant de soumettre
 <https://aka.ms/mce-reviewappid>. Revue hebdomadaire.
+
+## Contrôles automatiques
+
+Trois workflows, qui se répondent sans se recouvrir.
+
+**Contrôles** (`ci.yml`) — format, `clippy -D warnings`, tests, compilation en
+release, et un appel réel à Microsoft qui doit répondre `AADSTS700038` : la
+chaîne HTTP est vérifiée de bout en bout sans qu'aucun secret n'entre dans la
+CI.
+
+**Vulnérabilités** (`audit.yml`) — `cargo audit` sur les versions du verrou, à
+chaque changement et tous les lundis. Le rendez-vous hebdomadaire est le plus
+utile des deux : un avis RustSec paraît sur une dépendance qu'on n'a pas
+touchée depuis des mois, et sans lui il attendrait le prochain commit. Les
+vulnérabilités, le code `unsound` et les versions retirées de crates.io
+arrêtent la CI ; les crates non maintenues sont signalées sans bloquer.
+
+**Qualité** (`qualite.yml`) — couverture mesurée par `cargo llvm-cov`, puis
+analyse SonarQube Cloud. Deux seuils, qui ne disent pas la même chose :
+
+| | Portée | Valeur | Où |
+|---|---|---|---|
+| Cliquet | tout le dépôt | 42 % des lignes | `SEUIL_LIGNES` dans `qualite.yml` |
+| Porte de qualité | code nouveau d'une PR | 80 % | Sonar, `sonar.qualitygate.wait` |
+
+Le premier interdit de redescendre, le second exige 80 % de ce qu'on écrit
+désormais. Un seuil global à 80 % aujourd'hui rendrait `main` rouge sans rien
+apprendre : la dette se résorbe en la traversant. Il se remonte à la main, à
+mesure que le chiffre monte.
+
+Reproduire la mesure :
+
+```bash
+cargo llvm-cov --workspace --locked --summary-only
+```
+
+L'analyse Sonar demande un projet créé sur [SonarCloud](https://sonarcloud.io)
+et un secret `SONAR_TOKEN` dans les secrets Actions ; la marche à suivre exacte
+est en tête de `sonar-project.properties`. Tant que le secret manque, le
+workflow mesure la couverture, applique le cliquet et passe l'analyse — une CI
+rouge faute de compte n'apprendrait rien à personne.
