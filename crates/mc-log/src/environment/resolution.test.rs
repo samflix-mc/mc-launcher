@@ -1,4 +1,5 @@
 use super::*;
+use crate::environment::Environment;
 
 #[test]
 fn sans_declaration_on_reste_local() {
