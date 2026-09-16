@@ -273,6 +273,22 @@ async fn lock(source: &Source, options: &mc_pack::Options) -> Result<()> {
         );
     };
     let manifest = Manifest::load(manifest_path)?;
+
+    // C'est ici, et nulle part ailleurs, qu'une clé de « servers » illisible se
+    // refuse. La lecture du manifeste ne peut pas s'en charger : elle s'applique
+    // aussi au pack téléchargé, et un binaire qui refuserait un environnement
+    // inconnu de lui s'arrêterait le jour où mc-content en déclare un de plus.
+    // lock est l'inverse — la commande qu'on lance avant de publier, sur le
+    // fichier qu'on vient d'écrire, avec l'auteur devant l'écran.
+    let problemes = manifest.problemes_de_serveurs();
+    if !problemes.is_empty() {
+        bail!(
+            "{} : des clés de « servers » ne seraient jamais lues —\n  {}",
+            manifest_path.display(),
+            problemes.join("\n  ")
+        );
+    }
+
     let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
     tracing::info!(
         pack = %manifest.name,

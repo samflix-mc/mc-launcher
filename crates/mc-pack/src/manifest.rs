@@ -185,40 +185,59 @@ impl Manifest {
             }
         }
 
-        // Les clés de « servers » sont lues par server_for, qui cherche le nom
-        // rendu par Environment::as_str(). Une clé fautive ne provoque donc
-        // aucune erreur : elle ne correspond simplement à rien, et le jeu
-        // s'ouvre sur le menu comme si le pack n'avait rien déclaré. C'est le
-        // pire des silences — celui qui ressemble à une intention.
+        // Les clés de « servers » ne sont pas contrôlées ici : voir
+        // problemes_de_serveurs, et la raison pour laquelle ce contrôle-là ne
+        // peut pas vivre dans check.
+        Ok(())
+    }
+
+    /// Clés de `servers` que la lecture ne trouvera jamais, chacune avec sa
+    /// raison. Vide quand tout est lisible.
+    ///
+    /// Délibérément hors de `check` : `check` s'applique à tout manifeste, y
+    /// compris celui qu'on vient de télécharger. Refuser là un pack pour une
+    /// clé inconnue reviendrait à arrêter net tous les launchers déjà
+    /// distribués le jour où mc-content déclare un environnement de plus — un
+    /// binaire compilé avant ne connaît pas les noms inventés après lui, et il
+    /// n'a aucune raison de tenir son ignorance pour une faute du pack. Il sait
+    /// ce qu'il sait lire ; le reste, il l'ignore, et c'est la seule réponse qui
+    /// laisse le format évoluer sans rappeler les binaires.
+    ///
+    /// Le contrôle a donc lieu là où le manifeste s'écrit — `mc-pack lock`,
+    /// qu'on lance avant de publier — et non là où il se lit.
+    pub fn problemes_de_serveurs(&self) -> Vec<String> {
+        let mut problemes = Vec::new();
         for (cle, serveur) in &self.servers {
-            let Some(environnement) = mc_log::Environment::parse(cle) else {
-                bail!(
+            match mc_log::Environment::parse(cle) {
+                // Une faute de frappe ne provoque rien à la lecture : la clé ne
+                // correspond à aucun environnement, le jeu s'ouvre sur le menu,
+                // et cela ressemble exactement à un pack qui n'aurait rien
+                // déclaré. C'est le pire des silences — celui qui ressemble à
+                // une intention.
+                None => problemes.push(format!(
                     "« {cle} » n'est pas un environnement : attendus development, \
                      preproduction ou production"
-                );
-            };
-            // Le nom canonique, et lui seul. Environment::parse accepte les
-            // alias courants — « dev », « staging » — mais la lecture cherche
-            // « development » : l'entrée serait acceptée ici et introuvable
-            // là-bas.
-            if environnement.as_str() != cle {
-                bail!(
+                )),
+                Some(mc_log::Environment::Local) => problemes.push(format!(
+                    "« {cle} » ne serait jamais lu : un binaire compilé à la main \
+                     rejoint le serveur de « development »"
+                )),
+                // Le nom canonique, et lui seul. Environment::parse accepte les
+                // alias courants — « dev », « staging » — mais la lecture
+                // cherche « development » : l'entrée passerait ici et resterait
+                // introuvable là-bas.
+                Some(environnement) if environnement.as_str() != cle => problemes.push(format!(
                     "« {cle} » est un alias ; écrire « {} », qui est le nom cherché \
                      à la lecture",
                     environnement.as_str()
-                );
-            }
-            if environnement == mc_log::Environment::Local {
-                bail!(
-                    "« local » ne serait jamais lu : un binaire compilé à la main \
-                     rejoint le serveur de « development »"
-                );
+                )),
+                Some(_) => {}
             }
             if serveur.host.trim().is_empty() {
-                bail!("le serveur déclaré pour « {cle} » n'a pas d'hôte");
+                problemes.push(format!("le serveur déclaré pour « {cle} » n'a pas d'hôte"));
             }
         }
-        Ok(())
+        problemes
     }
 
     pub fn requests(&self) -> Result<Vec<Request>> {
@@ -351,36 +370,87 @@ mod tests {
     }
 
     #[test]
-    fn une_cle_de_serveur_fautive_est_refusee() {
+    fn une_cle_de_serveur_fautive_est_signalee() {
         // Sans ce contrôle, une faute de frappe ne provoque rien : la clé ne
         // correspond à aucun environnement, le jeu s'ouvre sur le menu, et
         // cela ressemble exactement à un pack qui n'aurait rien déclaré.
-        let erreur = avec_cle("prodution", "mc.ggy.info").check().unwrap_err();
-        assert!(erreur.to_string().contains("prodution"));
+        let problemes = avec_cle("prodution", "mc.ggy.info").problemes_de_serveurs();
+        assert_eq!(problemes.len(), 1);
+        assert!(problemes[0].contains("prodution"));
     }
 
     #[test]
-    fn un_alias_est_refuse_parce_qu_il_ne_serait_pas_lu() {
+    fn un_alias_est_signale_parce_qu_il_ne_serait_pas_lu() {
         // Environment::parse accepte « dev », mais server_for cherche
         // « development » : l'entrée passerait ici et resterait introuvable.
-        let erreur = avec_cle("dev", "mc-dev.ggy.info").check().unwrap_err();
-        assert!(erreur.to_string().contains("development"));
+        let problemes = avec_cle("dev", "mc-dev.ggy.info").problemes_de_serveurs();
+        assert_eq!(problemes.len(), 1);
+        assert!(problemes[0].contains("development"));
     }
 
     #[test]
-    fn une_cle_local_est_refusee() {
-        let erreur = avec_cle("local", "mc-dev.ggy.info").check().unwrap_err();
-        assert!(erreur.to_string().contains("development"));
+    fn une_cle_local_est_signalee() {
+        let problemes = avec_cle("local", "mc-dev.ggy.info").problemes_de_serveurs();
+        assert_eq!(problemes.len(), 1);
+        assert!(problemes[0].contains("development"));
     }
 
     #[test]
-    fn un_hote_vide_est_refuse() {
-        assert!(avec_cle("production", "   ").check().is_err());
+    fn un_hote_vide_est_signale() {
+        assert_eq!(
+            avec_cle("production", "   ").problemes_de_serveurs().len(),
+            1
+        );
     }
 
     #[test]
-    fn les_cles_canoniques_passent() {
-        assert!(avec_serveurs().check().is_ok());
+    fn les_cles_canoniques_ne_posent_aucun_probleme() {
+        assert!(avec_serveurs().problemes_de_serveurs().is_empty());
+    }
+
+    #[test]
+    fn un_pack_plus_recent_que_le_binaire_reste_installable() {
+        // Le jour où mc-content déclare un environnement de plus, les binaires
+        // déjà chez les joueurs ne le connaîtront pas. S'ils refusaient le
+        // manifeste pour autant, une ligne ajoutée au pack couperait
+        // l'installation de tout le parc d'un coup — et personne ne pourrait
+        // plus rien télécharger pour se réparer.
+        let brut = br#"{"schema":1,"name":"essai","minecraft":"1.21.1",
+                        "loader":{"type":"neoforge","version":"latest"},
+                        "servers":{"production":{"host":"mc.ggy.info"},
+                                   "qualification":{"host":"mc-qa.ggy.info"}},
+                        "nouveau_champ_inconnu":true}"#;
+        let manifest = Manifest::parse(brut).expect("un environnement inconnu n'est pas une faute");
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Production)
+                .map(Server::address),
+            Some("mc.ggy.info".into()),
+            "ce que ce binaire sait lire reste lisible"
+        );
+        assert!(
+            manifest
+                .server_for(mc_log::Environment::Development)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn les_serveurs_survivent_a_un_passage_par_le_cache() {
+        // launch lit le manifeste rangé dans le cache, pas celui du réseau :
+        // un champ perdu à l'écriture ferait s'ouvrir le jeu sur le menu au
+        // lieu de rejoindre le serveur, et seulement hors ligne.
+        let dossier = std::env::temp_dir().join(format!("mc-pack-essai-{}", std::process::id()));
+        std::fs::create_dir_all(&dossier).unwrap();
+        let chemin = dossier.join("samflix.json");
+        avec_serveurs().save(&chemin).unwrap();
+        let relu = Manifest::load(&chemin).unwrap();
+        std::fs::remove_dir_all(&dossier).ok();
+        assert_eq!(
+            relu.server_for(mc_log::Environment::Development)
+                .map(Server::address),
+            Some("78.46.100.5:25566".into())
+        );
     }
 
     #[test]
