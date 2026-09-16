@@ -88,6 +88,20 @@ pub struct LockedMissing {
     pub side: String,
 }
 
+impl LockedMod {
+    /// La plus forte empreinte que le verrou porte pour ce jar.
+    ///
+    /// Le SHA-512 quand Modrinth le publie ou qu'on l'a calculé faute de
+    /// mieux ; le SHA-1 pour ce que CurseForge est seul à donner, et pour les
+    /// verrous écrits avant que le champ n'existe.
+    pub fn checksum(&self) -> Option<mc_dl::Checksum> {
+        self.sha512
+            .clone()
+            .map(mc_dl::Checksum::Sha512)
+            .or_else(|| self.sha1.clone().map(mc_dl::Checksum::Sha1))
+    }
+}
+
 impl Lockfile {
     pub fn from_plan(
         pack: &str,
@@ -260,6 +274,20 @@ mod tests {
             Lockfile::path_for(Path::new("packs/samflix.json")),
             Path::new("packs/samflix.lock.json")
         );
+    }
+
+    /// Ce que la vérification profonde opposera au jar : la plus forte des
+    /// deux, et le SHA-1 seul pour les verrous écrits avant le champ.
+    #[test]
+    fn le_verrou_oppose_la_plus_forte_empreinte_qu_il_porte() {
+        let mut m = locked("jade", "f", "1.0");
+        assert_eq!(m.checksum(), None);
+
+        m.sha1 = Some("aa".into());
+        assert_eq!(m.checksum(), Some(mc_dl::Checksum::Sha1("aa".into())));
+
+        m.sha512 = Some("bb".into());
+        assert_eq!(m.checksum(), Some(mc_dl::Checksum::Sha512("bb".into())));
     }
 
     fn locked(slug: &str, file: &str, version: &str) -> LockedMod {

@@ -380,20 +380,19 @@ pub fn verify(source: &Source, options: &Options, deep: bool) -> Result<Vec<Stri
                 problems.push(format!("mod manquant : {}", path.display()));
                 continue;
             }
-            // La plus forte empreinte que le verrou porte pour ce jar : le
-            // SHA-512 quand Modrinth le publie ou qu'on l'a calculé, le SHA-1
-            // pour ce que CurseForge est seul à donner et pour les verrous
-            // écrits avant que le champ n'existe.
-            let verification = match (&entry.sha512, &entry.sha1) {
-                (Some(attendu), _) => mc_dl::sha512_of_file(&path).map(|got| (got, attendu)),
-                (None, Some(attendu)) => mc_dl::sha1_of_file(&path).map(|got| (got, attendu)),
-                (None, None) => continue,
+            // Un verrou sans aucune empreinte ne permet pas de vérifier :
+            // c'est le cas des entrées écrites depuis une source qui n'en
+            // publiait pas, avant qu'on ne les calcule nous-mêmes.
+            let Some(attendue) = entry.checksum() else {
+                continue;
             };
-            match verification {
-                Ok((got, attendu)) if got.eq_ignore_ascii_case(attendu) => {}
-                Ok((got, attendu)) => problems.push(format!(
-                    "{} : empreinte {got} au lieu de {attendu}",
-                    path.display()
+            match std::fs::read(&path) {
+                Ok(bytes) if attendue.matches(&bytes) => {}
+                Ok(bytes) => problems.push(format!(
+                    "{} : empreinte {} au lieu de {}",
+                    path.display(),
+                    attendue.of(&bytes),
+                    attendue.expected()
                 )),
                 Err(e) => problems.push(format!("{} : illisible ({e})", path.display())),
             }

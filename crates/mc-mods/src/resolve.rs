@@ -41,7 +41,7 @@ const MAX_PASSES: usize = 6;
 const PARALLEL_DOWNLOADS: usize = 6;
 
 /// Un mod demandé par le manifeste.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Request {
     /// Slug, ou identifiant de projet si la source est imposée.
     pub slug: String,
@@ -238,7 +238,7 @@ pub struct Plan {
     pub unresolved: Vec<Unresolved>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unresolved {
     pub mod_id: String,
     pub required_by: String,
@@ -493,8 +493,8 @@ async fn rattraper(
     unresolved: &mut Vec<Unresolved>,
 ) -> Result<()> {
     for (mod_id, required_by, side) in manques {
-        // La trace la plus utile du lot : elle nomme une dépendance que ni
-        // le manifeste ni l'API n'annonçaient, et sans laquelle le jeu ne
+        // La trace la plus utile du lot : elle nomme une dépendance que ni le
+        // manifeste ni l'API n'annonçaient, et sans laquelle le jeu ne
         // démarrerait pas.
         tracing::info!(
             mod_id = %mod_id,
@@ -512,63 +512,84 @@ async fn rattraper(
             expected_sha1: None,
             expected_sha512: None,
         };
-        let trouve = pick(found, &request);
-        // Le projet a déjà perdu cet arbitrage : le reproposer relancerait
-        // un tour identique, jusqu'à épuisement de [`MAX_PASSES`].
-        let impasse = trouve
-            .as_ref()
-            .is_some_and(|c| impasses.contains(&(c.origin, c.project_id.clone())));
-        match trouve {
-            Some(candidate) if !impasse => queue.pousser(
-                Request {
-                    slug: candidate.project_id.clone(),
-                    source: Some(candidate.origin),
-                    file: Some(candidate.version_id.clone()),
-                    version: None,
-                    side: Some(side),
-                    channel: Some(Channel::Beta),
-                    expected_sha1: None,
-                    expected_sha512: None,
-                },
-                Reason::Implicit {
-                    by: required_by,
-                    mod_id,
-                },
-                None,
-            ),
-            // Introuvable, ou trouvable chez un projet dont la place est
-            // prise : dans les deux cas le mod n'arrivera pas par cette
-            // voie. Cela n'arrête pas l'installation — la dépendance peut
-            // être fournie par un jar non encore analysé, ou relever d'un
-            // mod absent des deux plateformes. L'appelant tranche, sur une
-            // liste qui lui dit laquelle des deux situations il regarde.
-            autre => {
-                match &autre {
-                    Some(candidate) => tracing::error!(
-                        mod_id = %mod_id,
-                        exige_par = %required_by,
-                        projet = %candidate.slug,
-                        "« {mod_id} », exigé par {required_by}, ne serait fourni que par \
-                         « {} » — dont la place est tenue par un build qu'une demande plus \
-                         autoritaire impose",
-                        candidate.slug
-                    ),
-                    None => tracing::error!(
-                        mod_id = %mod_id,
-                        exige_par = %required_by,
-                        "« {mod_id} », exigé par {required_by}, est introuvable sur toutes les sources"
-                    ),
-                }
-                unresolved.push(Unresolved {
-                    mod_id,
-                    required_by,
-                    side,
-                })
-            }
+        match suite_du_rattrapage(pick(found, &request), impasses, mod_id, required_by, side) {
+            Rattrapage::Demander(request, reason) => queue.pousser(request, reason, None),
+            Rattrapage::Renoncer(manque) => unresolved.push(manque),
         }
     }
 
     Ok(())
+}
+
+/// Ce qu'il advient d'une exigence implicite, une fois qu'on a cherché qui
+/// pourrait la fournir.
+#[derive(Debug, PartialEq, Eq)]
+enum Rattrapage {
+    /// Un build fournit le `modId` : sa demande rejoint la file.
+    Demander(Request, Reason),
+    /// Personne ne le fournira par cette voie ; le manque est consigné et
+    /// l'installation continue — le jeu démarrera sans, ou pas du tout, mais
+    /// c'est à l'appelant d'en juger, pas au résolveur.
+    Renoncer(Unresolved),
+}
+
+/// Décide sans rien demander au réseau, et c'est tout l'intérêt : la recherche
+/// du fournisseur est faite, ce qui reste est un jugement sur ce qu'elle a
+/// rendu — jugement dont dépend la terminaison de la résolution.
+fn suite_du_rattrapage(
+    trouve: Option<Candidate>,
+    impasses: &BTreeSet<Cle>,
+    mod_id: String,
+    required_by: String,
+    side: Side,
+) -> Rattrapage {
+    // Le projet a déjà perdu cet arbitrage : le reproposer relancerait un tour
+    // identique, jusqu'à épuisement de [`MAX_PASSES`].
+    let impasse = trouve
+        .as_ref()
+        .is_some_and(|c| impasses.contains(&(c.origin, c.project_id.clone())));
+
+    match trouve {
+        Some(candidate) if !impasse => Rattrapage::Demander(
+            Request {
+                slug: candidate.project_id.clone(),
+                source: Some(candidate.origin),
+                file: Some(candidate.version_id.clone()),
+                version: None,
+                side: Some(side),
+                channel: Some(Channel::Beta),
+                expected_sha1: None,
+                expected_sha512: None,
+            },
+            Reason::Implicit {
+                by: required_by,
+                mod_id,
+            },
+        ),
+        autre => {
+            match &autre {
+                Some(candidate) => tracing::error!(
+                    mod_id = %mod_id,
+                    exige_par = %required_by,
+                    projet = %candidate.slug,
+                    "« {mod_id} », exigé par {required_by}, ne serait fourni que par \
+                     « {} » — dont la place est tenue par un build qu'une demande plus \
+                     autoritaire impose",
+                    candidate.slug
+                ),
+                None => tracing::error!(
+                    mod_id = %mod_id,
+                    exige_par = %required_by,
+                    "« {mod_id} », exigé par {required_by}, est introuvable sur toutes les sources"
+                ),
+            }
+            Rattrapage::Renoncer(Unresolved {
+                mod_id,
+                required_by,
+                side,
+            })
+        }
+    }
 }
 
 /// Le build à retenir pour une demande, ou l'explication de son absence.
@@ -590,10 +611,28 @@ async fn choisir_build(
     let found = registry
         .candidates(&request.slug, request.source, mc, loader)
         .await?;
+    trancher(found, request, mc, loader, registry.has_curseforge())
+}
+
+/// Ce qu'on retient d'une liste de candidats, ou pourquoi on ne retient rien.
+///
+/// Séparé de [`choisir_build`] pour une raison simple : le jugement ne dépend
+/// que de ce que la source a répondu, jamais du réseau. Mêlé à l'appel, il
+/// était intestable, et ce sont pourtant ces trois messages que le joueur lira
+/// le jour où son pack ne s'installe pas.
+fn trancher(
+    found: Vec<Candidate>,
+    request: &Request,
+    mc: &str,
+    loader: &str,
+    has_curseforge: bool,
+) -> Result<Candidate> {
     let had_candidates = !found.is_empty();
 
     let candidate = match pick(found, request) {
         Some(c) => c,
+        // Le projet existe, mais rien n'y correspond : dire quoi, sans quoi le
+        // message envoie chercher un mod absent alors qu'il est sous les yeux.
         None if had_candidates => bail!(
             "{} : aucune version ne correspond{}",
             request.slug,
@@ -604,7 +643,7 @@ async fn choisir_build(
             }
         ),
         None => {
-            let hint = if registry.has_curseforge() {
+            let hint = if has_curseforge {
                 ""
             } else {
                 " (aucune clé CurseForge configurée : seul Modrinth a été consulté)"
@@ -1126,6 +1165,213 @@ mod tests {
         let declaree = Reason::Declared { by: "Jade".into() };
         assert!(!impasse_implicite(&declaree, 1, 3, false));
         assert!(!impasse_implicite(&Reason::Explicit, 1, 3, false));
+    }
+
+    fn candidat(slug: &str, version: &str) -> Candidate {
+        Candidate {
+            origin: Origin::Modrinth,
+            project_id: format!("{slug}-id"),
+            slug: slug.to_string(),
+            name: slug.to_string(),
+            version_id: format!("{slug}-{version}"),
+            version_number: version.to_string(),
+            display_name: version.to_string(),
+            channel: Channel::Release,
+            file_name: format!("{slug}.jar"),
+            url: format!("https://exemple.invalid/{slug}.jar"),
+            sha1: None,
+            sha512: None,
+            size: 0,
+            published: "2025-01-01".into(),
+            project_side: Side::Both,
+            declared_deps: Vec::new(),
+            page_url: Some(format!("https://modrinth.com/mod/{slug}")),
+            redistributable: true,
+        }
+    }
+
+    /// Sans clé CurseForge, la moitié des sources n'a pas été interrogée : le
+    /// dire évite de chercher pourquoi un mod « n'existe pas ».
+    #[test]
+    fn projet_introuvable_signale_la_source_non_consultee() {
+        let erreur = trancher(
+            Vec::new(),
+            &Request::new("jade"),
+            "1.21.1",
+            "neoforge",
+            false,
+        )
+        .expect_err("aucun candidat");
+        let texte = erreur.to_string();
+        assert!(
+            texte.contains("introuvable pour Minecraft 1.21.1 / neoforge"),
+            "{texte}"
+        );
+        assert!(
+            texte.contains("aucune clé CurseForge configurée"),
+            "{texte}"
+        );
+
+        let avec_cle = trancher(
+            Vec::new(),
+            &Request::new("jade"),
+            "1.21.1",
+            "neoforge",
+            true,
+        )
+        .expect_err("aucun candidat");
+        assert!(!avec_cle.to_string().contains("CurseForge configurée"));
+    }
+
+    /// Le projet existe, la version demandée non : deux situations qu'un même
+    /// message confondrait, alors qu'elles n'appellent pas la même correction.
+    #[test]
+    fn version_demandee_absente_le_dit_plutot_que_introuvable() {
+        let mut request = Request::new("jade");
+        request.version = Some("99.0.0".into());
+        let erreur = trancher(
+            vec![candidat("jade", "15.10.6")],
+            &request,
+            "1.21.1",
+            "neoforge",
+            true,
+        )
+        .expect_err("version absente");
+        let texte = erreur.to_string();
+        assert!(texte.contains("aucune version ne correspond"), "{texte}");
+        assert!(texte.contains("« 99.0.0 »"), "{texte}");
+    }
+
+    #[test]
+    fn canal_trop_strict_nomme_le_canal() {
+        let mut candidats = vec![candidat("jade", "15.10.6")];
+        candidats[0].channel = Channel::Beta;
+        let mut request = Request::new("jade");
+        request.channel = Some(Channel::Release);
+        let erreur =
+            trancher(candidats, &request, "1.21.1", "neoforge", true).expect_err("aucune release");
+        assert!(erreur.to_string().contains("au canal release"), "{erreur}");
+    }
+
+    /// Un auteur peut interdire le téléchargement par un tiers. Ce n'est pas
+    /// une panne : le fichier existe, il faut aller le chercher à la main, et
+    /// le message doit dire où.
+    #[test]
+    fn telechargement_interdit_renvoie_vers_la_page_du_mod() {
+        let mut interdit = candidat("jade", "15.10.6");
+        interdit.redistributable = false;
+        let erreur = trancher(
+            vec![interdit],
+            &Request::new("jade"),
+            "1.21.1",
+            "neoforge",
+            true,
+        )
+        .expect_err("non redistribuable");
+        let texte = erreur.to_string();
+        assert!(texte.contains("apports manuels"), "{texte}");
+        assert!(texte.contains("https://modrinth.com/mod/jade"), "{texte}");
+    }
+
+    /// Une URL vide vaut un téléchargement impossible : la distinction ne se
+    /// voit qu'au moment de télécharger, trop tard pour l'expliquer.
+    #[test]
+    fn url_vide_vaut_telechargement_interdit() {
+        let mut sans_url = candidat("jade", "15.10.6");
+        sans_url.url = String::new();
+        let erreur = trancher(
+            vec![sans_url],
+            &Request::new("jade"),
+            "1.21.1",
+            "neoforge",
+            true,
+        )
+        .expect_err("url vide");
+        assert!(erreur.to_string().contains("apports manuels"));
+    }
+
+    #[test]
+    fn le_build_retenu_est_rendu_tel_quel() {
+        let retenu = trancher(
+            vec![candidat("jade", "15.10.6")],
+            &Request::new("jade"),
+            "1.21.1",
+            "neoforge",
+            true,
+        )
+        .expect("un build retenu");
+        assert_eq!(retenu.version_number, "15.10.6");
+    }
+
+    /// Le cas nominal du rattrapage : un jar exige un modId que personne n'a
+    /// déclaré, on trouve qui le fournit, et sa demande rejoint la file.
+    #[test]
+    fn un_fournisseur_trouve_devient_une_demande_implicite() {
+        let suite = suite_du_rattrapage(
+            Some(candidat("bookshelf-lib", "21.1.81")),
+            &BTreeSet::new(),
+            "bookshelf".into(),
+            "attributefix".into(),
+            Side::Both,
+        );
+        match suite {
+            Rattrapage::Demander(request, reason) => {
+                assert_eq!(request.slug, "bookshelf-lib-id");
+                assert_eq!(request.source, Some(Origin::Modrinth));
+                assert_eq!(request.file.as_deref(), Some("bookshelf-lib-21.1.81"));
+                assert_eq!(
+                    reason,
+                    Reason::Implicit {
+                        by: "attributefix".into(),
+                        mod_id: "bookshelf".into()
+                    }
+                );
+            }
+            autre => panic!("attendu une demande, obtenu {autre:?}"),
+        }
+    }
+
+    /// Le cas qui faisait tourner la résolution jusqu'à MAX_PASSES : le seul
+    /// fournisseur occupe une clé qu'une demande plus autoritaire tient déjà.
+    /// Redemander ne changerait rien, donc on consigne le manque.
+    #[test]
+    fn un_fournisseur_en_impasse_est_consigne_au_lieu_d_etre_redemande() {
+        let mut impasses = BTreeSet::new();
+        impasses.insert((Origin::Modrinth, "bookshelf-lib-id".to_string()));
+        let suite = suite_du_rattrapage(
+            Some(candidat("bookshelf-lib", "21.1.81")),
+            &impasses,
+            "bookshelf".into(),
+            "attributefix".into(),
+            Side::Both,
+        );
+        assert_eq!(
+            suite,
+            Rattrapage::Renoncer(Unresolved {
+                mod_id: "bookshelf".into(),
+                required_by: "attributefix".into(),
+                side: Side::Both,
+            })
+        );
+    }
+
+    #[test]
+    fn un_modid_que_personne_ne_fournit_est_consigne() {
+        let suite = suite_du_rattrapage(
+            None,
+            &BTreeSet::new(),
+            "libfoo".into(),
+            "build_b".into(),
+            Side::Client,
+        );
+        assert_eq!(
+            suite,
+            Rattrapage::Renoncer(Unresolved {
+                mod_id: "libfoo".into(),
+                required_by: "build_b".into(),
+                side: Side::Client,
+            })
+        );
     }
 
     fn installed(slug: &str, provides: &[&str], requires: &[(&str, Side)]) -> Installed {
