@@ -13,6 +13,7 @@
 use anyhow::{Context, Result, bail};
 use mc_mods::{Channel, Origin, Request, Side};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Version du format, pour pouvoir le faire évoluer sans casser les packs
@@ -34,6 +35,38 @@ pub struct Manifest {
     pub java: Option<u32>,
     #[serde(default)]
     pub mods: Vec<ModEntry>,
+    /// Où se connecter, par environnement.
+    ///
+    /// Le manifeste est le même partout : c'est la même image de contenu,
+    /// servie sous trois noms. Ce n'est donc pas lui qui peut choisir, c'est le
+    /// client — avec son propre environnement, celui que la CI lui a figé à la
+    /// compilation. Un launcher de dev rejoint le serveur de dev.
+    ///
+    /// Les clés sont celles de `mc_log::Environment` : `development`,
+    /// `preproduction`, `production`. Une absence n'est pas une erreur — la
+    /// préproduction n'a pas de serveurs Minecraft derrière elle, et le jeu s'y
+    /// lance sans rejoindre quoi que ce soit.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub servers: BTreeMap<String, Server>,
+}
+
+/// Adresse d'un serveur, telle que `--quickPlayMultiplayer` l'attend.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Server {
+    pub host: String,
+    /// Absent = 25565, le port par défaut de Minecraft.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+}
+
+impl Server {
+    /// `hôte:port`, ou `hôte` seul quand le port est celui par défaut.
+    pub fn address(&self) -> String {
+        match self.port {
+            Some(port) if port != 25565 => format!("{}:{}", self.host, port),
+            _ => self.host.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -162,6 +195,21 @@ impl Manifest {
     pub fn java_major(&self, mojang_says: u32) -> u32 {
         self.java.unwrap_or(mojang_says)
     }
+
+    /// Serveur à rejoindre pour un environnement donné.
+    ///
+    /// `local` retombe sur `development` : un binaire compilé à la main est un
+    /// binaire de travail, et le serveur de travail est celui de dev. C'est le
+    /// même raisonnement que pour l'adresse du pack, et il vaut mieux qu'ils ne
+    /// divergent pas — un launcher qui installerait le pack de dev pour
+    /// rejoindre la production ferait exactement ce que tout ceci empêche.
+    pub fn server_for(&self, env: mc_log::Environment) -> Option<&Server> {
+        let cle = match env {
+            mc_log::Environment::Local => mc_log::Environment::Development.as_str(),
+            autre => autre.as_str(),
+        };
+        self.servers.get(cle)
+    }
 }
 
 #[cfg(test)]
@@ -180,7 +228,87 @@ mod tests {
             },
             java: None,
             mods: Vec::new(),
+            servers: BTreeMap::new(),
         }
+    }
+
+    fn avec_serveurs() -> Manifest {
+        let mut manifest = base();
+        manifest.servers.insert(
+            "development".into(),
+            Server {
+                host: "78.46.100.5".into(),
+                port: Some(25566),
+            },
+        );
+        manifest.servers.insert(
+            "production".into(),
+            Server {
+                host: "mc.ggy.info".into(),
+                port: Some(25565),
+            },
+        );
+        manifest
+    }
+
+    #[test]
+    fn le_serveur_suit_l_environnement() {
+        let manifest = avec_serveurs();
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Development)
+                .map(Server::address),
+            Some("78.46.100.5:25566".into())
+        );
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Production)
+                .map(Server::address),
+            Some("mc.ggy.info".into()),
+            "le port par défaut ne s'écrit pas : Minecraft le sous-entend"
+        );
+    }
+
+    #[test]
+    fn un_binaire_local_rejoint_la_dev() {
+        // Un binaire compilé à la main est un binaire de travail. Le faire
+        // tomber sur la production reviendrait à envoyer quelqu'un qui essaie
+        // là où d'autres jouent.
+        let manifest = avec_serveurs();
+        assert_eq!(
+            manifest
+                .server_for(mc_log::Environment::Local)
+                .map(Server::address),
+            manifest
+                .server_for(mc_log::Environment::Development)
+                .map(Server::address),
+        );
+    }
+
+    #[test]
+    fn une_preproduction_sans_serveur_ne_lance_rien() {
+        // Elle n'a pas de serveurs Minecraft derrière elle, et ce n'est pas un
+        // oubli : le nœud est unique, chaque réseau complet coûte de la RAM.
+        assert!(
+            avec_serveurs()
+                .server_for(mc_log::Environment::Preproduction)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn un_manifeste_sans_serveurs_reste_lisible() {
+        // Le champ est arrivé après les premiers packs : les manifestes qui
+        // l'ignorent doivent continuer de se lire tels quels.
+        let brut = br#"{"schema":1,"name":"essai","minecraft":"1.21.1",
+                        "loader":{"type":"neoforge","version":"latest"}}"#;
+        let manifest = Manifest::parse(brut).expect("manifeste sans serveurs");
+        assert!(manifest.servers.is_empty());
+        assert!(
+            manifest
+                .server_for(mc_log::Environment::Production)
+                .is_none()
+        );
     }
 
     #[test]

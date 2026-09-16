@@ -13,6 +13,12 @@
 //! mc-launcher-site : c'est lui qui décide de la liste des mods, et un joueur
 //! n'a donc rien à cloner. Un chemin reste accepté, c'est ce qu'on édite.
 //!
+//! **Lequel des trois packs** dépend de l'environnement de ce binaire, que la
+//! CI lui fige à la compilation : un launcher de préproduction télécharge le
+//! pack de préproduction, et rejoint le serveur que ce pack désigne pour elle.
+//! L'adresse était auparavant écrite en dur sur la production, si bien qu'une
+//! préproduction n'éprouvait rien de ce qu'elle était censée éprouver.
+//!
 //! Options communes :
 //!     --instance <NOM>   nom de l'instance, par défaut celui du pack
 //!     --data <DIR>       racine des données du launcher
@@ -81,7 +87,7 @@ async fn main() -> Result<()> {
     // La source est construite après la boucle : `--data` peut déplacer la
     // racine des données, dont dépend l'emplacement du cache d'un pack distant.
     let source = Source::parse(
-        source_arg.as_deref().unwrap_or(source::DEFAULT_URL),
+        source_arg.as_deref().unwrap_or(source::url_par_defaut()),
         &options.layout,
     );
 
@@ -149,7 +155,7 @@ fn usage() {
          mc-pack diagnostic [--incident-test]\n\n\
          « source » est un chemin vers un manifeste, ou une URL.\n  \
          Par défaut : {}",
-        source::DEFAULT_URL
+        source::url_par_defaut()
     );
 }
 
@@ -463,9 +469,24 @@ async fn launch(
     let offline = mc_auth::offline_session(&pseudo);
     let session = mc_instance::launch::Session::offline(&offline.profile.name, &offline.profile.id);
 
+    // À défaut de --serveur, celui que le pack déclare pour l'environnement de
+    // ce binaire. Le manifeste est le même partout — c'est la même image de
+    // contenu, servie sous trois noms — donc c'est au client de choisir, et il
+    // choisit avec ce que la CI lui a figé à la compilation.
+    //
+    // Une absence n'est pas une erreur : la préproduction n'a pas de serveurs
+    // Minecraft derrière elle, et le jeu s'y lance sans rejoindre quoi que ce
+    // soit.
+    let environnement = mc_log::environment::current();
+    let cible = serveur.or_else(|| {
+        manifest
+            .server_for(environnement)
+            .map(mc_pack::manifest::Server::address)
+    });
+
     let launch_options = mc_instance::launch::LaunchOptions {
         memory_mb: memoire,
-        quick_play: serveur.map(mc_instance::launch::QuickPlay::Multiplayer),
+        quick_play: cible.map(mc_instance::launch::QuickPlay::Multiplayer),
         ..Default::default()
     };
 
@@ -482,8 +503,14 @@ async fn launch(
     println!("  version : {version_id}");
     println!("  joueur  : {} ({})", session.name, session.uuid);
     println!("  mods    : {}", instance.mods_dir().display());
-    if let Some(mc_instance::launch::QuickPlay::Multiplayer(hote)) = &launch_options.quick_play {
-        println!("  serveur : {hote}");
+    match &launch_options.quick_play {
+        Some(mc_instance::launch::QuickPlay::Multiplayer(hote)) => {
+            println!("  serveur : {hote} ({})", environnement.as_str())
+        }
+        _ => println!(
+            "  serveur : aucun pour « {} » — le jeu s'ouvrira sur le menu",
+            environnement.as_str()
+        ),
     }
     println!();
 

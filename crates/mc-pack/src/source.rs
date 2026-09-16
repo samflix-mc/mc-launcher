@@ -30,9 +30,36 @@ use crate::manifest::Manifest;
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
-/// Adresse par défaut du pack : mc-launcher-site sert le répertoire `launcher/`
-/// de l'image mc-content, qui est l'endroit où la liste des mods est décidée.
-pub const DEFAULT_URL: &str = "https://mc-launcher.ggy.info/pack/samflix.json";
+/// Adresse du pack en production. mc-launcher-site sert le répertoire
+/// `launcher/` de l'image mc-content, qui est l'endroit où la liste des mods
+/// est décidée.
+pub const URL_PRODUCTION: &str = "https://mc-launcher.ggy.info/pack/samflix.json";
+pub const URL_PREPRODUCTION: &str = "https://mc-launcher-staging.ggy.info/pack/samflix.json";
+pub const URL_DEVELOPPEMENT: &str = "https://mc-launcher-dev.ggy.info/pack/samflix.json";
+
+/// Le pack de l'environnement de ce binaire.
+///
+/// `mc-log` sait déjà d'où vient ce binaire — la CI le lui fige à la
+/// compilation, selon ce qu'elle construit. Cette connaissance existait sans
+/// servir : l'adresse du pack était écrite en dur sur la production, si bien
+/// qu'une préproduction téléchargeait le pack de la production et n'éprouvait
+/// donc rien de ce qu'elle était censée éprouver.
+///
+/// Un binaire compilé à la main vise la **dev**, et c'est le choix le moins
+/// coûteux des deux : personne ne compile ce launcher pour jouer, et un pack de
+/// dev installé par erreur se corrige d'un `--source`. L'inverse — un binaire de
+/// travail qui installe le pack des joueurs — est plus difficile à remarquer.
+///
+/// `--source` reste prioritaire sur tout, et c'est ce qui permet d'éprouver un
+/// environnement depuis n'importe quel binaire.
+pub fn url_par_defaut() -> &'static str {
+    use mc_log::environment::Environment;
+    match mc_log::environment::current() {
+        Environment::Production => URL_PRODUCTION,
+        Environment::Preproduction => URL_PREPRODUCTION,
+        Environment::Development | Environment::Local => URL_DEVELOPPEMENT,
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Source {
