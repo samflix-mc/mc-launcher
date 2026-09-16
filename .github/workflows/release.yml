@@ -16,10 +16,15 @@ on:
 env:
   SAMFLIX_ENV: production
 
+# mc-pack et non mc-auth : le binaire publié doit être celui qu'on lance.
+# mc-auth est une brique d'authentification, utile à qui développe, sans usage
+# pour un joueur — et elle attend toujours l'approbation Azure. mc-pack, lui,
+# installe le pack, vérifie l'installation et lance le jeu ; c'est la commande
+# dont l'existence justifie ce dépôt.
 jobs:
   release:
     uses: samflix-mc/.github/.github/workflows/release-rust.yml@main
     with:
-      binary: mc-auth
+      binary: mc-pack
     permissions:
       contents: write
