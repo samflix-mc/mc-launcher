@@ -9,6 +9,7 @@ description = "Installe un pack décrit par un manifeste JSON : Java, jeu, charg
 anyhow.workspace = true
 tracing.workspace = true
 mc-log = { path = "../mc-log" }
+mc-auth = { path = "../mc-auth" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

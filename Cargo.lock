@@ -962,6 +962,7 @@ name = "mc-pack"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "mc-auth",
  "mc-dl",
  "mc-instance",
  "mc-java",

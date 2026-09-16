@@ -5,6 +5,7 @@
 //!     mc-pack install packs/samflix.json --with-server installe aussi le serveur
 //!     mc-pack lock    packs/samflix.json               résout sans installer le jeu
 //!     mc-pack verify  packs/samflix.json [--deep]
+//!     mc-pack launch  packs/samflix.json --pseudo Sam --serveur mc.exemple.fr
 //!     mc-pack diagnostic                               journaux et télémétrie
 //!
 //! Options communes :
@@ -37,6 +38,10 @@ async fn main() -> Result<()> {
     let mut deep = false;
 
     let mut incident_test = false;
+    let mut pseudo: Option<String> = None;
+    let mut serveur: Option<String> = None;
+    let mut memoire: Option<u32> = None;
+    let mut afficher = false;
 
     let mut rest = args[1..].iter();
     while let Some(arg) = rest.next() {
@@ -45,6 +50,10 @@ async fn main() -> Result<()> {
             "--locked" => options.locked = true,
             "--with-server" => options.with_server = true,
             "--deep" => deep = true,
+            "--pseudo" => pseudo = rest.next().cloned(),
+            "--serveur" => serveur = rest.next().cloned(),
+            "--memoire" => memoire = rest.next().and_then(|v| v.parse().ok()),
+            "--afficher" => afficher = true,
             "--instance" => options.instance_name = rest.next().cloned(),
             "--data" => {
                 let Some(dir) = rest.next() else {
@@ -89,6 +98,7 @@ async fn main() -> Result<()> {
 
     let result = match command.as_str() {
         "install" => install(&manifest_path, &options).await,
+        "launch" => launch(&manifest_path, &options, pseudo, serveur, memoire, afficher).await,
         "lock" => lock(&manifest_path, &options).await,
         "verify" => verify(&manifest_path, &options, deep),
         other => {
@@ -127,6 +137,7 @@ fn usage() {
          mc-pack install <manifeste> [--locked] [--with-server] [--instance NOM] [--data DIR]\n  \
          mc-pack lock    <manifeste> [--data DIR]\n  \
          mc-pack verify  <manifeste> [--deep] [--data DIR]\n  \
+         mc-pack launch  <manifeste> --pseudo NOM [--serveur HOTE[:PORT]] [--memoire MO] [--afficher]\n  \
          mc-pack diagnostic [--incident-test]"
     );
 }
@@ -382,4 +393,87 @@ fn report_unresolved(lock: &Lockfile) {
     eprintln!(
         "  Ces mods manquent sur Modrinth comme sur CurseForge : le jeu refusera de démarrer."
     );
+}
+
+/// Démarre le jeu sur l'instance d'un pack.
+///
+/// L'installation n'est pas relancée : `launch` suppose qu'elle a eu lieu et le
+/// dit clairement si un fichier manque. Installer et jouer sont deux gestes
+/// distincts, et les enchaîner ferait attendre huit cents mégaoctets à qui
+/// voulait seulement lancer une partie.
+async fn launch(
+    manifest_path: &Path,
+    options: &mc_pack::Options,
+    pseudo: Option<String>,
+    serveur: Option<String>,
+    memoire: Option<u32>,
+    afficher: bool,
+) -> Result<()> {
+    let Some(pseudo) = pseudo else {
+        bail!("launch attend --pseudo <NOM>");
+    };
+
+    let manifest = Manifest::load(manifest_path)?;
+    let lock_path = Lockfile::path_for(manifest_path);
+    let lock = Lockfile::load(&lock_path).map_err(|_| {
+        anyhow::anyhow!(
+            "{} absent : lancer « mc-pack install » avant de jouer",
+            lock_path.display()
+        )
+    })?;
+
+    let layout = &options.layout;
+    let instance = layout.instance(options.instance_name.as_deref().unwrap_or(&manifest.name));
+    let version_id = mc_instance::neoforge::version_id(&lock.loader.version);
+
+    // Le Java du verrou, pas celui du système : c'est avec lui que NeoForge a
+    // été installé.
+    let java = mc_java::ensure(lock.java, &layout.runtime()).await?;
+
+    // Hors ligne tant que l'application Azure n'est pas approuvée. L'UUID suit
+    // la règle du serveur vanilla, donc le joueur garde le même d'une session à
+    // l'autre — inventaire et permissions compris.
+    let offline = mc_auth::offline_session(&pseudo);
+    let session = mc_instance::launch::Session::offline(&offline.profile.name, &offline.profile.id);
+
+    let launch_options = mc_instance::launch::LaunchOptions {
+        memory_mb: memoire,
+        quick_play: serveur.map(mc_instance::launch::QuickPlay::Multiplayer),
+        ..Default::default()
+    };
+
+    let command = mc_instance::launch::build(
+        &version_id,
+        &layout.shared(),
+        &instance.game_dir,
+        &java.path,
+        &session,
+        &launch_options,
+    )?;
+
+    println!("Instance « {} »", instance.name);
+    println!("  version : {version_id}");
+    println!("  joueur  : {} ({})", session.name, session.uuid);
+    println!("  mods    : {}", instance.mods_dir().display());
+    if let Some(mc_instance::launch::QuickPlay::Multiplayer(hote)) = &launch_options.quick_play {
+        println!("  serveur : {hote}");
+    }
+    println!();
+
+    // Montrer sans lancer : c'est ce qu'on regarde quand le jeu refuse de
+    // démarrer, et ce qui permet de rejouer la commande à la main.
+    if afficher {
+        println!("{}", command.display());
+        return Ok(());
+    }
+
+    let status = mc_instance::launch::run(&command).await?;
+    if !status.success() {
+        bail!(
+            "Minecraft s'est arrêté avec le code {} — journaux dans {}",
+            status.code().unwrap_or(-1),
+            instance.game_dir.join("logs").display()
+        );
+    }
+    Ok(())
 }

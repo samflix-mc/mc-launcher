@@ -45,30 +45,38 @@ pub struct Artifact {
 }
 
 #[derive(Debug, Deserialize)]
-struct LibraryDownloads {
-    artifact: Option<Artifact>,
+pub(crate) struct LibraryDownloads {
+    pub(crate) artifact: Option<Artifact>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Library {
-    name: String,
-    downloads: Option<LibraryDownloads>,
+pub(crate) struct Library {
+    pub(crate) name: String,
+    pub(crate) downloads: Option<LibraryDownloads>,
     #[serde(default)]
-    rules: Vec<Rule>,
+    pub(crate) rules: Vec<Rule>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Rule {
+pub(crate) struct Rule {
     action: String,
     #[serde(default)]
     os: Option<OsCondition>,
+    /// Drapeaux que le launcher active ou non — démo, résolution imposée,
+    /// Quick Play. Absent des règles de bibliothèques, présent sur celles des
+    /// arguments, d'où le même type pour les deux.
+    #[serde(default)]
+    features: Option<std::collections::BTreeMap<String, bool>>,
 }
 
 #[derive(Debug, Deserialize)]
-struct OsCondition {
+pub(crate) struct OsCondition {
     name: Option<String>,
     arch: Option<String>,
 }
+
+/// Drapeaux actifs pour cette exécution, comparés aux `features` des règles.
+pub(crate) type Features = std::collections::BTreeSet<String>;
 
 #[derive(Debug, Deserialize)]
 struct AssetIndexRef {
@@ -129,20 +137,38 @@ pub struct Vanilla {
 /// Les règles sont évaluées dans l'ordre, la dernière qui s'applique l'emporte.
 /// En l'absence de toute règle, la bibliothèque est retenue — c'est le cas des
 /// deux tiers d'entre elles.
-fn allowed(rules: &[Rule], os: &str, arch: &str) -> bool {
+pub(crate) fn allowed(rules: &[Rule], os: &str, arch: &str) -> bool {
+    allowed_with(rules, os, arch, &Features::new())
+}
+
+/// Même évaluation, en tenant compte des drapeaux actifs.
+///
+/// Une règle conditionnée à un drapeau ne s'applique que si le launcher l'a
+/// activé. C'est ce qui fait que `--quickPlayMultiplayer` n'apparaît sur la
+/// ligne de commande que lorsqu'on demande effectivement de rejoindre un
+/// serveur.
+pub(crate) fn allowed_with(rules: &[Rule], os: &str, arch: &str, features: &Features) -> bool {
     if rules.is_empty() {
         return true;
     }
     let mut allow = false;
     for rule in rules {
-        let applies = match &rule.os {
+        let os_ok = match &rule.os {
             None => true,
             Some(condition) => {
                 condition.name.as_deref().map(|n| n == os).unwrap_or(true)
                     && condition.arch.as_deref().map(|a| a == arch).unwrap_or(true)
             }
         };
-        if applies {
+        // Un drapeau demandé à `false` exige son absence : c'est ainsi que
+        // Mojang exprime « sauf en démo ».
+        let features_ok = match &rule.features {
+            None => true,
+            Some(wanted) => wanted
+                .iter()
+                .all(|(name, expected)| features.contains(name) == *expected),
+        };
+        if os_ok && features_ok {
             allow = rule.action == "allow";
         }
     }
@@ -457,12 +483,54 @@ mod tests {
                 name: Some(name.to_string()),
                 arch: arch.map(str::to_string),
             }),
+            features: None,
+        }
+    }
+
+    /// Règle conditionnée à un drapeau, comme celles des arguments.
+    fn feature_rule(action: &str, feature: &str, expected: bool) -> Rule {
+        Rule {
+            action: action.to_string(),
+            os: None,
+            features: Some(std::collections::BTreeMap::from([(
+                feature.to_string(),
+                expected,
+            )])),
         }
     }
 
     #[test]
     fn sans_regle_la_bibliotheque_est_retenue() {
         assert!(allowed(&[], "linux", "x86_64"));
+    }
+
+    #[test]
+    fn un_argument_sous_drapeau_n_apparait_que_si_le_drapeau_est_actif() {
+        // C'est ainsi que --quickPlayMultiplayer reste absent tant qu'on ne
+        // demande pas à rejoindre un serveur.
+        let rules = vec![feature_rule("allow", "is_quick_play_multiplayer", true)];
+        let actifs = Features::from(["is_quick_play_multiplayer".to_string()]);
+
+        assert!(allowed_with(&rules, "linux", "x86_64", &actifs));
+        assert!(!allowed_with(&rules, "linux", "x86_64", &Features::new()));
+    }
+
+    #[test]
+    fn un_drapeau_attendu_faux_exige_son_absence() {
+        // « sauf en démo » : la règle s'applique quand le drapeau est absent.
+        let rules = vec![feature_rule("allow", "is_demo_user", false)];
+        assert!(allowed_with(&rules, "linux", "x86_64", &Features::new()));
+
+        let demo = Features::from(["is_demo_user".to_string()]);
+        assert!(!allowed_with(&rules, "linux", "x86_64", &demo));
+    }
+
+    #[test]
+    fn les_regles_de_bibliotheques_ignorent_les_drapeaux() {
+        // Elles n'en portent pas : le comportement doit rester celui d'avant.
+        let rules = vec![rule("allow", Some("linux"), None)];
+        assert!(allowed_with(&rules, "linux", "x86_64", &Features::new()));
+        assert!(!allowed_with(&rules, "osx", "x86_64", &Features::new()));
     }
 
     #[test]

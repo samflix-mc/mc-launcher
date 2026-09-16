@@ -10,7 +10,7 @@ Launcher de bureau pour un réseau Minecraft 1.21.1 / NeoForge.
 | `crates/mc-mods` — résolution des mods | écrite |
 | `crates/mc-instance` — jeu et chargeur | écrite |
 | `crates/mc-pack` — manifeste et installation | écrite |
-| ligne de commande JVM + Quick Play | à faire |
+| ligne de commande JVM + Quick Play | écrite |
 | interface | à faire |
 
 ## Installer un pack
@@ -20,6 +20,7 @@ cargo run -p mc-pack --release -- install packs/samflix.json
 cargo run -p mc-pack --release -- install packs/samflix.json --locked   # rejoue le verrou
 cargo run -p mc-pack --release -- lock   packs/samflix.json             # résout sans installer
 cargo run -p mc-pack --release -- verify packs/samflix.json [--deep]
+cargo run -p mc-pack --release -- launch packs/samflix.json --pseudo Sam
 ```
 
 L'ordre des étapes découle des dépendances entre elles : la version du
@@ -175,6 +176,41 @@ clés de projet diffèrent et rien ne les rapproche, sauf le `modId` que les deu
 jars déclarent. Le doublon est écarté sur ce critère, en gardant le plus
 vérifiable des deux : deux jars du même `modId` font échouer NeoForge au
 chargement.
+
+## Lancer le jeu
+
+```bash
+mc-pack launch packs/samflix.json --pseudo Sam
+mc-pack launch packs/samflix.json --pseudo Sam --serveur mc.exemple.fr:25565
+mc-pack launch packs/samflix.json --pseudo Sam --afficher   # montre sans lancer
+```
+
+`launch` ne réinstalle rien : il suppose l'installation faite et le dit si un
+fichier manque. Installer et jouer sont deux gestes distincts — les enchaîner
+ferait attendre huit cents mégaoctets à qui voulait lancer une partie.
+
+Minecraft ne se lance pas, il se *compose*. Le descripteur de NeoForge n'est
+qu'un delta qui désigne son socle par `inheritsFrom` ; il faut fusionner les
+deux, retenir les bibliothèques valables pour ce système, assembler un
+classpath et substituer une vingtaine de variables dans des arguments dont
+certains n'apparaissent que sous condition. Quatre points décident que le jeu
+démarre ou non :
+
+- **l'ordre du classpath** — NeoForge remplace des bibliothèques de Mojang. La
+  sienne doit passer devant, sinon la JVM charge celle du jeu et le chargeur
+  échoue sur une méthode absente ;
+- **le client vanilla** — NeoForge ne le déclare pas parmi ses bibliothèques ;
+  il est ajouté au classpath et c'est FML qui le transforme au chargement ;
+- **les natives** — inutile de les extraire. Les arguments de Mojang passent
+  `org.lwjgl.system.SharedLibraryExtractPath`, et LWJGL 3.3 sort lui-même ses
+  binaires des jars du classpath ; il suffit que le répertoire existe ;
+- **les drapeaux** — `--quickPlayMultiplayer` n'existe dans le descripteur que
+  derrière une règle `is_quick_play_multiplayer`. Ignorer ces règles produit
+  une ligne de commande que le jeu refuse.
+
+Tant que l'application Azure n'est pas approuvée, la session est hors-ligne :
+l'UUID suit la règle du serveur vanilla, donc le joueur garde le même d'une
+partie à l'autre, et les backends du réseau tournent en `online-mode=false`.
 
 ## mc-log
 
