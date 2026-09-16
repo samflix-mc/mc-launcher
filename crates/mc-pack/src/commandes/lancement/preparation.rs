@@ -1,6 +1,6 @@
 //! Tout ce qu'il faut réunir avant de lancer une partie.
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 use super::instance::ouvrir;
 use mc_pack::lockfile::Lockfile;
@@ -28,9 +28,7 @@ pub(super) async fn preparer(
     serveur: Option<String>,
     memoire: Option<u32>,
 ) -> Result<Partie> {
-    let Some(pseudo) = pseudo else {
-        bail!("launch attend --pseudo <NOM>");
-    };
+    let session = super::identite::choisir(pseudo).await?;
     let (manifest, lock, instance) = ouvrir(source, options)?;
     let layout = &options.layout;
 
@@ -39,12 +37,6 @@ pub(super) async fn preparer(
     // Le Java du verrou, pas celui du système : c'est avec lui que NeoForge a
     // été installé.
     let java = mc_java::ensure(lock.java, &layout.runtime()).await?;
-
-    // Hors ligne tant que l'application Azure n'est pas approuvée. L'UUID suit
-    // la règle du serveur vanilla, donc le joueur garde le même d'une session à
-    // l'autre — inventaire et permissions compris.
-    let offline = mc_auth::offline_session(&pseudo);
-    let session = mc_instance::launch::Session::offline(&offline.profile.name, &offline.profile.id);
 
     // À défaut de --serveur, celui que le pack déclare pour l'environnement de
     // ce binaire. Le manifeste est le même partout — c'est la même image de

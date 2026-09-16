@@ -3,6 +3,7 @@
 mod annonce;
 mod cible;
 mod coherence;
+mod identite;
 mod instance;
 mod partie;
 mod preparation;

@@ -4,7 +4,7 @@ Launcher de bureau pour un réseau Minecraft 1.21.1 / NeoForge.
 
 | brique | état |
 |---|---|
-| `crates/mc-auth` — authentification Microsoft | écrite, en attente de l'approbation Azure |
+| `crates/mc-auth` — authentification Microsoft | écrite |
 | `crates/mc-log` — journaux et incidents | écrite |
 | `crates/mc-java` — runtime Java | écrite |
 | `crates/mc-mods` — résolution des mods | écrite |
@@ -290,9 +290,11 @@ démarre ou non :
   derrière une règle `is_quick_play_multiplayer`. Ignorer ces règles produit
   une ligne de commande que le jeu refuse.
 
-Tant que l'application Azure n'est pas approuvée, la session est hors-ligne :
-l'UUID suit la règle du serveur vanilla, donc le joueur garde le même d'une
-partie à l'autre, et les backends du réseau tournent en `online-mode=false`.
+La session est celle que demande la ligne de commande : le compte Microsoft
+enregistré, ou un profil hors-ligne avec `--pseudo`. Dans ce second cas l'UUID
+suit la règle du serveur vanilla, donc le joueur garde le même d'une partie à
+l'autre, et les backends du réseau tournent en `online-mode=false`. Voir
+« Authentification ».
 
 ## mc-log
 
@@ -395,25 +397,64 @@ Aucun jeton produit : serveur hors-ligne uniquement.
 > application : l'écran de consentement afficherait le nom de l'autre projet, et
 > un usage inattendu ferait suspendre *son* inscription.
 
-## Azure
-
-| | |
-|---|---|
-| Client ID | `7da56647-e0e9-49d5-9aad-0c03997f3904` |
-| Tenant ID | `c3fe7412-ef6b-48ab-843b-6169e3b379cf` |
-| `signInAudience` | `AzureADandPersonalMicrosoftAccount` |
-
-Le Client ID n'est pas un secret, il est destiné au binaire distribué.
+## Authentification
 
 ```bash
-az ad app create --display-name mc-launcher \
-  --sign-in-audience AzureADandPersonalMicrosoftAccount \
-  --is-fallback-public-client true
+mc-auth login                     # ouvre une session Microsoft et l'enregistre
+mc-auth whoami                    # qui est connecté
+mc-auth logout                    # oublier la session
+mc-pack launch                    # joue avec le compte connecté
+mc-pack launch --pseudo <NOM>     # joue hors ligne, sans compte
 ```
 
-Tant que Microsoft n'a pas approuvé l'application, `login_with_xbox` répond
-**403**. Cette tentative est l'activité exigée avant de soumettre
-<https://aka.ms/mce-reviewappid>. Revue hebdomadaire.
+La session vit dans `~/.config/samflix-mc/session.json`, en `0600` : elle
+contient un jeton de rafraîchissement, qui rouvre le compte sans mot de passe
+ni second facteur. Elle se renouvelle toute seule d'un lancement à l'autre.
+
+Le choix du mode est explicite. `--pseudo` demande une session hors-ligne ; son
+absence demande le compte enregistré. Aucun repli silencieux de l'un vers
+l'autre : entrer sur un serveur sous une identité qu'on n'a pas choisie est
+exactement ce qu'on veut éviter.
+
+### Ce que ce launcher présente à Microsoft, et pourquoi
+
+Le 16 septembre 2026, Mojang Enforcement a refusé l'inscription Azure de ce
+launcher pour la liste blanche de l'API Minecraft — sans motif, sans recours :
+
+> *Your application(s) in this batch did not meet the required criteria and
+> were not approved for the allow list. […] We do not provide consultation or
+> troubleshoot API access.*
+
+Le diagnostic a été fait : la chaîne Microsoft → Xbox Live → XSTS fonctionnait,
+le jeton XSTS était délivré, et seul `api.minecraftservices.com` répondait
+**403** — sur la seule foi de l'identifiant d'application. Le même code avec
+l'identifiant d'un launcher enregistré avant la mise en place du filtrage passe
+sans rien changer d'autre. Il n'y a donc rien à corriger dans le code, et aucun
+critère public à satisfaire.
+
+Ce launcher présente désormais l'identité du **launcher officiel**
+(`00000000402b5328`), via [`minecraft-auth`](https://github.com/CCBlueX/minecraft-auth-rs),
+comme [LiquidBounce](https://liquidbounce.net/blog/article/WhKoUYc3) après le
+même refus.
+
+> **À savoir avant de se connecter.** Ce n'est pas une approbation obtenue,
+> c'est un filtrage contourné. Cela enfreint les conditions d'utilisation de
+> Microsoft et de Mojang. Aucune sanction liée à cette méthode n'est documentée
+> à ce jour, mais s'il devait y en avoir une, elle viserait le compte du
+> joueur — pas seulement celui du mainteneur. `--pseudo` reste disponible pour
+> jouer sans connexion sur les serveurs qui l'acceptent, dont ceux du réseau.
+
+La bibliothèque a été auditée : elle ne contacte que Microsoft, Xbox et Mojang
+— `login.live.com`, `login.microsoftonline.com`, `auth.xboxlive.com`,
+`device.auth.xboxlive.com`, `sisu.xboxlive.com`, `api.minecraftservices.com`.
+Aucun serveur tiers, aucune télémétrie ; les jetons ne quittent pas la machine.
+
+Elle est sous **LGPL-3.0-or-later**, quand le reste du dépôt est en MIT. Lier
+du LGPL dans un binaire distribué engage la §4 de cette licence : le
+destinataire doit pouvoir relier le binaire avec sa propre version de la
+bibliothèque. Tant que le launcher est distribué avec ses sources, recompiler
+suffit. Diffuser un binaire seul demanderait d'y joindre de quoi refaire
+l'édition de liens.
 
 ## Contrôles automatiques
 

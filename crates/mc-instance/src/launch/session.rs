@@ -33,6 +33,26 @@ impl Session {
             client_id: String::new(),
         }
     }
+
+    /// Session Microsoft, pour un serveur en ligne.
+    ///
+    /// `xuid` et `client_id` restent vides : ni Prism, ni PolyMC, ni
+    /// OpenLauncher ne passent `--xuid` ou `--clientId` au jeu, et le serveur
+    /// vérifie l'identité auprès de Mojang à partir du seul jeton.
+    pub fn online(
+        name: impl Into<String>,
+        uuid: impl Into<String>,
+        token: impl Into<String>,
+    ) -> Session {
+        Session {
+            name: name.into(),
+            uuid: uuid.into(),
+            token: token.into(),
+            user_type: "msa".into(),
+            xuid: String::new(),
+            client_id: String::new(),
+        }
+    }
 }
 
 /// Partie à rejoindre directement au démarrage.

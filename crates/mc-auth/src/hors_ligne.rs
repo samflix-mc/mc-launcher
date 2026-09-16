@@ -29,8 +29,8 @@ pub fn offline_session(name: &str) -> Session {
     let hex: String = hash.iter().map(|b| format!("{b:02x}")).collect();
 
     Session {
+        // Aucun jeton : cette session n'ouvre pas un serveur en ligne.
         minecraft_token: String::new(),
-        refresh_token: None,
         profile: Profile {
             id: hex,
             name: name.to_owned(),
