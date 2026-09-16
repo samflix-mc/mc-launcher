@@ -477,6 +477,27 @@ async fn launch(
 
     let layout = &options.layout;
     let instance = layout.instance(options.instance_name.as_deref().unwrap_or(&manifest.name));
+
+    // Le verrou vient du cache de ce pack-ci, qui est séparé par hôte ;
+    // l'instance, elle, porte le nom du pack et il n'y en a qu'une pour les
+    // trois environnements. Un « install » lancé avec un autre SAMFLIX_ENV a
+    // donc pu remplacer ces jars sans que ce verrou en sache rien. Démarrer
+    // quand même, c'est laisser le serveur trancher par une éjection pour
+    // listes de mods divergentes — et cette éjection ne nomme pas sa cause.
+    let manquants = mc_pack::mods_client_absents(&lock, &instance);
+    if !manquants.is_empty() {
+        bail!(
+            "{} mods du verrou manquent dans {} : cette instance a été installée \
+             depuis un autre pack que celui-ci.\n\
+             Relancer « mc-pack install » — environnement « {} », {}.\n  {}",
+            manquants.len(),
+            instance.mods_dir().display(),
+            mc_log::environment::current().as_str(),
+            mc_log::environment::origin(),
+            manquants.join("\n  ")
+        );
+    }
+
     let version_id = mc_instance::neoforge::version_id(&lock.loader.version);
 
     // Le Java du verrou, pas celui du système : c'est avec lui que NeoForge a
