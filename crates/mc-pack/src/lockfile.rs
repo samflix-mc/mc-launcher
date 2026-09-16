@@ -56,6 +56,14 @@ pub struct LockedMod {
     pub file: String,
     pub version: String,
     pub file_name: String,
+    /// URL de téléchargement directe, telle que la source l'a donnée.
+    ///
+    /// Elle rend le verrou exploitable par autre chose que le launcher : la CI
+    /// de mc-content vérifie qu'elle répond, et un serveur peut installer le
+    /// jar sans rien savoir de Modrinth. Tolérée absente, pour lire les verrous
+    /// écrits avant qu'elle n'existe.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sha1: Option<String>,
     pub size: u64,
@@ -100,6 +108,7 @@ impl Lockfile {
                     file: m.candidate.version_id.clone(),
                     version: m.candidate.version_number.clone(),
                     file_name: m.candidate.file_name.clone(),
+                    url: m.candidate.url.clone(),
                     sha1: m.candidate.sha1.clone(),
                     size: m.candidate.size,
                     side: m.side.as_str().to_string(),
@@ -122,7 +131,12 @@ impl Lockfile {
     pub fn load(path: &Path) -> Result<Lockfile> {
         let raw =
             std::fs::read(path).with_context(|| format!("lecture du verrou {}", path.display()))?;
-        serde_json::from_slice(&raw).with_context(|| format!("verrou {} illisible", path.display()))
+        Lockfile::parse(&raw).with_context(|| format!("verrou {} illisible", path.display()))
+    }
+
+    /// Lit un verrou qui n'a pas de chemin — celui d'une réponse HTTP.
+    pub fn parse(raw: &[u8]) -> Result<Lockfile> {
+        Ok(serde_json::from_slice(raw)?)
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
@@ -249,6 +263,7 @@ mod tests {
             file: file.into(),
             version: version.into(),
             file_name: format!("{slug}.jar"),
+            url: format!("https://exemple.invalid/{slug}.jar"),
             sha1: None,
             size: 0,
             side: "both".into(),
