@@ -147,6 +147,24 @@ impl FileDeResolution {
         self.manifeste.pop().or_else(|| self.derivees.pop())
     }
 
+    /// Retire de la file les dépendances qu'un mod avait déclarées.
+    ///
+    /// Appelé quand un build en remplace un autre : les dépendances du build
+    /// écarté n'ont plus de demandeur. Les laisser ferait installer des jars
+    /// que plus rien ne réclame — et le verrou les consignerait comme
+    /// dépendances d'une version qui n'est pas celle retenue.
+    ///
+    /// Ne rattrape que ce qui est encore en file. Une dépendance de l'ancien
+    /// build déjà résolue à un tour précédent y reste : la retirer demanderait
+    /// de savoir qui d'autre s'appuie dessus, donc de tenir le graphe inverse.
+    /// L'écart est borné — un jar de bibliothèque en trop, que NeoForge charge
+    /// sans se plaindre — et sans commune mesure avec le défaut d'en face,
+    /// qui était d'installer le mauvais build épinglé.
+    fn oublier_dependances_de(&mut self, parent: &str) {
+        self.derivees
+            .retain(|(_, reason)| !matches!(reason, Reason::Declared { by } if by == parent));
+    }
+
     fn est_vide(&self) -> bool {
         self.manifeste.is_empty() && self.derivees.is_empty()
     }
@@ -560,6 +578,11 @@ pub async fn resolve_with(
                     candidate.version_number,
                     existing.candidate.version_number,
                 );
+                // Les dépendances déclarées par le build écarté n'ont plus de
+                // demandeur : celles du build qui l'emporte vont être poussées
+                // juste après, et peuvent être tout autres.
+                queue.oublier_dependances_de(&existing.candidate.name);
+
                 // L'insertion ci-dessous écrase l'entrée : le chemin repart
                 // vide, donc le bon jar sera téléchargé, et les dépendances du
                 // build qui l'emporte repassent par la file.
@@ -1134,6 +1157,40 @@ mod tests {
     }
 
     #[test]
+    fn remplacer_un_build_oublie_les_dependances_de_celui_qu_on_ecarte() {
+        // Sinon on installe les bibliothèques de la version écartée en plus de
+        // celles de la version retenue, et le verrou les consigne comme
+        // dépendances d'un build qui n'est pas là.
+        let mut queue = FileDeResolution::default();
+        queue.pousser(Request::new("libA"), Reason::Declared { by: "X".into() });
+        queue.pousser(Request::new("libB"), Reason::Declared { by: "X".into() });
+        queue.pousser(Request::new("libC"), Reason::Declared { by: "Y".into() });
+
+        queue.oublier_dependances_de("X");
+
+        // Celles d'un autre demandeur restent : Y n'a pas été remplacé.
+        let (reste, _) = queue.suivante().unwrap();
+        assert_eq!(reste.slug, "libC");
+        assert!(queue.est_vide());
+    }
+
+    #[test]
+    fn oublier_les_dependances_epargne_le_manifeste() {
+        // Un mod du manifeste qui porte le nom d'un parent remplacé n'a pas à
+        // disparaître : sa demande ne vient pas de ce parent.
+        let mut queue = FileDeResolution::default();
+        queue.pousser(Request::new("libA"), Reason::Explicit);
+        queue.pousser(Request::new("libA"), Reason::Declared { by: "X".into() });
+
+        queue.oublier_dependances_de("X");
+
+        let (reste, raison) = queue.suivante().unwrap();
+        assert_eq!(reste.slug, "libA");
+        assert_eq!(raison, Reason::Explicit);
+        assert!(queue.est_vide());
+    }
+
+    #[test]
     fn le_manifeste_fait_autorite_sur_une_dependance_meme_epinglee() {
         let mut epinglee = Request::new("jade");
         epinglee.file = Some("abc".into());
@@ -1155,7 +1212,10 @@ mod tests {
         // Le numéro de version épingle tout autant que l'identifiant de build.
         let mut par_version = Request::new("jade");
         par_version.version = Some("1.2.3".into());
-        assert_eq!(autorite(&raison, &par_version), autorite(&raison, &epinglee));
+        assert_eq!(
+            autorite(&raison, &par_version),
+            autorite(&raison, &epinglee)
+        );
     }
 
     #[test]
