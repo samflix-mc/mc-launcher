@@ -1,4 +1,4 @@
-use super::*;
+use super::format_iso8601;
 
 #[test]
 fn horodatage_iso8601() {

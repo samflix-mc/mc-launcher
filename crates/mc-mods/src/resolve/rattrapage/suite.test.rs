@@ -1,6 +1,6 @@
-use super::*;
-use crate::resolve::essais::candidat;
+use super::{BTreeSet, Rattrapage, Reason, Side, Unresolved, suite_du_rattrapage};
 use crate::Origin;
+use crate::resolve::essais::candidat;
 
 /// déclaré, on trouve qui le fournit, et sa demande rejoint la file.
 #[test]

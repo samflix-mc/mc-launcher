@@ -8,7 +8,7 @@
 //! La connexion présente l'identité du launcher officiel : voir la doc du
 //! crate et le README pour ce que ce choix implique.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 mod commandes;
 

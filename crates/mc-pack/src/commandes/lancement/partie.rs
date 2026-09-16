@@ -1,6 +1,6 @@
 //! Lancer, attendre, et rendre compte de ce qui s'est passé.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use super::super::incident::{report_game_crash, report_game_error};
 use super::preparation::Partie;

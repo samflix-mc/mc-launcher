@@ -66,4 +66,3 @@ impl LockedMod {
             .or_else(|| self.sha1.clone().map(mc_dl::Checksum::Sha1))
     }
 }
-

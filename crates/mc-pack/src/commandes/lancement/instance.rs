@@ -1,6 +1,6 @@
 //! Le pack posé sur cette machine, et l'instance qui lui correspond.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 
 use mc_pack::lockfile::Lockfile;
 use mc_pack::manifest::Manifest;

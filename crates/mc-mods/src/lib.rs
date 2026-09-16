@@ -23,8 +23,8 @@
 //! tout manque relance un tour de résolution. On s'arrête quand plus rien ne
 //! manque — ce qui est exactement la condition que NeoForge vérifiera au
 //! démarrage.
-mod candidat;
 mod canal;
+mod candidat;
 mod origine;
 
 pub mod curseforge;
@@ -33,8 +33,8 @@ pub mod jar;
 pub mod modrinth;
 pub mod resolve;
 
-pub use candidat::{Candidate, DeclaredDep};
 pub use canal::Channel;
+pub use candidat::{Candidate, DeclaredDep};
 pub use jar::Side;
 pub use origine::Origin;
-pub use resolve::{resolve, resolve_with, Installed, Options, Plan, Reason, Registry, Request};
+pub use resolve::{Installed, Options, Plan, Reason, Registry, Request, resolve, resolve_with};

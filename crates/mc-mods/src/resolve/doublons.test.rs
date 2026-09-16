@@ -1,4 +1,4 @@
-use super::*;
+use super::{Origin, Reason, deduplicate_by_mod_id};
 use crate::resolve::essais::{installed, map};
 
 #[test]

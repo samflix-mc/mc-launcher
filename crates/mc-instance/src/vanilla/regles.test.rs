@@ -1,6 +1,5 @@
+use super::{Features, allowed, allowed_with};
 use crate::vanilla::descripteur::{OsCondition, Rule};
-
-use super::*;
 
 fn rule(action: &str, os: Option<&str>, arch: Option<&str>) -> Rule {
     Rule {

@@ -1,4 +1,4 @@
-use super::*;
+use super::{chemin, ecrire_protege};
 
 /// Le fichier porte un jeton de rafraîchissement : un poste partagé ne doit
 /// pas le laisser lire par le voisin.

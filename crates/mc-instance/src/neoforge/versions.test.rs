@@ -1,4 +1,4 @@
-use super::*;
+use super::series_for;
 
 #[test]
 fn serie_deduite_de_la_version_du_jeu() {

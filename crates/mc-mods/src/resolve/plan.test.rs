@@ -1,6 +1,5 @@
-use super::*;
+use super::{Plan, Side};
 use crate::resolve::essais::installed;
-
 
 #[test]
 fn le_plan_filtre_par_cote() {

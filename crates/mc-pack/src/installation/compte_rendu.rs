@@ -2,9 +2,9 @@
 
 use std::path::PathBuf;
 
+use crate::Outcome;
 use crate::lockfile::Lockfile;
 use crate::source::Source;
-use crate::Outcome;
 
 use super::mods::Pose;
 

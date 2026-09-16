@@ -6,7 +6,7 @@ mod descente;
 mod retenue;
 mod tour;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::demande::Request;
@@ -14,9 +14,9 @@ use super::doublons::deduplicate_by_mod_id;
 use super::file::{Cle, FileDeResolution};
 use super::plan::{Installed, Plan};
 use super::raison::Reason;
-use super::{Options, Registry, MAX_PASSES};
+use super::{MAX_PASSES, Options, Registry};
 
-use tour::{un_tour, Etat, Suite};
+use tour::{Etat, Suite, un_tour};
 
 /// Résout, télécharge et vérifie l'ensemble du pack.
 pub async fn resolve(

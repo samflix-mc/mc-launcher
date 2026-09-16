@@ -1,10 +1,10 @@
 //! Le build à retenir pour une demande, ou l'explication de son absence.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
+use super::Registry;
 use super::demande::Request;
 use super::registre::filtre::pick;
-use super::Registry;
 use crate::Candidate;
 
 /// décrites, et dont aucune ne regarde l'état de la résolution.

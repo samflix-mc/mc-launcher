@@ -19,10 +19,10 @@ mod emplacements;
 mod telechargement;
 
 pub use check::{Check, Fetched};
-pub use checksum::{sha1_of_file, sha512_of_file, Checksum};
+pub use checksum::{Checksum, sha1_of_file, sha512_of_file};
 pub use emplacements::data_dir;
-pub use telechargement::fichier::write_atomic;
 pub use telechargement::Downloader;
+pub use telechargement::fichier::write_atomic;
 
 /// Agent annoncé à toutes les API contactées.
 ///

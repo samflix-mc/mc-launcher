@@ -48,7 +48,12 @@ pub(super) fn autorite(reason: &Reason, request: &Request) -> u8 {
 /// reperdrait à l'identique : la file ne se viderait jamais et la résolution
 /// mourait sur [`MAX_PASSES`], en accusant des dépendances circulaires qui
 /// n'existent pas. Le manque est consigné une fois, et l'installation continue.
-pub(super) fn impasse_implicite(reason: &Reason, entrante: u8, retenue: u8, meme_build: bool) -> bool {
+pub(super) fn impasse_implicite(
+    reason: &Reason,
+    entrante: u8,
+    retenue: u8,
+    meme_build: bool,
+) -> bool {
     matches!(reason, Reason::Implicit { .. }) && entrante <= retenue && !meme_build
 }
 

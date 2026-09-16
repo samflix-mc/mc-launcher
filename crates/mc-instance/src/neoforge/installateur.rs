@@ -3,15 +3,14 @@
 mod execution;
 
 use anyhow::{Context, Result};
-use mc_dl::{Check, Checksum};
 use mc_dl::Downloader;
+use mc_dl::{Check, Checksum};
 use std::path::{Path, PathBuf};
 
 use super::MAVEN;
 mod pose;
 
 pub use pose::{install_client, install_server};
-
 
 fn installer_url(version: &str) -> String {
     format!("{MAVEN}/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar")

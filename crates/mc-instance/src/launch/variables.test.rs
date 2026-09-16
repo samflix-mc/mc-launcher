@@ -1,5 +1,5 @@
-use super::*;
 use super::super::session::QuickPlay;
+use super::{LaunchOptions, active_features};
 
 #[test]
 fn les_drapeaux_suivent_les_options() {

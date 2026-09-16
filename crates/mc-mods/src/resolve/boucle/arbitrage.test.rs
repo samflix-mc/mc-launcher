@@ -1,4 +1,4 @@
-use super::*;
+use super::{Arbitrage, Side, arbitrer};
 
 /// Le cas qui fait converger la résolution : une dépendance déclarée ne
 /// déloge pas ce que le manifeste a épinglé.

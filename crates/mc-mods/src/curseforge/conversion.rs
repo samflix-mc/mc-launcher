@@ -4,9 +4,7 @@ use crate::jar::Side;
 use crate::{Candidate, Channel, DeclaredDep, Origin};
 
 use super::api::{ApiFile, ApiMod};
-use super::{
-    LOADER_FABRIC, LOADER_FORGE, LOADER_NEOFORGE, LOADER_QUILT, RELATION_REQUIRED,
-};
+use super::{LOADER_FABRIC, LOADER_FORGE, LOADER_NEOFORGE, LOADER_QUILT, RELATION_REQUIRED};
 
 pub(super) fn loader_type(loader: &str) -> u32 {
     match loader.to_ascii_lowercase().as_str() {
@@ -76,7 +74,6 @@ pub(super) fn to_candidate(project: &ApiMod, file: ApiFile) -> Option<Candidate>
         redistributable: project.allow_mod_distribution.unwrap_or(true),
     })
 }
-
 
 #[cfg(test)]
 #[path = "conversion.test.rs"]

@@ -3,8 +3,8 @@
 use crate::jar::Side;
 use crate::{Candidate, Channel, Origin};
 
-use super::api::WebFile;
 use super::WEB;
+use super::api::WebFile;
 
 /// Chargeurs que CurseForge nomme dans `gameVersions`.
 pub(super) const LOADERS: &[&str] = &["neoforge", "forge", "fabric", "quilt"];
@@ -71,7 +71,6 @@ pub(super) fn to_candidate(project_id: u32, slug: &str, name: &str, file: WebFil
         redistributable: true,
     }
 }
-
 
 #[cfg(test)]
 #[path = "conversion.test.rs"]

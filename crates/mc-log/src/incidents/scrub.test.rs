@@ -1,4 +1,4 @@
-use super::*;
+use super::{scrub_event, scrub_log_attribute};
 
 #[test]
 fn un_attribut_de_journal_structure_est_censure() {
@@ -73,8 +73,7 @@ fn les_champs_d_un_evenement_sont_censures() {
             [(
                 "erreur".to_string(),
                 Value::String(
-                    "GET https://api/x?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ"
-                        .into(),
+                    "GET https://api/x?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ".into(),
                 ),
             )]
             .into_iter()

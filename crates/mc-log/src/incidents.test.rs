@@ -1,4 +1,4 @@
-use super::*;
+use super::{dsn, telemetry_enabled};
 
 #[test]
 fn la_telemetrie_se_coupe() {

@@ -6,7 +6,7 @@
 //! une identité qu'il n'a pas choisie — et, sur un serveur en ligne, un
 //! refus de connexion sans cause lisible.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use mc_instance::launch::Session;
 
@@ -37,9 +37,7 @@ async fn en_ligne() -> Result<Session> {
 
     let auth = mc_auth::Auth::resume(&etat)?;
     let session = auth.session().await.map_err(|e| {
-        e.context(
-            "la session enregistrée n'est plus valable — relancer « mc-auth login »",
-        )
+        e.context("la session enregistrée n'est plus valable — relancer « mc-auth login »")
     })?;
 
     // Le rafraîchissement est paresseux : sans cette réécriture, le lancement

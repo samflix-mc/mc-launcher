@@ -37,7 +37,6 @@ use std::process::ExitCode;
 
 use deroulement::run;
 
-
 #[tokio::main]
 async fn main() -> ExitCode {
     // Avant tout le reste : une erreur de lecture d'arguments mérite déjà

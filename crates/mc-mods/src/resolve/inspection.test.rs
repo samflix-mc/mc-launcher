@@ -1,6 +1,5 @@
-use super::*;
+use super::{Side, missing_requirements};
 use crate::resolve::essais::{installed, map};
-
 
 #[test]
 fn une_dependance_absente_est_signalee() {

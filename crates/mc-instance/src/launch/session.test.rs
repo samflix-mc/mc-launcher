@@ -1,4 +1,4 @@
-use super::*;
+use super::Session;
 
 #[test]
 fn une_session_hors_ligne_porte_un_jeton_non_vide() {

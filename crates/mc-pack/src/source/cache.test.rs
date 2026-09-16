@@ -1,6 +1,5 @@
-use super::*;
+use super::{PathBuf, cache_dir_for, file_name_of, is_url, lock_url_for};
 use crate::source::Source;
-
 
 #[test]
 fn une_adresse_se_reconnait_a_son_protocole() {

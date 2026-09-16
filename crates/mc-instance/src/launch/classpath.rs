@@ -1,13 +1,13 @@
 //! Les bibliothèques que la JVM doit trouver, dans l'ordre où elle doit les
 //! trouver.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::vanilla;
 
-use super::descripteur::{library_key, VersionJson};
+use super::descripteur::{VersionJson, library_key};
 
 /// Parcours du plus spécifique au plus général : le chargeur d'abord, Mojang
 /// ensuite. La première occurrence d'une bibliothèque gagne, donc une version

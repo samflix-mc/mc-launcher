@@ -1,4 +1,4 @@
-use super::*;
+use super::Channel;
 
 #[test]
 fn un_canal_plus_stable_que_la_limite_est_accepte() {

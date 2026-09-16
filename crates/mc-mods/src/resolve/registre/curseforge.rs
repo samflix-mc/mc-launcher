@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 
-use crate::resolve::Registry;
 use crate::Candidate;
+use crate::resolve::Registry;
 
 impl Registry {
     /// CurseForge, avec la clé si elle marche, sans elle sinon.
@@ -36,7 +36,12 @@ impl Registry {
     }
 
     /// Cherche un projet par le `modId` que déclare un jar.
-    pub(crate) async fn find_by_mod_id(&self, mod_id: &str, mc: &str, loader: &str) -> Result<Vec<Candidate>> {
+    pub(crate) async fn find_by_mod_id(
+        &self,
+        mod_id: &str,
+        mc: &str,
+        loader: &str,
+    ) -> Result<Vec<Candidate>> {
         let found = self.modrinth.find_by_mod_id(mod_id, mc, loader).await?;
         if !found.is_empty() {
             return Ok(found);
@@ -63,7 +68,11 @@ impl Registry {
     }
 
     /// Build CurseForge épinglé, avec la clé si elle marche, sans elle sinon.
-    pub(crate) async fn curseforge_file(&self, id_or_slug: &str, file: &str) -> Result<Option<Candidate>> {
+    pub(crate) async fn curseforge_file(
+        &self,
+        id_or_slug: &str,
+        file: &str,
+    ) -> Result<Option<Candidate>> {
         if let Some(cf) = &self.curseforge
             && !self.key_rejected.load(std::sync::atomic::Ordering::Relaxed)
         {

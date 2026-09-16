@@ -3,8 +3,8 @@
 use anyhow::Result;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::jar::Side;
 use crate::Origin;
+use crate::jar::Side;
 
 use super::plan::Installed;
 

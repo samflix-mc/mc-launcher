@@ -73,7 +73,6 @@ impl Instance {
     }
 }
 
-
 #[cfg(test)]
 #[path = "disposition.test.rs"]
 mod tests;

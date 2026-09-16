@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 pub(super) use analyse::{split_exception, strip_ansi};
 
-
 /// Ce qu'on a pu apprendre d'un arrêt anormal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Crash {

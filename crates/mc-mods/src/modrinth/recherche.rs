@@ -6,7 +6,7 @@ use crate::Candidate;
 
 use super::api::{ApiVersion, Project, SearchResponse};
 use super::conversion::to_candidate;
-use super::{Modrinth, API};
+use super::{API, Modrinth};
 
 impl Modrinth {
     /// Version précise, pour un build épinglé dans le manifeste.

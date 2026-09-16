@@ -21,14 +21,12 @@ pub(crate) use descripteur::{Features, Library, Rule};
 pub(crate) use regles::{allowed, allowed_with};
 
 pub use descripteur::Artifact;
-pub use installation::{install, Vanilla};
+pub use installation::{Vanilla, install};
 pub use plateforme::{maven_path, mojang_arch, mojang_os};
-pub use verification::{classpath, verify_assets, VerifyReport};
+pub use verification::{VerifyReport, classpath, verify_assets};
 
-pub(crate) const MANIFEST: &str =
-    "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+pub(crate) const MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 pub(crate) const RESOURCES: &str = "https://resources.download.minecraft.net";
-
 
 /// Téléchargements simultanés pour les assets.
 ///

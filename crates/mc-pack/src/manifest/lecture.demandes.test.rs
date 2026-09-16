@@ -1,11 +1,9 @@
 //! Ce qu'un manifeste lu redemande au résolveur.
 
+use super::{Manifest, ModEntry};
 use mc_mods::{Channel, Origin, Side};
 
 use crate::manifest::essais::base;
-use crate::manifest::*;
-
-
 
 #[test]
 fn le_java_du_manifeste_prime_sur_celui_de_mojang() {

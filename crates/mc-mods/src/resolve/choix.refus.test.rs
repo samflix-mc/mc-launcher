@@ -1,6 +1,6 @@
 //! Les trois impasses, et ce qu'elles disent au joueur.
 
-use super::*;
+use super::{Request, trancher};
 use crate::resolve::essais::candidat;
 
 #[test]

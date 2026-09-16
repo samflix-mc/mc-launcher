@@ -5,18 +5,17 @@ mod suite;
 use anyhow::Result;
 use std::collections::BTreeSet;
 
-use crate::jar::Side;
 use crate::Channel;
+use crate::jar::Side;
 
 use super::demande::Request;
 use super::registre::filtre::pick;
 
+use super::Registry;
 use super::file::{Cle, FileDeResolution};
 use super::plan::Unresolved;
-use super::Registry;
 
-use suite::{suite_du_rattrapage, Rattrapage};
-
+use suite::{Rattrapage, suite_du_rattrapage};
 
 /// Cherche un fournisseur pour chaque `modId` qu'aucune API n'annonçait.
 ///

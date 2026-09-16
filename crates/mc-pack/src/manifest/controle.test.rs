@@ -1,7 +1,5 @@
-use crate::manifest::*;
-
-use crate::manifest::essais::{base};
-
+use crate::manifest::ModEntry;
+use crate::manifest::essais::base;
 
 #[test]
 fn un_nom_qui_sort_du_repertoire_est_refuse() {
@@ -42,7 +40,6 @@ fn un_nom_inhabituel_mais_sans_danger_passe() {
         );
     }
 }
-
 
 #[test]
 fn un_format_inconnu_est_refuse() {

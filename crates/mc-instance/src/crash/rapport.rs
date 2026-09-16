@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::lecture::{parse, Crash};
+use super::lecture::{Crash, parse};
 
 /// de trois jours attribué au lancement du jour enverrait sur une fausse piste.
 pub fn find(game_dir: &Path, started_at: std::time::SystemTime) -> Option<Crash> {

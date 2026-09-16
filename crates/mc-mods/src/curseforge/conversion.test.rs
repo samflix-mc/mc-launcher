@@ -1,4 +1,4 @@
-use super::*;
+use super::{Channel, channel_of, loader_type};
 
 #[test]
 fn identifiants_de_chargeur() {

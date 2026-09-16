@@ -1,13 +1,18 @@
 //! Ce qu'on garde d'une liste de candidats, et ce qu'on refuse.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::resolve::demande::Request;
 use crate::{Candidate, Channel};
 
 /// Un build épinglé n'est pas filtré par l'API : il faut vérifier soi-même
 /// qu'il correspond bien à la version de Minecraft et au chargeur du pack.
-pub(crate) fn check_compatible(candidate: &Candidate, mc: &str, loader: &str, slug: &str) -> Result<()> {
+pub(crate) fn check_compatible(
+    candidate: &Candidate,
+    mc: &str,
+    loader: &str,
+    slug: &str,
+) -> Result<()> {
     // Les deux API ont déjà filtré quand on est passé par la liste ; pour un
     // build épinglé, le nom de fichier est le seul indice disponible sans
     // requête supplémentaire, et il est trop peu fiable pour rejeter. On se

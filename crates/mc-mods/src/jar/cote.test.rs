@@ -1,4 +1,4 @@
-use super::*;
+use super::Side;
 
 #[test]
 fn union_des_cotes() {

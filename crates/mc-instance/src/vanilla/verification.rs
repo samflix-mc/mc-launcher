@@ -1,13 +1,12 @@
 //! Recontrôler ce qui est déjà installé, et dire ce qu'il faut à la JVM.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
 use super::descripteur::{AssetIndex, Library};
 use super::plateforme::{maven_path, mojang_arch, mojang_os};
 use super::regles::allowed;
-
 
 /// Recontrôle l'empreinte de tous les objets d'assets déjà installés.
 ///

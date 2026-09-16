@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use crate::resolve::raison::Reason;
 use crate::Origin;
+use crate::resolve::raison::Reason;
 
 use super::plan::Installed;
 

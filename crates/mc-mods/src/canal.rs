@@ -33,7 +33,6 @@ impl Channel {
     }
 }
 
-
 #[cfg(test)]
 #[path = "canal.test.rs"]
 mod tests;

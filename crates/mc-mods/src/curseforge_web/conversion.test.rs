@@ -1,4 +1,4 @@
-use super::*;
+use super::{Channel, channel_of, compatible, download_url};
 
 fn versions(list: &[&str]) -> Vec<String> {
     list.iter().map(ToString::to_string).collect()

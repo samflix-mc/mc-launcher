@@ -59,7 +59,6 @@ pub(super) async fn preparer(
         &launch_options,
     )?;
 
-
     Ok(Partie {
         instance,
         lock,

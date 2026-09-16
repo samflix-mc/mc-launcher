@@ -1,4 +1,4 @@
-use super::*;
+use super::resolve;
 use crate::environment::Environment;
 
 #[test]

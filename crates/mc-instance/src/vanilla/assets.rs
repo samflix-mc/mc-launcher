@@ -8,7 +8,11 @@ use super::descripteur::{AssetIndex, AssetIndexRef};
 use super::{PARALLEL, RESOURCES};
 
 #[tracing::instrument(name = "assets", skip_all, fields(index = %index.id))]
-pub(super) async fn install_assets(index: &AssetIndexRef, shared: &Path, dl: &Downloader) -> Result<usize> {
+pub(super) async fn install_assets(
+    index: &AssetIndexRef,
+    shared: &Path,
+    dl: &Downloader,
+) -> Result<usize> {
     use futures_util::stream::{self, StreamExt};
 
     let index_path = shared

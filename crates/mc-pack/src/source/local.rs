@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::lockfile::Lockfile;
 use crate::manifest::Manifest;
@@ -11,7 +11,6 @@ use super::cache::file_name_of;
 use super::{Pack, Source};
 
 impl Source {
-
     /// Le pack tel qu'il est posé sur cette machine, sans toucher au réseau.
     ///
     /// C'est ce que lisent `launch` et `verify`, et pour la même raison : tous

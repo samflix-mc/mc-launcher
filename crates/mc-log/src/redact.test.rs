@@ -1,4 +1,4 @@
-use crate::redact::{redact, MASK};
+use crate::redact::{MASK, redact};
 
 #[test]
 fn le_nom_du_champ_reste_lisible() {

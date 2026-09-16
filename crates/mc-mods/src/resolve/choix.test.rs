@@ -1,6 +1,6 @@
-use super::*;
-use crate::resolve::essais::candidat;
+use super::{Request, trancher};
 use crate::Channel;
+use crate::resolve::essais::candidat;
 
 #[test]
 fn le_build_retenu_est_rendu_tel_quel() {

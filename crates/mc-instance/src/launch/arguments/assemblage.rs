@@ -27,7 +27,14 @@ pub(in crate::launch) fn assembler(
     let mut jvm = Vec::new();
     let mut game = Vec::new();
     for version in chain.iter().rev() {
-        collect(&version.arguments.jvm, os, arch, features, variables, &mut jvm);
+        collect(
+            &version.arguments.jvm,
+            os,
+            arch,
+            features,
+            variables,
+            &mut jvm,
+        );
         collect(
             &version.arguments.game,
             os,

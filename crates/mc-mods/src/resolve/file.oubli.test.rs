@@ -1,12 +1,11 @@
 //! Ce que la file retire quand un build cède la place.
 
-use super::*;
+use super::{Cle, FileDeResolution, Reason, Request};
 use crate::Origin;
 
 fn cle(source: Origin, projet: &str) -> Cle {
     (source, projet.to_string())
 }
-
 
 #[test]
 fn remplacer_un_build_oublie_les_dependances_de_celui_qu_on_ecarte() {

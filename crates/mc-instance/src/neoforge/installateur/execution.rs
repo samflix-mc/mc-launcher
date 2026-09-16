@@ -1,10 +1,14 @@
 //! Lancer l'installateur officiel, et rendre son échec lisible.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 
-
-pub(crate) async fn run_installer(installer: &Path, mode: &str, dir: &Path, java: &Path) -> Result<()> {
+pub(crate) async fn run_installer(
+    installer: &Path,
+    mode: &str,
+    dir: &Path,
+    java: &Path,
+) -> Result<()> {
     let output = tokio::process::Command::new(java)
         .arg("-jar")
         .arg(installer)

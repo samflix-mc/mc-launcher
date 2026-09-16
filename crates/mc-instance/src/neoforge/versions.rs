@@ -56,7 +56,6 @@ pub async fn latest_for(mc: &str, dl: &Downloader) -> Result<String> {
         .with_context(|| format!("aucune version NeoForge {series}x publiée"))
 }
 
-
 #[cfg(test)]
 #[path = "versions.test.rs"]
 mod tests;

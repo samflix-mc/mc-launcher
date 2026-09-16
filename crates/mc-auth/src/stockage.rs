@@ -51,8 +51,7 @@ pub fn enregistrer(etat: &serde_json::Value) -> Result<()> {
     }
 
     let brut = serde_json::to_vec_pretty(etat).context("sérialisation de la session")?;
-    ecrire_protege(&chemin, &brut)
-        .with_context(|| format!("écriture de {}", chemin.display()))?;
+    ecrire_protege(&chemin, &brut).with_context(|| format!("écriture de {}", chemin.display()))?;
 
     tracing::debug!(fichier = %chemin.display(), "session enregistrée");
     Ok(())

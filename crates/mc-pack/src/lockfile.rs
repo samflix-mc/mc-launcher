@@ -25,7 +25,6 @@ use serde::{Deserialize, Serialize};
 
 pub use entrees::{LockedLoader, LockedMissing, LockedMod};
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Lockfile {
     pub schema: u32,

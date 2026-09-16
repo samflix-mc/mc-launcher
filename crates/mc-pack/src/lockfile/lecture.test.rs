@@ -1,4 +1,4 @@
-use super::*;
+use super::{LockedLoader, LockedMod, Lockfile, Path};
 use mc_mods::Origin;
 
 #[test]
@@ -22,7 +22,6 @@ fn le_verrou_oppose_la_plus_forte_empreinte_qu_il_porte() {
     m.sha512 = Some("bb".into());
     assert_eq!(m.checksum(), Some(mc_dl::Checksum::Sha512("bb".into())));
 }
-
 
 pub(crate) fn locked(slug: &str, file: &str, version: &str) -> LockedMod {
     LockedMod {

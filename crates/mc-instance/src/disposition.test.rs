@@ -1,4 +1,4 @@
-use super::*;
+use super::{Layout, PathBuf};
 
 #[test]
 fn les_instances_ne_partagent_que_le_commun() {

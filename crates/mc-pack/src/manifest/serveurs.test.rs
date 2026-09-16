@@ -1,7 +1,5 @@
-use super::*;
+use super::{Manifest, Server};
 use crate::manifest::essais::avec_serveurs;
-
-
 
 #[test]
 fn le_serveur_suit_l_environnement() {
@@ -20,7 +18,6 @@ fn le_serveur_suit_l_environnement() {
         "un port déclaré s'écrit, fût-il le port par défaut"
     );
 }
-
 
 #[test]
 fn un_binaire_local_rejoint_la_dev() {
@@ -49,14 +46,10 @@ fn une_preproduction_sans_serveur_ne_lance_rien() {
     );
 }
 
-
-
-
 #[test]
 fn les_cles_canoniques_ne_posent_aucun_probleme() {
     assert!(avec_serveurs().problemes_de_serveurs().is_empty());
 }
-
 
 #[test]
 fn un_binaire_local_lit_la_cle_development() {

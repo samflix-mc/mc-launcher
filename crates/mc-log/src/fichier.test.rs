@@ -1,5 +1,4 @@
-use super::*;
-
+use super::RedactingWriter;
 #[test]
 fn le_fichier_de_journal_ne_recoit_pas_les_secrets() {
     use std::io::Write;

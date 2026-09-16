@@ -1,4 +1,4 @@
-use super::*;
+use super::parse;
 
 #[test]
 fn reconnait_une_exception_de_resolution_de_modules() {

@@ -5,7 +5,6 @@ use mc_pack::lockfile::Lockfile;
 use mc_pack::source::Source;
 use std::process::ExitCode;
 
-
 pub fn verify(source: &Source, options: &mc_pack::Options, deep: bool) -> Result<ExitCode> {
     let problems = mc_pack::verify(source, options, deep)?;
     if problems.is_empty() {

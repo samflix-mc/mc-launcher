@@ -6,7 +6,10 @@ use super::api::Widget;
 use super::{CurseForgeWeb, WIDGET};
 
 impl CurseForgeWeb {
-    pub(super) async fn get_json<T: serde::de::DeserializeOwned>(&self, url: &str) -> Result<Option<T>> {
+    pub(super) async fn get_json<T: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+    ) -> Result<Option<T>> {
         let response = self
             .dl
             .client()
@@ -67,5 +70,4 @@ impl CurseForgeWeb {
             Err(_) => self.project_id(id_or_slug).await,
         }
     }
-
 }

@@ -1,7 +1,7 @@
 //! Les jetons qui se reconnaissent à leur seule forme.
 
-use super::curseur::is_token_char;
 use super::MASK;
+use super::curseur::is_token_char;
 
 /// Masque les jetons au format JWT.
 ///

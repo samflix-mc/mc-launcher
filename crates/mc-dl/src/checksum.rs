@@ -1,6 +1,6 @@
 //! Les empreintes, telles que les sources les publient.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::path::Path;
 
 /// Empreinte publiée par une source. Chacune utilise la sienne : Mojang donne

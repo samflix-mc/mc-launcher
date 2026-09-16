@@ -4,8 +4,8 @@ mod format;
 
 use tracing_subscriber::{EnvFilter, Layer};
 
-use crate::fichier::Redacting;
 use crate::BoxedLayer;
+use crate::fichier::Redacting;
 use format::ConsoleFormat;
 
 /// La console montre l'essentiel ; le fichier garde tout.

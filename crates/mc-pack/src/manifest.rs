@@ -15,12 +15,11 @@ use std::collections::BTreeMap;
 
 mod controle;
 mod entrees;
-mod lecture;
 #[cfg(test)]
 mod essais;
+mod lecture;
 mod serveur;
 mod serveurs;
-
 
 pub use entrees::{Loader, ModEntry};
 pub use serveur::Server;

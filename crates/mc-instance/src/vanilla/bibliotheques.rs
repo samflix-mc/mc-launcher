@@ -4,10 +4,10 @@ use anyhow::{Context, Result};
 use mc_dl::{Check, Checksum, Downloader};
 use std::path::{Path, PathBuf};
 
+use super::PARALLEL;
 use super::descripteur::{Artifact, VersionJson};
 use super::plateforme::{maven_path, mojang_arch, mojang_os};
 use super::regles::allowed;
-use super::PARALLEL;
 
 #[tracing::instrument(name = "bibliothèques", skip_all)]
 pub(super) async fn install_libraries(

@@ -3,9 +3,9 @@
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use crate::guard::{current_log_name, Guard};
+use crate::guard::{Guard, current_log_name};
 use crate::redact::redact;
-use crate::{console, fichier, incidents, BoxedLayer};
+use crate::{BoxedLayer, console, fichier, incidents};
 
 /// Met en place la journalisation pour un composant donné.
 ///

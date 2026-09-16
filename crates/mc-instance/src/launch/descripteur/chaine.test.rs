@@ -1,4 +1,4 @@
-use super::*;
+use super::library_key;
 
 #[test]
 fn la_cle_de_bibliotheque_ignore_la_version() {

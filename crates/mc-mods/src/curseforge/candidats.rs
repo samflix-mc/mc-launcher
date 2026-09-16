@@ -6,7 +6,7 @@ use crate::Candidate;
 
 use super::api::{ApiFile, Envelope};
 use super::conversion::{loader_type, to_candidate};
-use super::{CurseForge, API};
+use super::{API, CurseForge};
 
 impl CurseForge {
     /// Versions compatibles, désignées par slug ou par identifiant numérique.

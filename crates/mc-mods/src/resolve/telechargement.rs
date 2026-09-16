@@ -7,11 +7,10 @@ use crate::jar::Side;
 use crate::{Candidate, Origin};
 use std::path::PathBuf;
 
+use super::PARALLEL_DOWNLOADS;
+use super::Registry;
 use super::demande::Request;
 use super::plan::Installed;
-use super::Registry;
-use super::PARALLEL_DOWNLOADS;
-
 
 /// Côté retenu : le manifeste prime, sinon les métadonnées du projet.
 pub(super) fn side_for(request: &Request, candidate: &Candidate) -> Side {

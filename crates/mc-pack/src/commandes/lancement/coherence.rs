@@ -1,6 +1,6 @@
 //! L'instance installée correspond-elle bien à ce verrou ?
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use mc_pack::lockfile::Lockfile;
 

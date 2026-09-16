@@ -1,4 +1,4 @@
-use super::*;
+use super::write_atomic;
 
 #[test]
 fn ecriture_atomique_sans_reliquat() {

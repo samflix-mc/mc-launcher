@@ -1,6 +1,5 @@
+use super::BTreeMap;
 use super::substitute;
-
-use super::*;
 
 fn vars() -> BTreeMap<String, String> {
     BTreeMap::from([

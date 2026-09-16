@@ -1,6 +1,5 @@
-use super::*;
+use super::Server;
 use crate::manifest::essais::{base, serveur};
-
 
 #[test]
 fn une_ipv6_est_mise_entre_crochets() {

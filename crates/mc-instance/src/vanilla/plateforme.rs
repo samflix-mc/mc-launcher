@@ -36,7 +36,6 @@ pub fn maven_path(name: &str) -> Option<String> {
     Some(format!("{group}/{artifact}/{version}/{file}"))
 }
 
-
 #[cfg(test)]
 #[path = "plateforme.test.rs"]
 mod tests;

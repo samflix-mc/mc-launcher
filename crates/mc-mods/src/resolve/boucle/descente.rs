@@ -6,11 +6,11 @@
 use anyhow::Result;
 use std::collections::BTreeMap;
 
+use crate::resolve::Registry;
 use crate::resolve::file::Cle;
 use crate::resolve::inspection::inspect_all;
 use crate::resolve::plan::Installed;
 use crate::resolve::telechargement::download_all;
-use crate::resolve::Registry;
 
 pub(super) async fn telecharger_et_lire(
     registry: &Registry,

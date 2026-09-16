@@ -5,7 +5,7 @@ use std::path::Path;
 
 use crate::emplacements::{candidates, java_exe, managed_home};
 use crate::installation::install;
-use crate::version::{probe, Java, Origin};
+use crate::version::{Java, Origin, probe};
 
 pub async fn detect(major: u32, runtime_dir: &Path) -> Option<Java> {
     let managed = java_exe(&managed_home(runtime_dir, major));

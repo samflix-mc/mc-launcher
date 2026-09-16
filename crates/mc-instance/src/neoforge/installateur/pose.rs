@@ -1,6 +1,6 @@
 //! Poser un client ou un serveur NeoForge à partir de l'installateur.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use mc_dl::Downloader;
 use std::path::{Path, PathBuf};
 

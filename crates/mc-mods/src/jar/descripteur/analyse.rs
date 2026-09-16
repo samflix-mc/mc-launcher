@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 
-use super::{is_platform, JarInfo, Requirement};
+use super::{JarInfo, Requirement, is_platform};
 use crate::jar::cote::Side;
 
 /// Ce qu'un jar déclare fournir, et ce qu'il exige pour démarrer.

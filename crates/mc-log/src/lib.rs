@@ -58,15 +58,15 @@
 //! et vaut `local` à défaut — voir [`environment`].
 
 mod console;
+pub mod environment;
 mod fichier;
 mod guard;
-mod init;
-pub mod environment;
 pub mod incidents;
+mod init;
 pub mod redact;
 
 pub use environment::Environment;
-pub use guard::{log_dir, Guard};
+pub use guard::{Guard, log_dir};
 pub use incidents::{capture_game_crash, flush_incidents, send_test_event, telemetry_active};
 pub use init::init;
 pub use redact::redact;

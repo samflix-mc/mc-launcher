@@ -17,6 +17,6 @@ mod lecture;
 mod rapport;
 mod surveillance;
 
-pub use lecture::{parse, Crash};
+pub use lecture::{Crash, parse};
 pub use rapport::{find, now};
-pub use surveillance::{loaded_mods, Watcher};
+pub use surveillance::{Watcher, loaded_mods};

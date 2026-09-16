@@ -41,8 +41,8 @@ impl Auth {
     /// Ne contacte personne : les jetons ne seront rafraîchis qu'au premier
     /// accès qui en a besoin.
     pub fn resume(etat: &serde_json::Value) -> Result<Self> {
-        let manager = JavaAuthManager::from_json(client()?, etat)
-            .context("session enregistrée illisible")?;
+        let manager =
+            JavaAuthManager::from_json(client()?, etat).context("session enregistrée illisible")?;
         Ok(Self { manager })
     }
 

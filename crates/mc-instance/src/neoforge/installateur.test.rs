@@ -1,4 +1,4 @@
-use super::*;
+use super::{installer_url, version_id};
 
 #[test]
 fn identifiant_de_version_produit() {

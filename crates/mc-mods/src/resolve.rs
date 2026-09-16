@@ -39,7 +39,7 @@ mod telechargement;
 
 pub use boucle::{resolve, resolve_with};
 pub use demande::Request;
-pub use deploiement::{deploy, Deployed};
+pub use deploiement::{Deployed, deploy};
 pub use options::Options;
 pub use plan::{Installed, Plan, Unresolved};
 pub use raison::Reason;

@@ -1,4 +1,4 @@
-use super::*;
+use super::truncate;
 
 #[test]
 fn un_extrait_se_tronque_sans_couper_un_caractere() {

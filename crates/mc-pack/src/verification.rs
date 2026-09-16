@@ -3,8 +3,8 @@
 use anyhow::{Context, Result};
 use mc_mods::Side;
 
-use crate::source::Source;
 use crate::Options;
+use crate::source::Source;
 
 pub fn verify(source: &Source, options: &Options, deep: bool) -> Result<Vec<String>> {
     let pack = source.load_local()?;

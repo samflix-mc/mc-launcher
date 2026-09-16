@@ -1,4 +1,4 @@
-use super::*;
+use super::{split_exception, strip_ansi};
 
 #[test]
 fn un_horodatage_n_est_pas_pris_pour_une_exception() {

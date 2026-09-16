@@ -1,4 +1,4 @@
-use super::*;
+use super::parse_descriptor;
 
 #[test]
 fn descripteur_neoforge_moderne() {

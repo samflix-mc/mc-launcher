@@ -17,8 +17,8 @@ pub(super) async fn version(
     dl: &mc_dl::Downloader,
 ) -> Result<String> {
     let neoforge_version = if replay {
-        let lock = previous
-            .with_context(|| format!("{} absent : rien à rejouer", lock_path.display()))?;
+        let lock =
+            previous.with_context(|| format!("{} absent : rien à rejouer", lock_path.display()))?;
         lock.loader.version.clone()
     } else if manifest.loader.is_latest() {
         mc_instance::neoforge::latest_for(&manifest.minecraft, dl).await?

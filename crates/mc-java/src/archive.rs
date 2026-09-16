@@ -1,6 +1,6 @@
 //! Dépaqueter ce qu'Adoptium livre, quel qu'en soit le format.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
 pub(crate) fn single_child(dir: &Path) -> Result<PathBuf> {

@@ -1,8 +1,8 @@
 //! Ce qu'un mot-clé annonce.
 
+use super::MASK;
 use super::curseur::{end_of_separators, end_of_value};
 use super::tables::{KEYWORDS, SCHEMES};
-use super::MASK;
 
 /// Masque ce qui suit un mot-clé sensible.
 ///

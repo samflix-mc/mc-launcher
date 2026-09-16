@@ -1,4 +1,4 @@
-use super::*;
+use super::tail;
 
 #[test]
 fn la_queue_garde_les_dernieres_lignes() {

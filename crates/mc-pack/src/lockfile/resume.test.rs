@@ -1,6 +1,6 @@
-use super::*;
-use mc_mods::Origin;
+use super::Side;
 use crate::lockfile::lecture::tests::{lock, locked};
+use mc_mods::Origin;
 
 #[test]
 fn le_diff_dit_ce_qui_a_bouge() {

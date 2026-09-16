@@ -47,5 +47,4 @@ impl CurseForgeWeb {
     pub fn new(dl: Arc<mc_dl::Downloader>) -> Self {
         Self { dl }
     }
-
 }

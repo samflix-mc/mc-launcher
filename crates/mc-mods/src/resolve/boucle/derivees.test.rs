@@ -1,4 +1,4 @@
-use super::*;
+use super::{Channel, DeclaredDep, Origin, Request, completer_empreintes, dependance};
 use crate::resolve::essais::candidat;
 
 /// Le cas de CurseForge, qui ne publie pas de SHA-512 : sans cette reprise, un

@@ -1,11 +1,11 @@
 //! Ce qu'on demande à CurseForge.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use super::api::{ApiMod, Envelope};
 use super::cle::KEY_REFUSED;
 use super::cle::config_key_path;
-use super::{CurseForge, API, CLASS_MODS, GAME_MINECRAFT};
+use super::{API, CLASS_MODS, CurseForge, GAME_MINECRAFT};
 
 impl CurseForge {
     pub(super) async fn get_json<T: serde::de::DeserializeOwned>(

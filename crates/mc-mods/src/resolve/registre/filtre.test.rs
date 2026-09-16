@@ -1,4 +1,4 @@
-use super::*;
+use super::{Channel, Request, pick};
 use crate::resolve::essais::installed;
 
 #[test]
@@ -23,7 +23,6 @@ fn une_beta_est_ecartee_par_defaut() {
     request.channel = Some(Channel::Beta);
     assert!(pick(vec![beta], &request).is_some());
 }
-
 
 #[test]
 fn une_version_epinglee_qui_n_existe_pas_ne_retombe_sur_rien() {

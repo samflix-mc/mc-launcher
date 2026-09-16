@@ -1,4 +1,4 @@
-use super::*;
+use super::parse_descriptor;
 use crate::jar::Side;
 
 #[test]

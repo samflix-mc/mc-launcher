@@ -1,4 +1,4 @@
-use super::*;
+use super::{Project, Side, side_of};
 use crate::modrinth::api::ApiFile;
 
 fn project(client: &str, server: &str) -> Project {

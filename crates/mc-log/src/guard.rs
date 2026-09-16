@@ -4,8 +4,8 @@ mod journal;
 
 use std::path::PathBuf;
 
-pub(crate) use journal::{current_log_name, purge_old_logs};
 pub use journal::log_dir;
+pub(crate) use journal::{current_log_name, purge_old_logs};
 
 /// À garder vivant aussi longtemps que le programme tourne.
 ///

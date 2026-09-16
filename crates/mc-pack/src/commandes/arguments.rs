@@ -1,6 +1,6 @@
 //! La ligne de commande, telle que la page d'aide la décrit.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use std::path::PathBuf;
 
 /// Ce que la ligne de commande a demandé.

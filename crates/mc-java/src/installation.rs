@@ -1,12 +1,12 @@
 //! Télécharger un Temurin et le poser au bon endroit.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::Path;
 
-use crate::adoptium::{platform, Asset};
+use crate::adoptium::{Asset, platform};
 use crate::archive::{extract, single_child};
 use crate::emplacements::{java_exe, managed_home};
-use crate::version::{probe, Java, Origin};
+use crate::version::{Java, Origin, probe};
 
 /// combinaisons de plateformes, d'où le repli sur le JDK.
 #[tracing::instrument(name = "installation java", skip(runtime_dir))]

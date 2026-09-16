@@ -2,8 +2,8 @@
 
 use anyhow::{Context, Result};
 
-use crate::resolve::demande::Request;
 use crate::resolve::Registry;
+use crate::resolve::demande::Request;
 use crate::{Candidate, Origin};
 
 use super::filtre::check_compatible;
@@ -32,7 +32,12 @@ impl Registry {
         }
         self.curseforge_any(id_or_slug, mc, loader).await
     }
-    pub(crate) async fn pinned(&self, request: &Request, mc: &str, loader: &str) -> Result<Option<Candidate>> {
+    pub(crate) async fn pinned(
+        &self,
+        request: &Request,
+        mc: &str,
+        loader: &str,
+    ) -> Result<Option<Candidate>> {
         let Some(file) = &request.file else {
             return Ok(None);
         };

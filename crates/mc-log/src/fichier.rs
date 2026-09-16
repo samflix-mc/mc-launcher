@@ -3,9 +3,9 @@
 use std::path::PathBuf;
 use tracing_subscriber::{EnvFilter, Layer};
 
+use crate::BoxedLayer;
 use crate::guard::{log_dir, purge_old_logs};
 use crate::redact::redact;
-use crate::BoxedLayer;
 
 /// Écrivain qui censure chaque ligne avant de l'écrire.
 ///

@@ -1,4 +1,4 @@
-use super::*;
+use super::{Checksum, sha1_of_file, sha512_of_file};
 /// Celle qu'on fige dans le verrou quand la source ne publie rien : elle
 /// doit valoir exactement ce que `Checksum::Sha512` vérifiera ensuite.
 #[test]
@@ -28,10 +28,8 @@ fn empreintes_connues() {
     assert!(Checksum::Sha1("da39a3ee5e6b4b0d3255bfef95601890afd80709".into()).matches(b""));
     assert!(Checksum::Md5("d41d8cd98f00b204e9800998ecf8427e".into()).matches(b""));
     assert!(
-        Checksum::Sha256(
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into()
-        )
-        .matches(b"")
+        Checksum::Sha256("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into())
+            .matches(b"")
     );
 }
 

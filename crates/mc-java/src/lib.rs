@@ -22,4 +22,4 @@ mod version;
 pub use detection::{detect, ensure};
 pub use emplacements::{default_runtime_dir, managed_home};
 pub use installation::install;
-pub use version::{parse_major, probe, Java, Origin, Version};
+pub use version::{Java, Origin, Version, parse_major, probe};

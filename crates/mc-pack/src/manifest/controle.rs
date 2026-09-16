@@ -1,6 +1,6 @@
 //! Ce qu'un manifeste doit respecter pour être installable.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use super::{Manifest, SCHEMA};
 

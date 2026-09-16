@@ -2,13 +2,16 @@
 
 use anyhow::{Context, Result};
 
-use mc_auth::{offline_session, Auth};
+use mc_auth::{Auth, offline_session};
 
 /// Ouvre une session et l'enregistre.
 pub async fn login() -> Result<()> {
     let auth = Auth::login(|code| {
         println!("\n  Ouvre {}", code.verification_uri_directe);
-        println!("  (ou {} et saisis {})", code.verification_uri, code.user_code);
+        println!(
+            "  (ou {} et saisis {})",
+            code.verification_uri, code.user_code
+        );
         println!("\n  En attente de la validation…");
     })
     .await?;

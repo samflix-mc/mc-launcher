@@ -1,9 +1,9 @@
 //! Deux branches réclament le même projet : laquelle impose son build ?
 
+use crate::Candidate;
 use crate::jar::Side;
 use crate::resolve::plan::Installed;
 use crate::resolve::raison::Reason;
-use crate::Candidate;
 
 /// Ce qu'il advient du projet déjà retenu quand une autre branche le réclame.
 #[derive(Debug, PartialEq, Eq)]

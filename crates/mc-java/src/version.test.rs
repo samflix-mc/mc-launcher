@@ -1,4 +1,4 @@
-use super::*;
+use super::{Path, parse_major};
 use crate::emplacements::{candidates, managed_home};
 
 #[test]

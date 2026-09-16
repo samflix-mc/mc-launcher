@@ -1,4 +1,4 @@
-use super::*;
+use super::Candidate;
 use crate::{Channel, Origin, Side};
 
 fn candidat(sha1: Option<&str>, sha512: Option<&str>) -> Candidate {

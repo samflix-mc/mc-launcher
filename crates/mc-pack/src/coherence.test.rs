@@ -1,4 +1,4 @@
-use super::*;
+use super::{Lockfile, mods_client_absents};
 use crate::lockfile::{LockedLoader, LockedMod};
 use mc_mods::Origin;
 

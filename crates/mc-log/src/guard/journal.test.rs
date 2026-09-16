@@ -1,4 +1,4 @@
-use super::*;
+use super::{current_log_name, log_dir};
 
 #[test]
 fn les_journaux_vivent_sous_le_repertoire_de_donnees() {

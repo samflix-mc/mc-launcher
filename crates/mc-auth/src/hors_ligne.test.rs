@@ -1,4 +1,4 @@
-use super::*;
+use super::offline_session;
 
 #[test]
 fn uuid_hors_ligne_conforme_au_serveur_vanilla() {

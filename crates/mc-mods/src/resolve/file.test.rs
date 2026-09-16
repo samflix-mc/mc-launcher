@@ -1,10 +1,9 @@
-use super::*;
+use super::{Cle, FileDeResolution, Reason, Request};
 use crate::Origin;
 
 fn cle(source: Origin, projet: &str) -> Cle {
     (source, projet.to_string())
 }
-
 
 #[test]
 fn le_manifeste_passe_avant_les_dependances_meme_poussees_en_cours_de_route() {

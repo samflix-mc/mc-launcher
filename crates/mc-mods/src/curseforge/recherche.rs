@@ -6,7 +6,7 @@ use crate::Candidate;
 
 use super::api::{ApiMod, Envelope};
 use super::conversion::loader_type;
-use super::{CurseForge, API, CLASS_MODS, GAME_MINECRAFT};
+use super::{API, CLASS_MODS, CurseForge, GAME_MINECRAFT};
 
 impl CurseForge {
     pub(super) async fn post_json<T: serde::de::DeserializeOwned>(

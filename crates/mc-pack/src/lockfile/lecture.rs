@@ -83,7 +83,6 @@ impl Lockfile {
             .unwrap_or_else(|| "pack".to_string());
         manifest.with_file_name(format!("{stem}.lock.json"))
     }
-
 }
 
 #[cfg(test)]

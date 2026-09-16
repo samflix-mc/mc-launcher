@@ -1,4 +1,4 @@
-use super::*;
+use super::{Reason, Request, autorite, impasse_implicite};
 
 /// Le scénario qui faisait mourir la résolution sur `MAX_PASSES` : un
 /// demandeur autoritaire impose un build qui ne fournit pas le `modId`
@@ -41,7 +41,6 @@ fn seules_les_exigences_implicites_font_impasse() {
     assert!(!impasse_implicite(&declaree, 1, 3, false));
     assert!(!impasse_implicite(&Reason::Explicit, 1, 3, false));
 }
-
 
 #[test]
 fn le_manifeste_fait_autorite_sur_une_dependance_meme_epinglee() {

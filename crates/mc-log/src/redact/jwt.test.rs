@@ -1,4 +1,4 @@
-use crate::redact::{redact, MASK};
+use crate::redact::{MASK, redact};
 
 #[test]
 fn un_jwt_est_masque_meme_sans_mot_cle() {

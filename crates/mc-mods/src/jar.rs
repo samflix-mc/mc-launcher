@@ -23,5 +23,5 @@ mod descripteur;
 mod lecture;
 
 pub use cote::Side;
-pub use descripteur::{is_platform, parse_descriptor, JarInfo, Requirement, PLATFORM_IDS};
+pub use descripteur::{JarInfo, PLATFORM_IDS, Requirement, is_platform, parse_descriptor};
 pub use lecture::{inspect, inspect_bytes};

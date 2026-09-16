@@ -1,4 +1,4 @@
-use super::*;
+use super::maven_path;
 
 #[test]
 fn chemin_maven_avec_et_sans_classifier() {

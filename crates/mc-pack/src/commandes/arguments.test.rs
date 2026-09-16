@@ -1,4 +1,4 @@
-use super::*;
+use super::Arguments;
 
 fn lire(args: &[&str]) -> Arguments {
     Arguments::lire(args.iter().map(ToString::to_string))
@@ -10,9 +10,11 @@ fn lire(args: &[&str]) -> Arguments {
 #[test]
 fn sans_commande_il_n_y_a_rien_a_faire() {
     let vide: Vec<String> = Vec::new();
-    assert!(Arguments::lire(vide.into_iter())
-        .expect("pas une erreur")
-        .is_none());
+    assert!(
+        Arguments::lire(vide.into_iter())
+            .expect("pas une erreur")
+            .is_none()
+    );
 }
 
 /// Un chemin nu est la source : c'est la seule position qui ne porte pas de
@@ -35,7 +37,11 @@ fn les_options_a_valeur_prennent_le_mot_suivant() {
 /// frappe sur `--pseudo` lancerait sinon le jeu sous un autre nom.
 #[test]
 fn une_option_inconnue_arrete_tout() {
-    let erreur = Arguments::lire(["launch", "--psuedo", "Sam"].iter().map(ToString::to_string))
-        .expect_err("option inconnue");
+    let erreur = Arguments::lire(
+        ["launch", "--psuedo", "Sam"]
+            .iter()
+            .map(ToString::to_string),
+    )
+    .expect_err("option inconnue");
     assert!(erreur.to_string().contains("--psuedo"), "{erreur}");
 }

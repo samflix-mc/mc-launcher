@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use mc_pack::manifest::Manifest;
 use mc_pack::source::Source;

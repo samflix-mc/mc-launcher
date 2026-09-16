@@ -2,7 +2,7 @@
 
 pub(crate) mod fichier;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::time::Duration;
 
 /// Client HTTP partagé par tout le launcher.

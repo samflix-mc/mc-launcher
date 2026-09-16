@@ -1,4 +1,4 @@
-use crate::redact::{redact, MASK};
+use crate::redact::{MASK, redact};
 
 #[test]
 fn les_formes_usuelles_de_jeton_sont_couvertes() {

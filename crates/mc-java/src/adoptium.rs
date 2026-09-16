@@ -1,6 +1,6 @@
 //! L'API qui publie les Temurin, et ce qu'on lui demande.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

@@ -2,7 +2,10 @@
 
 use anyhow::{Context, Result};
 
-pub(super) async fn runtime(java_major: u32, layout: &mc_instance::Layout) -> Result<mc_java::Java> {
+pub(super) async fn runtime(
+    java_major: u32,
+    layout: &mc_instance::Layout,
+) -> Result<mc_java::Java> {
     let java = mc_java::ensure(java_major, &layout.runtime())
         .await
         .with_context(|| format!("aucun Java {java_major} utilisable"))?;

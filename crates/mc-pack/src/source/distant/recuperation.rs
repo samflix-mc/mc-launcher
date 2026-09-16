@@ -2,15 +2,18 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::lockfile::Lockfile;
 use crate::manifest::Manifest;
-use crate::source::cache::{file_name_of, lock_url_for};
 use crate::source::Pack;
+use crate::source::cache::{file_name_of, lock_url_for};
 
-
-pub(in crate::source) async fn load_remote(url: &str, cache_dir: &Path, dl: &mc_dl::Downloader) -> Result<Pack> {
+pub(in crate::source) async fn load_remote(
+    url: &str,
+    cache_dir: &Path,
+    dl: &mc_dl::Downloader,
+) -> Result<Pack> {
     let lock_url = lock_url_for(url);
     let manifest_cache = cache_dir.join(file_name_of(url));
     let lock_cache = Lockfile::path_for(&manifest_cache);
@@ -93,4 +96,3 @@ async fn fetch_pair(
         .with_context(|| format!("{lock_url} ne contient pas un verrou lisible"))?;
     Ok((manifest, lock))
 }
-

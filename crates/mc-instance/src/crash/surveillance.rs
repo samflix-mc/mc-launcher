@@ -3,7 +3,7 @@
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
-use super::lecture::{split_exception, strip_ansi, Crash, EXCERPT_LINES};
+use super::lecture::{Crash, EXCERPT_LINES, split_exception, strip_ansi};
 
 #[derive(Debug, Default)]
 pub struct Watcher {

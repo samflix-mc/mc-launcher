@@ -1,6 +1,6 @@
+use super::Manifest;
+use crate::manifest::Server;
 use crate::manifest::essais::avec_serveurs;
-use crate::manifest::*;
-
 
 #[test]
 fn un_pack_plus_recent_que_le_binaire_reste_installable() {

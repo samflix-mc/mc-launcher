@@ -6,10 +6,9 @@ use crate::Candidate;
 
 use super::api::{ApiVersion, Project};
 use super::conversion::to_candidate;
-use super::{Modrinth, API};
+use super::{API, Modrinth};
 
 impl Modrinth {
-
     pub(super) async fn get_json<T: serde::de::DeserializeOwned>(
         &self,
         url: &str,
@@ -73,5 +72,4 @@ impl Modrinth {
             .filter_map(|v| to_candidate(&project, v))
             .collect())
     }
-
 }

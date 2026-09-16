@@ -4,10 +4,10 @@ use anyhow::{Context, Result};
 use mc_dl::{Check, Checksum, Downloader};
 use std::path::{Path, PathBuf};
 
+use super::MANIFEST;
 use super::assets::install_assets;
 use super::bibliotheques::install_libraries;
 use super::descripteur::{Manifest, VersionJson};
-use super::MANIFEST;
 
 /// Ce que l'installation vanilla a produit.
 #[derive(Debug)]

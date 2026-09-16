@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{Loader, Manifest, Server, SCHEMA};
+use super::{Loader, Manifest, SCHEMA, Server};
 
 pub(super) fn base() -> Manifest {
     Manifest {
@@ -19,7 +19,6 @@ pub(super) fn base() -> Manifest {
         servers: BTreeMap::new(),
     }
 }
-
 
 pub(super) fn avec_serveurs() -> Manifest {
     let mut manifest = base();
@@ -40,14 +39,12 @@ pub(super) fn avec_serveurs() -> Manifest {
     manifest
 }
 
-
 pub(super) fn serveur(host: &str, port: Option<u16>) -> Server {
     Server {
         host: host.into(),
         port,
     }
 }
-
 
 pub(super) fn avec_cle(cle: &str, host: &str) -> Manifest {
     let mut manifest = base();
@@ -60,4 +57,3 @@ pub(super) fn avec_cle(cle: &str, host: &str) -> Manifest {
     );
     manifest
 }
-

@@ -1,10 +1,10 @@
 //! Installer un pack : six étapes, dans cet ordre et pas un autre.
 
 mod chargeur;
-mod mojang;
 mod compte_rendu;
 mod java;
 mod mods;
+mod mojang;
 mod verrou;
 
 use anyhow::Result;
@@ -44,7 +44,8 @@ pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> R
     let layout = &options.layout;
     let shared = layout.shared();
 
-    let neoforge_version = chargeur::version(&manifest, previous_lock.as_ref(), &lock_path, replay, &dl).await?;
+    let neoforge_version =
+        chargeur::version(&manifest, previous_lock.as_ref(), &lock_path, replay, &dl).await?;
     log(&format!(
         "Minecraft {} — NeoForge {neoforge_version}",
         manifest.minecraft
@@ -90,6 +91,14 @@ pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> R
     )?;
 
     Ok(compte_rendu::assembler(
-        source, pose, java, game, lock, lock_path, previous_lock, neoforge_version, from_cache,
+        source,
+        pose,
+        java,
+        game,
+        lock,
+        lock_path,
+        previous_lock,
+        neoforge_version,
+        from_cache,
     ))
 }

@@ -36,10 +36,7 @@ mod distant;
 mod lecture;
 mod local;
 
-
-
-pub use distant::{url_par_defaut, URL_DEVELOPPEMENT, URL_PREPRODUCTION, URL_PRODUCTION};
-
+pub use distant::{URL_DEVELOPPEMENT, URL_PREPRODUCTION, URL_PRODUCTION, url_par_defaut};
 
 #[derive(Debug, Clone)]
 pub enum Source {

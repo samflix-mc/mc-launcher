@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use std::io::{Cursor, Read};
 use std::path::Path;
 
-use super::descripteur::{parse_descriptor, JarInfo};
+use super::descripteur::{JarInfo, parse_descriptor};
 
 /// Lit un jar sur le disque.
 pub fn inspect(path: &Path) -> Result<JarInfo> {

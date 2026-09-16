@@ -1,7 +1,7 @@
 //! Ce que la résolution rend : les mods retenus, et ce qui manque.
 
-use crate::jar::Side;
 use crate::Candidate;
+use crate::jar::Side;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
