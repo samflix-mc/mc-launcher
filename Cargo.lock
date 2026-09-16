@@ -935,6 +935,7 @@ dependencies = [
  "mc-dl",
  "sentry",
  "sentry-tracing",
+ "time",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",

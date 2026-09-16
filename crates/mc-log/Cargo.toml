@@ -10,5 +10,6 @@ mc-dl = { path = "../mc-dl" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-appender.workspace = true
+time.workspace = true
 sentry.workspace = true
 sentry-tracing.workspace = true

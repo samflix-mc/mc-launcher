@@ -32,6 +32,9 @@ toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
+# Uniquement pour dater le nom du journal du jour, exactement comme
+# tracing-appender le fait : il est déjà dans l'arbre par lui.
+time = { version = "0.3", default-features = false, features = ["std"] }
 # rustls plutôt que native-tls, comme reqwest ailleurs : une seule pile TLS
 # dans le binaire, et rien à lier au système.
 sentry = { version = "0.49", default-features = false, features = [
