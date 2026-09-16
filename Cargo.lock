@@ -932,10 +932,10 @@ dependencies = [
 name = "mc-log"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "mc-dl",
  "sentry",
  "sentry-tracing",
+ "time",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",

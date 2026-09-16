@@ -33,6 +33,19 @@ const KEYWORDS: &[&str] = &[
     "token",
 ];
 
+/// Schémas d'authentification HTTP : le mot annonce la valeur, il n'est pas la
+/// valeur.
+///
+/// Sans cette liste, seul « Bearer » était reconnu. Les autres schémas étaient
+/// pris pour le secret lui-même : c'est le nom du schéma qui se faisait masquer,
+/// et l'identifiant qui le suit partait en clair.
+///
+/// Un schéma n'est reconnu que s'il forme un mot à part *et* s'il introduit
+/// réellement quelque chose ; sinon c'est lui, la valeur. Sans ces deux
+/// conditions, « token=basicXXXX » laissait passer « basic » en clair, et
+/// « password: digest » ne masquait plus rien du tout.
+const SCHEMES: &[&str] = &["bearer", "basic", "digest", "negotiate", "token", "dpop"];
+
 /// Un caractère peut-il appartenir à une valeur de jeton ?
 ///
 /// Les jetons croisés ici sont du base64url, du JWT ou de l'hexadécimal, plus
@@ -40,6 +53,23 @@ const KEYWORDS: &[&str] = &[
 /// guillemet, virgule, accolade — clôt la valeur.
 fn is_token_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '+' | '/' | '=' | '~' | '$')
+}
+
+/// Un caractère sépare-t-il un mot-clé de sa valeur ?
+fn is_separator(c: char) -> bool {
+    c.is_whitespace() || matches!(c, ':' | '=' | '"' | '\'' | ',')
+}
+
+/// Fin de la ponctuation qui commence à `from`.
+fn end_of_separators(text: &str, from: usize) -> usize {
+    let rest = &text[from..];
+    from + rest.find(|c: char| !is_separator(c)).unwrap_or(rest.len())
+}
+
+/// Fin de la valeur qui commence à `from`.
+fn end_of_value(text: &str, from: usize) -> usize {
+    let rest = &text[from..];
+    from + rest.find(|c: char| !is_token_char(c)).unwrap_or(rest.len())
 }
 
 /// Remplace les secrets d'un texte.
@@ -56,6 +86,11 @@ pub fn redact(text: &str) -> String {
 /// suffit à les reconnaître sans se soucier du contexte, ce qui attrape aussi
 /// les jetons qu'aucun mot-clé n'introduit.
 fn redact_jwt(text: &str) -> String {
+    // Pas de jeton sans ce préfixe : l'écarter d'abord évite de recopier chaque
+    // ligne du journal dans un `Vec<char>` pour n'y rien trouver.
+    if !text.contains("eyJ") {
+        return text.to_string();
+    }
     let mut out = String::with_capacity(text.len());
     let chars: Vec<char> = text.chars().collect();
     let mut i = 0;
@@ -86,54 +121,59 @@ fn redact_jwt(text: &str) -> String {
 /// `--api-key abc` d'une seule règle : après le mot-clé, on saute les
 /// séparateurs et la ponctuation d'usage, puis on efface la valeur.
 fn redact_after_keywords(text: &str) -> String {
+    // Les mots-clés sont en ASCII pur et `to_ascii_lowercase` ne change aucune
+    // longueur : les indices d'octets de `lower` sont exactement ceux de `text`.
+    // Comparer les deux `&str` directement évite les deux `Vec<char>` de la
+    // ligne entière, plus les vingt que découper les tables coûtait — et cette
+    // fonction voit passer chaque ligne écrite dans le journal.
     let lower = text.to_ascii_lowercase();
-    let bytes: Vec<char> = text.chars().collect();
-    let lower_chars: Vec<char> = lower.chars().collect();
+    // Le cas courant, et de très loin : une ligne de journal sur mille porte un
+    // mot-clé. Les autres n'ont rien à recopier.
+    if !KEYWORDS.iter().any(|keyword| lower.contains(keyword)) {
+        return text.to_string();
+    }
 
     let mut out = String::with_capacity(text.len());
     let mut i = 0;
 
-    'outer: while i < bytes.len() {
+    'outer: while i < text.len() {
         for keyword in KEYWORDS {
-            let kw: Vec<char> = keyword.chars().collect();
-            if lower_chars[i..].starts_with(&kw[..]) {
-                // Le mot-clé lui-même reste lisible : sans lui, on ne saurait
-                // pas de quel secret il s'agissait.
-                out.extend(&bytes[i..i + kw.len()]);
-                let mut j = i + kw.len();
-
-                // Séparateurs entre le mot-clé et sa valeur, « Bearer » compris.
-                let mut separator = String::new();
-                while j < bytes.len()
-                    && (bytes[j].is_whitespace()
-                        || matches!(bytes[j], ':' | '=' | '"' | '\'' | ','))
-                {
-                    separator.push(bytes[j]);
-                    j += 1;
-                }
-                if lower_chars[j..].starts_with(&['b', 'e', 'a', 'r', 'e', 'r']) {
-                    separator.extend(&bytes[j..j + 6]);
-                    j += 6;
-                    while j < bytes.len() && bytes[j].is_whitespace() {
-                        separator.push(bytes[j]);
-                        j += 1;
-                    }
-                }
-                out.push_str(&separator);
-
-                let start = j;
-                while j < bytes.len() && is_token_char(bytes[j]) {
-                    j += 1;
-                }
-                if j > start {
-                    out.push_str(MASK);
-                }
-                i = j;
-                continue 'outer;
+            if !lower[i..].starts_with(keyword) {
+                continue;
             }
+            // Séparateurs entre le mot-clé et sa valeur.
+            let mut j = end_of_separators(text, i + keyword.len());
+
+            // Le schéma annonce la valeur : il reste lisible et l'on continue
+            // jusqu'à ce qu'il introduit. À deux conditions, sans quoi le masque
+            // se déplaçait au mauvais endroit : qu'il forme un mot à part, et
+            // qu'il introduise réellement quelque chose.
+            for scheme in SCHEMES {
+                if !lower[j..].starts_with(scheme) {
+                    continue;
+                }
+                let after = end_of_separators(text, j + scheme.len());
+                if after > j + scheme.len() && end_of_value(text, after) > after {
+                    j = after;
+                }
+                break;
+            }
+
+            // Le mot-clé et ce qui l'accompagne restent lisibles : sans eux, on
+            // ne saurait pas de quel secret il s'agissait.
+            out.push_str(&text[i..j]);
+            let end = end_of_value(text, j);
+            if end > j {
+                out.push_str(MASK);
+            }
+            i = end;
+            continue 'outer;
         }
-        out.push(bytes[i]);
-        i += 1;
+        let Some(c) = text[i..].chars().next() else {
+            break;
+        };
+        out.push(c);
+        i += c.len_utf8();
     }
     out
 }
@@ -144,15 +184,23 @@ fn redact_after_keywords(text: &str) -> String {
 /// secret, mais c'est une donnée personnelle qui n'apprend rien de plus que le
 /// chemin relatif.
 fn redact_home(text: &str) -> String {
-    let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) else {
-        return text.to_string();
-    };
-    let home = home.to_string_lossy().to_string();
-    if home.is_empty() || home == "/" {
-        return text.to_string();
+    match HOME.as_deref() {
+        Some(home) if text.contains(home) => text.replace(home, "~"),
+        _ => text.to_string(),
     }
-    text.replace(&home, "~")
 }
+
+/// Le répertoire personnel, lu une seule fois.
+///
+/// `redact` voit passer chaque ligne écrite dans le journal : relire
+/// l'environnement à chacune prenait son verrou global — que d'autres fils
+/// écrivent par ailleurs — pour une valeur qui ne change pas de l'exécution.
+/// La racine « / » est écartée : elle préfixe tout.
+static HOME: std::sync::LazyLock<Option<String>> = std::sync::LazyLock::new(|| {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
+    let home = home.to_string_lossy().into_owned();
+    (!home.is_empty() && home != "/").then_some(home)
+});
 
 #[cfg(test)]
 mod tests {
@@ -180,6 +228,53 @@ mod tests {
         ] {
             let sortie = redact(entree);
             assert!(sortie.contains(MASK), "non masqué : {entree} → {sortie}");
+        }
+    }
+
+    #[test]
+    fn un_schema_d_authentification_autre_que_bearer_ne_laisse_pas_passer_la_valeur() {
+        // « Basic » porte le couple identifiant/mot de passe en base64 : c'est
+        // le contenu le plus sensible que cet en-tête puisse transporter. Le nom
+        // du schéma, lui, doit survivre : c'est tout ce qui reste pour savoir de
+        // quel en-tête il s'agissait.
+        for (entree, attendu) in [
+            (
+                "Authorization: Basic dXNlcjpwYXNzd29yZA==",
+                "Authorization: Basic [secret]",
+            ),
+            (
+                "Authorization: Digest cnonce=abcdef123456",
+                "Authorization: Digest [secret]",
+            ),
+            (
+                "authorization: Token abcdef123456",
+                "authorization: Token [secret]",
+            ),
+            // Valeur citée : sans ponctuation admise après le schéma, la ligne
+            // ressortait intacte — sans même un masque pour le signaler.
+            (
+                "Authorization: Basic \"dXNlcjpwYXNzd29yZA==\"",
+                "Authorization: Basic \"[secret]\"",
+            ),
+        ] {
+            assert_eq!(redact(entree), attendu, "entrée : {entree}");
+        }
+    }
+
+    #[test]
+    fn un_secret_qui_commence_comme_un_schema_reste_masque_en_entier() {
+        // Un schéma n'en est un que s'il forme un mot à part et qu'il introduit
+        // quelque chose. Sinon il est la valeur, et la reconnaître déplaçait le
+        // masque derrière les premiers caractères du secret.
+        for (entree, attendu) in [
+            ("token=basicSECRETVALUE", "token=[secret]"),
+            ("password=dpop9f3a2b", "password=[secret]"),
+            ("secret=token12345", "secret=[secret]"),
+            ("api_key=bearerAAAA1111", "api_key=[secret]"),
+            ("password: digest", "password: [secret]"),
+            ("Authorization: Bearer", "Authorization: [secret]"),
+        ] {
+            assert_eq!(redact(entree), attendu, "entrée : {entree}");
         }
     }
 

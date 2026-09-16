@@ -35,18 +35,36 @@ use mc_pack::lockfile::{LockedLoader, Lockfile};
 use mc_pack::manifest::Manifest;
 use mc_pack::source::{self, Source};
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> ExitCode {
     // Avant tout le reste : une erreur de lecture d'arguments mérite déjà
     // d'être journalisée, et le guard doit vivre jusqu'à la fin du programme
     // pour que le journal et les incidents partent complètement.
+    //
+    // Il vit jusqu'au retour de `main`, et pas une instruction de moins : les
+    // destructeurs tournent avant que le processus ne rende son code. C'est ce
+    // que les `std::process::exit` semés dans les commandes empêchaient — un
+    // `verify` non conforme journalisait ses anomalies, puis coupait le
+    // programme avant que la file d'écriture ne les ait posées dans le fichier
+    // qu'il venait lui-même de citer. D'où le code de sortie rendu, jamais pris.
     let _log = mc_log::init("mc-pack");
 
+    match run(&_log).await {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("Erreur : {error:?}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+async fn run(log: &mc_log::Guard) -> Result<ExitCode> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(command) = args.first().cloned() else {
         usage();
-        std::process::exit(2);
+        return Ok(ExitCode::from(2));
     };
 
     let mut source_arg: Option<String> = None;
@@ -85,7 +103,7 @@ async fn main() -> Result<()> {
     // Le diagnostic n'a pas besoin de manifeste : c'est justement ce qu'on
     // lance quand on ne sait pas encore ce qui va de travers.
     if command == "diagnostic" {
-        return diagnostic(&_log, incident_test);
+        return diagnostic(log, incident_test);
     }
 
     // La source est construite après la boucle : `--data` peut déplacer la
@@ -114,15 +132,19 @@ async fn main() -> Result<()> {
         mc_log::environment::current().as_str()
     );
 
+    // Seul `verify` distingue deux réussites : l'installation est conforme, ou
+    // elle ne l'est pas sans que le programme ait pour autant échoué.
     let result = match command.as_str() {
-        "install" => install(&source, &options).await,
-        "launch" => launch(&source, &options, pseudo, serveur, memoire, afficher).await,
-        "lock" => lock(&source, &options).await,
+        "install" => install(&source, &options).await.map(|()| ExitCode::SUCCESS),
+        "launch" => launch(&source, &options, pseudo, serveur, memoire, afficher)
+            .await
+            .map(|()| ExitCode::SUCCESS),
+        "lock" => lock(&source, &options).await.map(|()| ExitCode::SUCCESS),
         "verify" => verify(&source, &options, deep),
         other => {
             eprintln!("commande inconnue : {other}");
             usage();
-            std::process::exit(2);
+            return Ok(ExitCode::from(2));
         }
     };
 
@@ -141,7 +163,7 @@ async fn main() -> Result<()> {
                 "mc-pack {command} a échoué après {:.1} s : {error}",
                 debut.elapsed().as_secs_f64()
             );
-            if let Some(path) = _log.log_path() {
+            if let Some(path) = log.log_path() {
                 eprintln!("\nJournal détaillé : {}", path.display());
             }
         }
@@ -167,16 +189,22 @@ fn usage() {
 ///
 /// Première chose à demander à quelqu'un dont l'installation échoue : la
 /// réponse tient en dix lignes et dit où trouver le reste.
-fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<()> {
+fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<ExitCode> {
     println!("Journaux");
     match log.log_path() {
         Some(path) => println!("  fichier    : {}", path.display()),
         None => println!("  fichier    : indisponible (répertoire non inscriptible)"),
     }
     println!("  répertoire : {}", mc_log::log_dir().display());
+    // Le même tri qu'à la pose du filtre : une RUST_LOG vide ne règle rien, et
+    // l'afficher telle quelle rendait ici une ligne blanche — sur la commande
+    // dont le seul travail est de dire ce qui est en vigueur.
     println!(
         "  console    : {}",
-        std::env::var("RUST_LOG").unwrap_or_else(|_| "info (régler RUST_LOG)".into())
+        std::env::var("RUST_LOG")
+            .ok()
+            .filter(|niveau| !niveau.trim().is_empty())
+            .unwrap_or_else(|| "info (régler RUST_LOG)".into())
     );
 
     println!("\nRemontée d'incidents");
@@ -203,7 +231,7 @@ fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<()> {
     if incident_test {
         if !mc_log::telemetry_active() {
             println!("\nRien à envoyer : la remontée est coupée.");
-            return Ok(());
+            return Ok(ExitCode::SUCCESS);
         }
         println!("\nEnvoi d'un incident de test…");
         let (id, envoye) = mc_log::send_test_event();
@@ -219,10 +247,10 @@ fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<()> {
         } else {
             println!("  envoi       : ÉCHOUÉ (file non vidée avant expiration)");
             println!("                réseau bloqué, DSN erroné ou projet inexistant");
-            std::process::exit(1);
+            return Ok(ExitCode::FAILURE);
         }
     }
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
 async fn install(source: &Source, options: &mc_pack::Options) -> Result<()> {
@@ -397,7 +425,7 @@ async fn lock(source: &Source, options: &mc_pack::Options) -> Result<()> {
     Ok(())
 }
 
-fn verify(source: &Source, options: &mc_pack::Options, deep: bool) -> Result<()> {
+fn verify(source: &Source, options: &mc_pack::Options, deep: bool) -> Result<ExitCode> {
     let problems = mc_pack::verify(source, options, deep)?;
     if problems.is_empty() {
         tracing::info!(
@@ -406,7 +434,7 @@ fn verify(source: &Source, options: &mc_pack::Options, deep: bool) -> Result<()>
             if deep { ", empreintes comprises" } else { "" }
         );
         println!("Installation complète et conforme au verrou.");
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
     // Une anomalie de vérification n'est pas une panne du programme : elle
     // décrit l'installation. D'où `warn` plutôt que `error` — l'incident, c'est
@@ -424,7 +452,7 @@ fn verify(source: &Source, options: &mc_pack::Options, deep: bool) -> Result<()>
     for problem in &problems {
         eprintln!("  {problem}");
     }
-    std::process::exit(1);
+    Ok(ExitCode::FAILURE)
 }
 
 /// Une dépendance introuvable n'empêche pas d'installer, mais empêchera le jeu
@@ -646,7 +674,17 @@ fn report_game_crash(
     eprintln!("\n{} : {}", crash.exception, crash.message);
     eprintln!("  relevé dans {}", crash.source.display());
     if mc_log::telemetry_active() {
-        eprintln!("  incident transmis sous l'identifiant {id}");
+        // Le seul endroit qui vaille qu'on attende le réseau : c'est le seul où
+        // un identifiant est donné au joueur, et un identifiant qu'on lui
+        // demandera de citer doit désigner quelque chose qui est arrivé. Le
+        // verdict est dit plutôt que supposé — la fermeture n'attend que deux
+        // secondes, et ce qui n'est pas parti d'ici là est perdu sans un mot.
+        if mc_log::flush_incidents(std::time::Duration::from_secs(10)) {
+            eprintln!("  incident transmis sous l'identifiant {id}");
+        } else {
+            eprintln!("  incident consigné sous l'identifiant {id}, mais non transmis");
+            eprintln!("  (réseau indisponible) — joindre le journal du launcher");
+        }
     }
 }
 

@@ -88,15 +88,29 @@ const KEEP_DAYS: u64 = 14;
 /// temps d'envoyer ce qui reste. Le lâcher tout de suite perdrait précisément
 /// les derniers messages — ceux qui décrivent la sortie.
 pub struct Guard {
-    _sentry: Option<sentry::ClientInitGuard>,
+    // Le fichier se vide avant que Sentry n'attende le réseau : l'ordre des
+    // champs est celui des destructions. L'inverse laissait la fin du journal
+    // dans la file d'écriture pendant les dix secondes d'envoi — et un Ctrl-C
+    // pendant l'attente l'y laissait pour de bon.
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
-    pub log_file: Option<PathBuf>,
+    _sentry: Option<sentry::ClientInitGuard>,
+    /// Répertoire du journal et nom du composant, pour retrouver le fichier du
+    /// jour à la demande.
+    journal: Option<(PathBuf, String)>,
 }
 
 impl Guard {
     /// Chemin du journal, à citer quand quelque chose échoue.
-    pub fn log_path(&self) -> Option<&Path> {
-        self.log_file.as_deref()
+    ///
+    /// Recalculé à chaque appel, jamais figé au démarrage : `rolling::daily`
+    /// change de fichier à minuit UTC, et une partie commencée avant continue
+    /// dans le suivant. Un chemin figé désignerait alors un fichier qui existe
+    /// mais s'arrête avant la panne — plus trompeur qu'un fichier absent,
+    /// puisque rien n'invite à en douter.
+    pub fn log_path(&self) -> Option<PathBuf> {
+        self.journal
+            .as_ref()
+            .map(|(dir, component)| dir.join(current_log_name(component)))
     }
 }
 
@@ -110,12 +124,6 @@ pub fn telemetry_active() -> bool {
     dsn().is_some()
 }
 
-/// Envoie un incident de test et renvoie son identifiant.
-///
-/// Sert à répondre à « est-ce que ça remonte vraiment ? » sans avoir à
-/// provoquer une vraie panique. L'identifiant rendu est celui à chercher dans
-/// le tableau de bord : si les deux correspondent, la chaîne entière — envoi,
-/// réseau, projet, censure — est vérifiée.
 /// Remonte un plantage du jeu comme un incident à part entière.
 ///
 /// Minecraft plante dans sa propre JVM : rien n'en arrive au launcher, sinon
@@ -164,11 +172,12 @@ pub fn capture_game_crash(
             .insert(key.clone(), Value::String(redact(value)));
     }
 
-    let id = sentry::capture_event(event);
-    sentry::Hub::current()
-        .client()
-        .map(|client| client.flush(Some(std::time::Duration::from_secs(10))));
-    id
+    // Pas de vidage ici : une partie produit jusqu'à cinq exceptions relevées
+    // plus son plantage, et attendre la file à chaque fois immobilisait le
+    // launcher dix secondes par exception dès que le réseau manquait. L'attente
+    // se demande une fois, par l'appelant qui annonce l'identifiant — sinon par
+    // [`Guard`] à la fermeture.
+    sentry::capture_event(event)
 }
 
 /// Borne un texte sans couper au milieu d'une ligne.
@@ -178,7 +187,15 @@ fn truncate(text: &str, max: usize) -> String {
     }
     // La fin d'un journal est plus parlante que son début : c'est là que se
     // trouve ce qui a échoué.
-    let start = text.len() - max;
+    //
+    // `max` est un nombre d'octets, et un journal de jeu en contient de
+    // multi-octets — noms de mods accentués, « § », « … ». Trancher à l'aveugle
+    // au milieu d'un caractère fait paniquer le découpage, et le launcher
+    // mourrait dans la main qui rapporte le plantage.
+    let mut start = text.len() - max;
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
     let from = text[start..]
         .find('\n')
         .map(|offset| start + offset + 1)
@@ -186,6 +203,12 @@ fn truncate(text: &str, max: usize) -> String {
     format!("[…début tronqué…]\n{}", &text[from..])
 }
 
+/// Envoie un incident de test et renvoie son identifiant.
+///
+/// Sert à répondre à « est-ce que ça remonte vraiment ? » sans avoir à
+/// provoquer une vraie panique. L'identifiant rendu est celui à chercher dans
+/// le tableau de bord : si les deux correspondent, la chaîne entière — envoi,
+/// réseau, projet, censure — est vérifiée.
 pub fn send_test_event() -> (sentry::types::Uuid, bool) {
     // Les deux canaux passent par des routes différentes et des filtres
     // différents : les tester ensemble évite de croire l'un fonctionnel parce
@@ -224,11 +247,25 @@ pub fn send_test_event() -> (sentry::types::Uuid, bool) {
     // avant que la requête ne parte. Le retour dit si la file s'est vidée —
     // c'est la différence entre « un identifiant a été tiré » et « l'incident
     // est parti ».
-    let flushed = sentry::Hub::current()
+    (id, flush_incidents(std::time::Duration::from_secs(10)))
+}
+
+/// Attend que la file d'incidents parte, et dit si elle est partie.
+///
+/// [`Guard`] en fait autant à la fermeture, mais avec le budget court que
+/// supportent les commandes ordinaires. Les deux appelants qui demandent plus
+/// ont la même raison : ils annoncent un identifiant au joueur, et « consigné »
+/// ne se dit pas comme « transmis ». Chercher dans le tableau de bord un
+/// identifiant qu'une panne de réseau y a empêché d'arriver coûte plus de temps
+/// que l'attente qu'on s'épargnait.
+///
+/// Rend `false` quand la télémétrie est coupée : rien n'est parti, faute d'avoir
+/// été émis.
+pub fn flush_incidents(budget: std::time::Duration) -> bool {
+    sentry::Hub::current()
         .client()
-        .map(|client| client.flush(Some(std::time::Duration::from_secs(10))))
-        .unwrap_or(false);
-    (id, flushed)
+        .map(|client| client.flush(Some(budget)))
+        .unwrap_or(false)
 }
 
 /// La remontée d'incidents est-elle autorisée ?
@@ -262,7 +299,7 @@ pub fn init(component: &str) -> Guard {
     // rapportée.
     install_panic_hook();
     let sentry_guard = init_sentry(component);
-    let (file_layer, file_guard, log_file) = file_layer(component);
+    let (file_layer, file_guard, log_dir) = file_layer(component);
 
     // Couches boxées : leur nombre varie — pas de fichier si le répertoire est
     // en lecture seule, pas de Sentry si la télémétrie est coupée — et les
@@ -272,8 +309,26 @@ pub fn init(component: &str) -> Guard {
     // La console montre l'essentiel ; le fichier garde tout. RUST_LOG règle la
     // première sans toucher au second, pour qu'un utilisateur qui augmente la
     // verbosité n'ait pas à relancer l'opération qui a échoué.
-    let console_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,hyper=warn,reqwest=warn,rustls=warn"));
+    //
+    // Une RUST_LOG posée mais vide vaut une RUST_LOG absente : recopier le
+    // « .env » d'exemple tel quel la pose ainsi, et `try_from_default_env`
+    // rendrait alors un filtre sans la moindre directive — console muette,
+    // défaut compris, sans que rien ne l'explique.
+    let console_filter = std::env::var("RUST_LOG")
+        .ok()
+        .filter(|niveau| !niveau.trim().is_empty())
+        .and_then(|niveau| match EnvFilter::try_new(&niveau) {
+            Ok(filtre) => Some(filtre),
+            // Le souscripteur n'est pas encore posé : ce message ne peut passer
+            // que par la sortie d'erreur. Le taire rendrait une RUST_LOG mal
+            // écrite indiscernable d'une RUST_LOG absente — soit exactement le
+            // silence inexpliqué que le cas précédent corrige.
+            Err(erreur) => {
+                eprintln!("RUST_LOG ignorée ({erreur}) : « {niveau} » — filtre par défaut.");
+                None
+            }
+        })
+        .unwrap_or_else(|| EnvFilter::new("info,hyper=warn,reqwest=warn,rustls=warn"));
 
     layers.push(
         tracing_subscriber::fmt::layer()
@@ -326,14 +381,18 @@ pub fn init(component: &str) -> Guard {
 
     tracing_subscriber::registry().with(layers).init();
 
-    if let Some(path) = &log_file {
-        tracing::debug!(fichier = %path.display(), "journal ouvert");
+    let journal = log_dir.map(|dir| (dir, component.to_string()));
+    if let Some((dir, component)) = &journal {
+        tracing::debug!(
+            fichier = %dir.join(current_log_name(component)).display(),
+            "journal ouvert"
+        );
     }
 
     Guard {
-        _sentry: sentry_guard,
         _file: file_guard,
-        log_file,
+        _sentry: sentry_guard,
+        journal,
     }
 }
 
@@ -375,6 +434,13 @@ fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
     options.environment = Some(environment::current().as_str().into());
     // Jamais : ce processus détient des jetons d'authentification.
     options.send_default_pii = false;
+    // Ce que `Guard` attend en se détruisant, sur toutes les commandes — y
+    // compris celles qui ne touchent jamais au réseau. Porter ce budget à dix
+    // secondes faisait payer l'attente à un `verify` hors ligne, qui n'a rien à
+    // envoyer que ses propres lignes de journal. Les longues attentes sont
+    // demandées là où elles se justifient, par [`flush_incidents`] : sur le
+    // chemin d'un plantage, et dans [`send_test_event`].
+    options.shutdown_timeout = std::time::Duration::from_secs(2);
     options.attach_stacktrace = true;
     // Le SDK renseigne sinon le nom de la machine. Sur un poste de joueur,
     // c'est une donnée identifiante qui n'apprend rien sur la panne : la chaîne
@@ -423,21 +489,52 @@ fn scrub_event(event: &mut sentry::protocol::Event<'static>) {
     }
     for exception in &mut event.exception.values {
         exception.value = exception.value.as_deref().map(redact);
-        if let Some(stacktrace) = &mut exception.stacktrace {
-            for frame in &mut stacktrace.frames {
-                frame.filename = frame.filename.as_deref().map(redact);
-                frame.abs_path = frame.abs_path.as_deref().map(redact);
-                for value in frame.vars.values_mut() {
-                    scrub_value(value);
-                }
-            }
-        }
+        scrub_stacktrace(exception.stacktrace.as_mut());
+        scrub_stacktrace(exception.raw_stacktrace.as_mut());
     }
+    // `attach_stacktrace` fait joindre la pile du fil courant par une
+    // intégration du SDK, et les intégrations tournent avant `before_send`. Un
+    // événement sans exception — un `capture_message`, un plantage du jeu —
+    // n'expose donc ses chemins de compilation que par là, à côté de la boucle
+    // qui les censure.
+    for thread in &mut event.threads.values {
+        scrub_stacktrace(thread.stacktrace.as_mut());
+        scrub_stacktrace(thread.raw_stacktrace.as_mut());
+    }
+    scrub_stacktrace(event.stacktrace.as_mut());
     for value in event.extra.values_mut() {
         scrub_value(value);
     }
+    // Les champs d'un `tracing::error!` n'arrivent pas dans `extra` :
+    // `sentry-tracing` les range dans le contexte « Rust Tracing Fields ».
+    // Sans ce passage, un `erreur = ?error` partirait tel quel — soit le canal
+    // le plus riche de tous, et le seul que la censure aurait laissé filer.
+    for context in event.contexts.values_mut() {
+        if let sentry::protocol::Context::Other(fields) = context {
+            for value in fields.values_mut() {
+                scrub_value(value);
+            }
+        }
+    }
     for tag in event.tags.values_mut() {
         *tag = redact(tag);
+    }
+}
+
+/// Censure les chemins d'une pile d'appels.
+///
+/// Un chemin absolu porte le nom de compte de celui qui a compilé, et une
+/// variable capturée porte ce qu'elle porte.
+fn scrub_stacktrace(stacktrace: Option<&mut sentry::protocol::Stacktrace>) {
+    let Some(stacktrace) = stacktrace else {
+        return;
+    };
+    for frame in &mut stacktrace.frames {
+        frame.filename = frame.filename.as_deref().map(redact);
+        frame.abs_path = frame.abs_path.as_deref().map(redact);
+        for value in frame.vars.values_mut() {
+            scrub_value(value);
+        }
     }
 }
 
@@ -594,6 +691,9 @@ where
 /// Un échec d'ouverture ne doit pas empêcher le programme de tourner : le
 /// répertoire peut être en lecture seule ou plein. On perd le journal, pas
 /// l'installation.
+///
+/// Rend le répertoire et non le fichier : c'est l'appender qui décide du nom du
+/// jour, et il en change à minuit.
 fn file_layer(
     component: &str,
 ) -> (
@@ -619,11 +719,22 @@ fn file_layer(
         .with_filter(EnvFilter::new("debug,hyper=info,reqwest=info,rustls=info"))
         .boxed();
 
-    (
-        Some(layer),
-        Some(guard),
-        Some(dir.join(format!("{component}.log"))),
-    )
+    (Some(layer), Some(guard), Some(dir))
+}
+
+/// Le nom que `rolling::daily` donne au fichier du jour.
+///
+/// L'appender date le nom : « mc-pack.log » devient « mc-pack.log.2026-09-16 ».
+/// Annoncer le nom sans sa date envoyait le joueur vers un fichier qui n'existe
+/// pas — et c'est justement celui qu'on lui demande de joindre.
+///
+/// La date est calculée, pas devinée en parcourant le répertoire : celui-ci
+/// peut contenir un fichier daté du futur, qu'une horloge fausse a laissé et
+/// que la purge ne retire jamais (`elapsed` échoue sur un horodatage à venir).
+/// Il l'emporterait alors sur le nom du jour, pour toujours. C'est la même
+/// horloge et le même format que l'appender : UTC, `[year]-[month]-[day]`.
+fn current_log_name(component: &str) -> String {
+    format!("{component}.log.{}", time::OffsetDateTime::now_utc().date())
 }
 
 /// Supprime les journaux trop anciens.
@@ -742,5 +853,107 @@ mod tests {
     fn les_journaux_vivent_sous_le_repertoire_de_donnees() {
         assert!(log_dir().ends_with("logs"));
         assert!(log_dir().starts_with(mc_dl::data_dir()));
+    }
+
+    #[test]
+    fn le_chemin_annonce_est_celui_que_l_appender_ouvre() {
+        // C'est le fichier qu'on demande au joueur de joindre : le nommer sans
+        // sa date l'envoyait vers un fichier absent. Le nom est calculé de notre
+        // côté, donc c'est l'appender lui-même qui doit l'attester — si
+        // tracing-appender change de format, ce test tombe au lieu que le
+        // launcher se remette silencieusement à désigner un fichier fantôme.
+        let dir = std::env::temp_dir().join(format!(
+            "mc-log-appender-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let _appender = tracing_appender::rolling::daily(&dir, "mc-pack.log");
+        let annonce = dir.join(current_log_name("mc-pack"));
+
+        let existe = annonce.exists();
+        std::fs::remove_dir_all(&dir).ok();
+        assert!(existe, "{} n'existe pas", annonce.display());
+    }
+
+    #[test]
+    fn un_extrait_se_tronque_sans_couper_un_caractere() {
+        // Un journal de jeu est plein d'accents : trancher au milieu d'un
+        // caractère ferait paniquer le rapport de plantage lui-même.
+        let texte = "é".repeat(200);
+        let borne = truncate(&texte, 101);
+        assert!(borne.ends_with('é'));
+        // `strip_prefix` et non `trim_start_matches` : celui-ci ne fait rien
+        // quand le marqueur manque, si bien que l'assertion passait encore le
+        // jour où la troncature cessait d'en poser un.
+        let extrait = borne
+            .strip_prefix("[…début tronqué…]\n")
+            .expect("marqueur de troncature absent");
+        assert!(texte.ends_with(extrait));
+    }
+
+    #[test]
+    fn la_pile_jointe_a_un_evenement_sans_exception_est_censuree() {
+        use sentry::protocol::{Event, Frame, Stacktrace, Thread};
+
+        // `attach_stacktrace` joint la pile du fil courant, hors de toute
+        // exception : c'est le seul endroit où elle arrive pour un
+        // `capture_message` ou un plantage du jeu.
+        let mut event = Event::default();
+        event.threads.values.push(Thread {
+            stacktrace: Some(Stacktrace {
+                frames: vec![Frame {
+                    abs_path: Some(
+                        "appel avec token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ".into(),
+                    ),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        scrub_event(&mut event);
+
+        let chemin = event.threads.values[0].stacktrace.as_ref().unwrap().frames[0]
+            .abs_path
+            .clone()
+            .unwrap();
+        assert!(!chemin.contains("eyJhbGci"), "jeton en clair : {chemin}");
+        assert!(chemin.contains("[secret]"));
+    }
+
+    #[test]
+    fn les_champs_d_un_evenement_sont_censures() {
+        use sentry::protocol::{Context, Event, Value};
+
+        // `sentry-tracing` ne remplit pas `extra` : les champs d'un
+        // `tracing::error!` atterrissent dans ce contexte-là, et lui seul.
+        let mut event = Event::default();
+        event.contexts.insert(
+            "Rust Tracing Fields".into(),
+            Context::Other(
+                [(
+                    "erreur".to_string(),
+                    Value::String(
+                        "GET https://api/x?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ"
+                            .into(),
+                    ),
+                )]
+                .into_iter()
+                .collect(),
+            ),
+        );
+
+        scrub_event(&mut event);
+
+        let rendu = format!("{:?}", event.contexts);
+        assert!(
+            !rendu.contains("eyJhbGci"),
+            "jeton envoyé en clair : {rendu}"
+        );
+        assert!(rendu.contains("[secret]"));
     }
 }
