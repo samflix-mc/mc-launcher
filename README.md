@@ -16,16 +16,19 @@ Launcher de bureau pour un réseau Minecraft 1.21.1 / NeoForge.
 ## Installer un pack
 
 ```bash
-cargo run -p mc-pack --release -- install                       # le pack publié
-cargo run -p mc-pack --release -- install packs/samflix.json    # un manifeste du dépôt
-cargo run -p mc-pack --release -- lock   packs/samflix.json     # résout sans installer
+cargo run -p mc-pack --release -- install                     # le pack publié
 cargo run -p mc-pack --release -- verify [source] [--deep]
 cargo run -p mc-pack --release -- launch [source] --pseudo Sam
+
+# faire bouger le pack : le manifeste vit dans mc-content
+cargo run -p mc-pack --release -- lock ../mc-content/launcher/samflix.json
 ```
 
 ### D'où vient la liste des mods
 
-Elle n'est pas décidée ici. Le pack est publié par
+Elle n'est pas décidée ici, et ce dépôt n'en garde aucune copie — deux
+inventaires finissent toujours par diverger, et on découvre lequel avait raison
+en production. Le pack est publié par
 [mc-content](https://github.com/samflix-mc/mc-content), aux côtés de ce que
 reçoivent les serveurs, et servi en HTTPS par
 [mc-launcher-site](https://github.com/samflix-mc/mc-launcher-site) :
@@ -40,8 +43,9 @@ NeoForge sont négociés à la connexion ; un mod en version différente d'un c�
 le launcher, l'autre pour les serveurs — c'est accepter qu'ils divergent un
 jour, et découvrir lequel a raison en production.
 
-Un chemin local reste accepté, et c'est ce qu'on édite pour faire bouger le
-pack. La différence entre les deux n'est pas cosmétique :
+Un chemin local reste accepté : c'est ainsi qu'on fait bouger le pack, en
+pointant `lock` sur le manifeste de mc-content. La différence entre les deux
+n'est pas cosmétique :
 
 | source | versions | verrou |
 |---|---|---|
@@ -92,8 +96,8 @@ annonce, `channel` autorise une préversion.
 
 ### Le verrou
 
-`packs/samflix.lock.json` est écrit à côté du manifeste et se versionne avec
-lui. Le manifeste dit ce qu'on veut, le verrou dit ce qu'on a eu : la version
+Le verrou est écrit à côté du manifeste et se versionne avec lui, dans
+mc-content. Le manifeste dit ce qu'on veut, le verrou dit ce qu'on a eu : la version
 retenue quand aucune n'était imposée, et **les dépendances ajoutées
 d'elles-mêmes**, chacune avec la raison de sa présence. `install --locked` le
 rejoue à l'identique des mois plus tard.
@@ -279,7 +283,7 @@ c'est plusieurs milliers de lignes par installation, qu'on lit en local.
 mc-pack diagnostic                    # où sont les journaux, télémétrie active ?
 mc-pack diagnostic --incident-test    # envoie un incident et confirme qu'il est parti
 cargo run -p mc-log --example panique # éprouve la chaîne complète, panique comprise
-RUST_LOG=mc_mods=debug mc-pack lock packs/samflix.json
+RUST_LOG=mc_mods=debug mc-pack lock ../mc-content/launcher/samflix.json
 ```
 
 Les journaux vivent dans `~/.local/share/samflix-mc/logs/`.
