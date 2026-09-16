@@ -436,6 +436,17 @@ fn scrub_event(event: &mut sentry::protocol::Event<'static>) {
     for value in event.extra.values_mut() {
         scrub_value(value);
     }
+    // Les champs d'un `tracing::error!` n'arrivent pas dans `extra` :
+    // `sentry-tracing` les range dans le contexte « Rust Tracing Fields ».
+    // Sans ce passage, un `erreur = ?error` partirait tel quel — soit le canal
+    // le plus riche de tous, et le seul que la censure aurait laissé filer.
+    for context in event.contexts.values_mut() {
+        if let sentry::protocol::Context::Other(fields) = context {
+            for value in fields.values_mut() {
+                scrub_value(value);
+            }
+        }
+    }
     for tag in event.tags.values_mut() {
         *tag = redact(tag);
     }
@@ -742,5 +753,37 @@ mod tests {
     fn les_journaux_vivent_sous_le_repertoire_de_donnees() {
         assert!(log_dir().ends_with("logs"));
         assert!(log_dir().starts_with(mc_dl::data_dir()));
+    }
+
+    #[test]
+    fn les_champs_d_un_evenement_sont_censures() {
+        use sentry::protocol::{Context, Event, Value};
+
+        // `sentry-tracing` ne remplit pas `extra` : les champs d'un
+        // `tracing::error!` atterrissent dans ce contexte-là, et lui seul.
+        let mut event = Event::default();
+        event.contexts.insert(
+            "Rust Tracing Fields".into(),
+            Context::Other(
+                [(
+                    "erreur".to_string(),
+                    Value::String(
+                        "GET https://api/x?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ"
+                            .into(),
+                    ),
+                )]
+                .into_iter()
+                .collect(),
+            ),
+        );
+
+        scrub_event(&mut event);
+
+        let rendu = format!("{:?}", event.contexts);
+        assert!(
+            !rendu.contains("eyJhbGci"),
+            "jeton envoyé en clair : {rendu}"
+        );
+        assert!(rendu.contains("[secret]"));
     }
 }

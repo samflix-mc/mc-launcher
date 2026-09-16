@@ -33,6 +33,14 @@ const KEYWORDS: &[&str] = &[
     "token",
 ];
 
+/// Schémas d'authentification HTTP : le mot annonce la valeur, il n'est pas la
+/// valeur.
+///
+/// Sans cette liste, seul « Bearer » était reconnu. Les autres schémas étaient
+/// pris pour le secret lui-même : c'est le nom du schéma qui se faisait masquer,
+/// et l'identifiant qui le suit partait en clair.
+const SCHEMES: &[&str] = &["bearer", "basic", "digest", "negotiate", "token", "dpop"];
+
 /// Un caractère peut-il appartenir à une valeur de jeton ?
 ///
 /// Les jetons croisés ici sont du base64url, du JWT ou de l'hexadécimal, plus
@@ -90,12 +98,17 @@ fn redact_after_keywords(text: &str) -> String {
     let bytes: Vec<char> = text.chars().collect();
     let lower_chars: Vec<char> = lower.chars().collect();
 
+    // Découpés une fois pour le texte entier : reconstruits sous la boucle, ils
+    // faisaient quatorze allocations par caractère, et cette fonction voit
+    // passer chaque ligne écrite dans le journal.
+    let keywords: Vec<Vec<char>> = KEYWORDS.iter().map(|k| k.chars().collect()).collect();
+    let schemes: Vec<Vec<char>> = SCHEMES.iter().map(|s| s.chars().collect()).collect();
+
     let mut out = String::with_capacity(text.len());
     let mut i = 0;
 
     'outer: while i < bytes.len() {
-        for keyword in KEYWORDS {
-            let kw: Vec<char> = keyword.chars().collect();
+        for kw in &keywords {
             if lower_chars[i..].starts_with(&kw[..]) {
                 // Le mot-clé lui-même reste lisible : sans lui, on ne saurait
                 // pas de quel secret il s'agissait.
@@ -111,9 +124,14 @@ fn redact_after_keywords(text: &str) -> String {
                     separator.push(bytes[j]);
                     j += 1;
                 }
-                if lower_chars[j..].starts_with(&['b', 'e', 'a', 'r', 'e', 'r']) {
-                    separator.extend(&bytes[j..j + 6]);
-                    j += 6;
+                // Le schéma annonce la valeur : il reste lisible et l'on
+                // continue jusqu'à ce qu'il introduit.
+                if let Some(scheme) = schemes
+                    .iter()
+                    .find(|s| lower_chars[j..].starts_with(&s[..]))
+                {
+                    separator.extend(&bytes[j..j + scheme.len()]);
+                    j += scheme.len();
                     while j < bytes.len() && bytes[j].is_whitespace() {
                         separator.push(bytes[j]);
                         j += 1;
@@ -180,6 +198,23 @@ mod tests {
         ] {
             let sortie = redact(entree);
             assert!(sortie.contains(MASK), "non masqué : {entree} → {sortie}");
+        }
+    }
+
+    #[test]
+    fn un_schema_d_authentification_autre_que_bearer_ne_laisse_pas_passer_la_valeur() {
+        // « Basic » porte le couple identifiant/mot de passe en base64 : c'est
+        // le contenu le plus sensible que cet en-tête puisse transporter.
+        for entree in [
+            "Authorization: Basic dXNlcjpwYXNzd29yZA==",
+            "Authorization: Digest cnonce=abcdef123456",
+            "authorization: Token abcdef123456",
+        ] {
+            let sortie = redact(entree);
+            assert!(
+                !sortie.contains("dXNlcjpwYXNz") && !sortie.contains("abcdef123456"),
+                "valeur publiée en clair : {entree} → {sortie}"
+            );
         }
     }
 
