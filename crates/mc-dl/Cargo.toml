@@ -7,6 +7,7 @@ description = "Téléchargement vérifié par empreinte, idempotent et réessaya
 
 [dependencies]
 anyhow.workspace = true
+tracing.workspace = true
 reqwest.workspace = true
 tokio.workspace = true
 futures-util.workspace = true

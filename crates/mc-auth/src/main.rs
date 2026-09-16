@@ -12,6 +12,10 @@ use mc_auth::{Auth, offline_session};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Ce binaire manipule des jetons : la censure de mc-log s'applique à tout
+    // ce qui sort, journal de fichier compris.
+    let _log = mc_log::init("mc-auth");
+
     let args: Vec<String> = std::env::args().skip(1).collect();
 
     // Mode hors-ligne : produit un profil sans contacter Microsoft, pour

@@ -7,6 +7,7 @@ description = "Installation d'une instance Minecraft : fichiers vanilla puis Neo
 
 [dependencies]
 anyhow.workspace = true
+tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

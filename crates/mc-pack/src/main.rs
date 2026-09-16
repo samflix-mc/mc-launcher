@@ -5,10 +5,14 @@
 //!     mc-pack install packs/samflix.json --with-server installe aussi le serveur
 //!     mc-pack lock    packs/samflix.json               résout sans installer le jeu
 //!     mc-pack verify  packs/samflix.json [--deep]
+//!     mc-pack diagnostic                               journaux et télémétrie
 //!
 //! Options communes :
 //!     --instance <NOM>   nom de l'instance, par défaut celui du pack
 //!     --data <DIR>       racine des données du launcher
+//!
+//! `RUST_LOG` règle la verbosité de la console ; le fichier de journal garde le
+//! détail quoi qu'il arrive.
 
 use anyhow::{Result, bail};
 use mc_pack::lockfile::{LockedLoader, Lockfile};
@@ -17,6 +21,11 @@ use std::path::{Path, PathBuf};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Avant tout le reste : une erreur de lecture d'arguments mérite déjà
+    // d'être journalisée, et le guard doit vivre jusqu'à la fin du programme
+    // pour que le journal et les incidents partent complètement.
+    let _log = mc_log::init("mc-pack");
+
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(command) = args.first().cloned() else {
         usage();
@@ -27,9 +36,12 @@ async fn main() -> Result<()> {
     let mut options = mc_pack::Options::default();
     let mut deep = false;
 
+    let mut incident_test = false;
+
     let mut rest = args[1..].iter();
     while let Some(arg) = rest.next() {
         match arg.as_str() {
+            "--incident-test" => incident_test = true,
             "--locked" => options.locked = true,
             "--with-server" => options.with_server = true,
             "--deep" => deep = true,
@@ -45,12 +57,20 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Le diagnostic n'a pas besoin de manifeste : c'est justement ce qu'on
+    // lance quand on ne sait pas encore ce qui va de travers.
+    if command == "diagnostic" {
+        return diagnostic(&_log, incident_test);
+    }
+
     let Some(manifest_path) = manifest_path else {
         usage();
         std::process::exit(2);
     };
 
-    match command.as_str() {
+    tracing::info!(commande = %command, manifeste = %manifest_path.display(), "démarrage");
+
+    let result = match command.as_str() {
         "install" => install(&manifest_path, &options).await,
         "lock" => lock(&manifest_path, &options).await,
         "verify" => verify(&manifest_path, &options, deep),
@@ -59,7 +79,17 @@ async fn main() -> Result<()> {
             usage();
             std::process::exit(2);
         }
+    };
+
+    // Une erreur remontée jusqu'ici met fin au programme : c'est le dernier
+    // endroit où elle peut devenir un incident plutôt qu'un simple message.
+    if let Err(error) = &result {
+        tracing::error!(commande = %command, erreur = ?error, "échec");
+        if let Some(path) = _log.log_path() {
+            eprintln!("\nJournal détaillé : {}", path.display());
+        }
     }
+    result
 }
 
 fn usage() {
@@ -67,8 +97,58 @@ fn usage() {
         "usage :\n  \
          mc-pack install <manifeste> [--locked] [--with-server] [--instance NOM] [--data DIR]\n  \
          mc-pack lock    <manifeste> [--data DIR]\n  \
-         mc-pack verify  <manifeste> [--deep] [--data DIR]"
+         mc-pack verify  <manifeste> [--deep] [--data DIR]\n  \
+         mc-pack diagnostic [--incident-test]"
     );
+}
+
+/// Montre où vont les journaux et si la remontée d'incidents est active.
+///
+/// Première chose à demander à quelqu'un dont l'installation échoue : la
+/// réponse tient en dix lignes et dit où trouver le reste.
+fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<()> {
+    println!("Journaux");
+    match log.log_path() {
+        Some(path) => println!("  fichier    : {}", path.display()),
+        None => println!("  fichier    : indisponible (répertoire non inscriptible)"),
+    }
+    println!("  répertoire : {}", mc_log::log_dir().display());
+    println!(
+        "  console    : {}",
+        std::env::var("RUST_LOG").unwrap_or_else(|_| "info (régler RUST_LOG)".into())
+    );
+
+    println!("\nRemontée d'incidents");
+    println!(
+        "  état       : {}",
+        if mc_log::telemetry_active() {
+            "active — couper avec SAMFLIX_TELEMETRY=0"
+        } else {
+            "coupée"
+        }
+    );
+    println!(
+        "  version    : {}",
+        option_env!("CARGO_PKG_VERSION").unwrap_or("inconnue")
+    );
+
+    if incident_test {
+        if !mc_log::telemetry_active() {
+            println!("\nRien à envoyer : la remontée est coupée.");
+            return Ok(());
+        }
+        println!("\nEnvoi d'un incident de test…");
+        let (id, envoye) = mc_log::send_test_event();
+        println!("  identifiant : {id}");
+        if envoye {
+            println!("  envoi       : abouti — à retrouver dans Sentry sous cet identifiant");
+        } else {
+            println!("  envoi       : ÉCHOUÉ (file non vidée avant expiration)");
+            println!("                réseau bloqué, DSN erroné ou projet inexistant");
+            std::process::exit(1);
+        }
+    }
+    Ok(())
 }
 
 async fn install(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {

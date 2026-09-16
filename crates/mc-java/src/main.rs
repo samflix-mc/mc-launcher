@@ -10,6 +10,8 @@ use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _log = mc_log::init("mc-java");
+
     let mut major = 21;
     let mut check_only = false;
     let mut dir: Option<PathBuf> = None;

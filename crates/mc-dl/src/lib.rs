@@ -221,8 +221,17 @@ impl Downloader {
                 tokio::time::sleep(Duration::from_millis(400 * u64::from(attempt))).await;
             }
             match self.try_bytes(url).await {
-                Ok(b) => return Ok(b),
-                Err(e) => last = Some(e),
+                Ok(b) => {
+                    tracing::trace!(url, octets = b.len(), tentative = attempt + 1, "GET");
+                    return Ok(b);
+                }
+                Err(e) => {
+                    // Un réessai qui finit par réussir ne remonte nulle part
+                    // ailleurs : c'est pourtant le premier signe d'une source
+                    // qui se dégrade.
+                    tracing::warn!(url, tentative = attempt + 1, erreur = %e, "échec, nouvel essai");
+                    last = Some(e);
+                }
             }
         }
         Err(last.expect("au moins une tentative")).with_context(|| format!("GET {url}"))
@@ -247,6 +256,7 @@ impl Downloader {
     /// `check` ne règle que la sévérité du contrôle sur un fichier déjà là.
     pub async fn to_file(&self, url: &str, dest: &Path, check: Check<'_>) -> Result<Fetched> {
         if dest.is_file() && check.accepts_existing(dest) {
+            tracing::trace!(fichier = %dest.display(), "déjà conforme");
             return Ok(Fetched::AlreadyPresent);
         }
 
@@ -266,6 +276,12 @@ impl Downloader {
             }
         }
         write_atomic(dest, &bytes)?;
+        tracing::debug!(
+            fichier = %dest.display(),
+            octets = bytes.len(),
+            verifie = check.checksum().is_some(),
+            "téléchargé"
+        );
         Ok(Fetched::Downloaded)
     }
 }

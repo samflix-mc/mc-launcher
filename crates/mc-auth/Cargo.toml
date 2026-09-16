@@ -7,6 +7,8 @@ description = "Chaîne d'authentification Microsoft → Xbox Live → XSTS → M
 
 [dependencies]
 anyhow.workspace = true
+tracing.workspace = true
+mc-log = { path = "../mc-log" }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

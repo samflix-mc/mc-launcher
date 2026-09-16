@@ -464,6 +464,15 @@ pub async fn resolve_with(
                 candidate.sha1 = request.expected_sha1.clone();
             }
 
+            tracing::debug!(
+                slug = %candidate.slug,
+                source = candidate.origin.as_str(),
+                version = %candidate.version_number,
+                fichier = %candidate.file_name,
+                raison = %reason.describe(),
+                "mod retenu"
+            );
+
             let id = key(&candidate);
             if let Some(existing) = chosen.get_mut(&id) {
                 // Déjà retenu par une autre branche : on ne retélécharge pas,
@@ -523,6 +532,14 @@ pub async fn resolve_with(
         }
 
         for (mod_id, required_by, side) in missing {
+            // La trace la plus utile du lot : elle nomme une dépendance que ni
+            // le manifeste ni l'API n'annonçaient, et sans laquelle le jeu ne
+            // démarrerait pas.
+            tracing::info!(
+                mod_id = %mod_id,
+                exige_par = %required_by,
+                "dépendance implicite détectée dans un jar"
+            );
             let found = registry.find_by_mod_id(&mod_id, mc, loader).await?;
             let request = Request {
                 slug: mod_id.clone(),
@@ -552,11 +569,18 @@ pub async fn resolve_with(
                 // Une dépendance introuvable n'arrête pas tout : elle peut être
                 // fournie par un jar non encore analysé, ou relever d'un mod
                 // absent des deux plateformes. L'appelant tranche.
-                None => plan.unresolved.push(Unresolved {
-                    mod_id,
-                    required_by,
-                    side,
-                }),
+                None => {
+                    tracing::error!(
+                        mod_id = %mod_id,
+                        exige_par = %required_by,
+                        "dépendance introuvable sur toutes les sources"
+                    );
+                    plan.unresolved.push(Unresolved {
+                        mod_id,
+                        required_by,
+                        side,
+                    })
+                }
             }
         }
 

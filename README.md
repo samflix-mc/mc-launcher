@@ -5,6 +5,7 @@ Launcher de bureau pour un réseau Minecraft 1.21.1 / NeoForge.
 | brique | état |
 |---|---|
 | `crates/mc-auth` — authentification Microsoft | écrite, en attente de l'approbation Azure |
+| `crates/mc-log` — journaux et incidents | écrite |
 | `crates/mc-java` — runtime Java | écrite |
 | `crates/mc-mods` — résolution des mods | écrite |
 | `crates/mc-instance` — jeu et chargeur | écrite |
@@ -174,6 +175,44 @@ clés de projet diffèrent et rien ne les rapproche, sauf le `modId` que les deu
 jars déclarent. Le doublon est écarté sur ce critère, en gardant le plus
 vérifiable des deux : deux jars du même `modId` font échouer NeoForge au
 chargement.
+
+## mc-log
+
+Trois destinations, trois usages :
+
+| destination | niveau | à quoi ça sert |
+|---|---|---|
+| console | `info`, réglable par `RUST_LOG` | ce qu'on regarde pendant que ça tourne |
+| fichier | `debug`, rotation quotidienne, 14 jours | ce qu'on joint à un ticket |
+| Sentry | erreurs et paniques | ce qui remonte sans qu'on ait à demander |
+
+```bash
+mc-pack diagnostic                    # où sont les journaux, télémétrie active ?
+mc-pack diagnostic --incident-test    # envoie un incident et confirme qu'il est parti
+cargo run -p mc-log --example panique # éprouve la chaîne complète, panique comprise
+RUST_LOG=mc_mods=debug mc-pack lock packs/samflix.json
+```
+
+Les journaux vivent dans `~/.local/share/samflix-mc/logs/`.
+
+### Ce qui ne sort pas
+
+Le launcher détient des jetons Microsoft, Xbox Live et Minecraft. La
+documentation de Sentry propose `send_default_pii: true` ; **c'est le contraire
+qui est fait ici**, et tout texte sortant est censuré au préalable : jetons au
+format JWT, valeurs suivant un mot-clé sensible (`access_token`, `Bearer`,
+`x-api-key`…), et le répertoire personnel réduit à `~`.
+
+La censure s'applique à Sentry **et au fichier de journal**. C'est délibéré :
+le fichier est précisément ce qu'on demande à un joueur de coller dans un salon
+Discord. Le gestionnaire de panique est remplacé pour la même raison — celui de
+Rust écrit directement sur la sortie d'erreur, sans passer par `tracing`, et
+laissait donc échapper un jeton présent dans un message de panique.
+
+Ce qu'un incident emporte : version, système, composant, fil d'Ariane des
+dernières opérations. Pas d'adresse IP, pas de pseudo, pas de jeton.
+
+`SAMFLIX_TELEMETRY=0` coupe la remontée entièrement ; `SENTRY_DSN` la redirige.
 
 ## mc-auth
 
