@@ -87,9 +87,18 @@ pub fn send_test_event() -> (sentry::types::Uuid, bool) {
     tracing::info!(
         canal = "journaux structurés",
         composant = "mc-log",
-        // Faux jeton : il doit apparaître censuré dans l'onglet Logs. C'est la
-        // seule façon de vérifier `before_send_log` de bout en bout.
-        exemple = "access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.dGVzdA",
+        // Deux faux jetons, et la différence entre les deux est tout l'intérêt
+        // du test.
+        //
+        // Le premier contient « access_token » : Sentry le filtre lui-même,
+        // côté serveur, et le rend en « [Filtered] ». Il ne prouve donc rien
+        // sur notre propre censure — un premier essai s'y était laissé prendre.
+        //
+        // Le second est un JWT nu, qu'aucune règle serveur ne reconnaît. S'il
+        // ressort en « [secret] », c'est `before_send_log` qui a agi ; s'il
+        // ressort en clair, notre filtre ne fonctionne pas.
+        avec_mot_cle = "access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.dGVzdA",
+        jeton_nu = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.dGVzdEp3dE51",
         "ligne de journal de test"
     );
 
@@ -236,7 +245,11 @@ fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
 
     // `ClientOptions` est non exhaustif : il se remplit champ par champ.
     let mut options = sentry::ClientOptions::default();
-    options.release = sentry::release_name!();
+    // `release_name!()` rendrait le nom du crate qui appelle — soit
+    // « mc-log@… » pour tous les binaires, ce qui interdirait de distinguer une
+    // version de mc-pack d'une autre. La release nomme le launcher entier ; le
+    // composant est porté par une étiquette séparée.
+    options.release = Some(format!("mc-launcher@{}", env!("CARGO_PKG_VERSION")).into());
     options.environment = Some(if cfg!(debug_assertions) {
         "development".into()
     } else {
@@ -245,6 +258,10 @@ fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
     // Jamais : ce processus détient des jetons d'authentification.
     options.send_default_pii = false;
     options.attach_stacktrace = true;
+    // Le SDK renseigne sinon le nom de la machine. Sur un poste de joueur,
+    // c'est une donnée identifiante qui n'apprend rien sur la panne : la chaîne
+    // vide neutralise l'intégration qui le renseignerait.
+    options.server_name = Some("".into());
     // Dernier filet : tout texte sortant est censuré, y compris ce que des
     // bibliothèques tierces auraient ajouté sans qu'on le sache.
     options.before_send = Some(std::sync::Arc::new(|mut event| {
@@ -263,6 +280,9 @@ fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
     // voie la plus bavarde de toutes.
     options.before_send_log = Some(std::sync::Arc::new(|mut log| {
         log.body = redact(&log.body);
+        // Le SDK ajoute l'adresse du serveur à chaque entrée : sur un poste de
+        // joueur, c'est le nom de sa machine.
+        log.attributes.remove("server.address");
         for attribute in log.attributes.values_mut() {
             scrub_log_attribute(attribute);
         }
