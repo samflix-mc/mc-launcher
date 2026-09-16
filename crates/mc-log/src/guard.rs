@@ -54,3 +54,7 @@ impl Guard {
             .map(|(dir, component)| dir.join(current_log_name(component)))
     }
 }
+
+#[cfg(test)]
+#[path = "guard.test.rs"]
+mod tests;

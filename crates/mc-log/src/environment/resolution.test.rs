@@ -55,3 +55,46 @@ fn seuls_les_environnements_publies_sont_dits_deployes() {
     assert!(Environment::Preproduction.is_deployed());
     assert!(Environment::Production.is_deployed());
 }
+
+/// `current` et `origin` lisent la même variable, et c'est leur accord qui
+/// compte : un diagnostic annonçant « production » et « défaut, aucune
+/// déclaration » sur la même exécution envoie chercher au mauvais endroit.
+#[test]
+fn le_diagnostic_dit_d_ou_vient_l_environnement() {
+    use super::{current, origin};
+
+    // SAFETY : la variable est posée puis retirée dans le même test, et aucun
+    // autre test de ce crate ne lit SAMFLIX_ENV.
+    unsafe {
+        std::env::set_var("SAMFLIX_ENV", "staging");
+    }
+    assert_eq!(current(), Environment::Preproduction);
+    assert_eq!(origin(), "variable SAMFLIX_ENV au lancement");
+
+    // Une valeur illisible ne doit pas être annoncée comme une déclaration :
+    // c'est précisément le cas où l'on cherche pourquoi l'environnement n'est
+    // pas celui qu'on croyait.
+    unsafe {
+        std::env::set_var("SAMFLIX_ENV", "prodction");
+    }
+    assert_ne!(origin(), "variable SAMFLIX_ENV au lancement");
+
+    unsafe {
+        std::env::remove_var("SAMFLIX_ENV");
+    }
+    assert_eq!(current(), Environment::Local);
+    assert!(origin().contains("défaut") || origin().contains("compilation"));
+}
+
+#[test]
+fn chaque_environnement_a_le_nom_que_sentry_attend() {
+    for (env, nom) in [
+        (Environment::Local, "local"),
+        (Environment::Development, "development"),
+        (Environment::Preproduction, "preproduction"),
+        (Environment::Production, "production"),
+    ] {
+        assert_eq!(env.as_str(), nom);
+        assert_eq!(Environment::parse(nom), Some(env));
+    }
+}

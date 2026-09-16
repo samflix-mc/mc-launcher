@@ -62,7 +62,23 @@ pub(crate) fn file_layer(
     Option<tracing_appender::non_blocking::WorkerGuard>,
     Option<PathBuf>,
 ) {
-    let dir = log_dir();
+    file_layer_in(log_dir(), component)
+}
+
+/// La même chose, dans un répertoire donné.
+///
+/// Le répertoire est un argument et non une lecture de [`log_dir`] : c'est le
+/// seul moyen de vérifier qu'un répertoire impossible à créer rend bien trois
+/// `None` au lieu d'arrêter le programme — et de le vérifier ailleurs que dans
+/// les journaux du poste qui exécute les tests.
+pub(crate) fn file_layer_in(
+    dir: PathBuf,
+    component: &str,
+) -> (
+    Option<BoxedLayer>,
+    Option<tracing_appender::non_blocking::WorkerGuard>,
+    Option<PathBuf>,
+) {
     if std::fs::create_dir_all(&dir).is_err() {
         return (None, None, None);
     }

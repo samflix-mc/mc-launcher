@@ -48,3 +48,7 @@ pub fn send_test_event() -> (sentry::types::Uuid, bool) {
     // est parti ».
     (id, flush_incidents(std::time::Duration::from_secs(10)))
 }
+
+#[cfg(test)]
+#[path = "essai.test.rs"]
+mod tests;

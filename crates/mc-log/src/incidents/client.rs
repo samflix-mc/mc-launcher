@@ -9,7 +9,22 @@ use super::scrub::{scrub_event, scrub_log_attribute, scrub_value};
 /// Initialise le client, ou rend `None` si la télémétrie est coupée.
 pub(crate) fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
     let dsn = dsn()?;
+    let guard = sentry::init((dsn, options()));
 
+    sentry::configure_scope(|scope| {
+        scope.set_tag("composant", component);
+    });
+
+    guard.is_enabled().then_some(guard)
+}
+
+/// Les options du client, séparées de son ouverture.
+///
+/// Elles portent l'essentiel des décisions — ce qui est envoyé, ce qui est
+/// censuré, ce qui est tu — et `sentry::init` ouvre une connexion vers le
+/// projet réel. Les vérifier demandait donc soit d'envoyer pour de bon, soit de
+/// les rendre lisibles sans client : c'est ce second choix.
+pub(super) fn options() -> sentry::ClientOptions {
     // `ClientOptions` est non exhaustif : il se remplit champ par champ.
     let mut options = sentry::ClientOptions::default();
     // `release_name!()` rendrait le nom du crate qui appelle — soit
@@ -60,11 +75,9 @@ pub(crate) fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
         Some(log)
     }));
 
-    let guard = sentry::init((dsn, options));
-
-    sentry::configure_scope(|scope| {
-        scope.set_tag("composant", component);
-    });
-
-    guard.is_enabled().then_some(guard)
+    options
 }
+
+#[cfg(test)]
+#[path = "client.test.rs"]
+mod tests;

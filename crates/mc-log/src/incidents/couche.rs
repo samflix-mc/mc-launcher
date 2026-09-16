@@ -30,3 +30,7 @@ pub(crate) fn couche() -> BoxedLayer {
         })
         .boxed()
 }
+
+#[cfg(test)]
+#[path = "couche.test.rs"]
+mod tests;

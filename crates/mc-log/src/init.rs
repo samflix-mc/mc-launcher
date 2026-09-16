@@ -65,3 +65,7 @@ fn install_panic_hook() {
         tracing::warn!(panique = %message, "le programme s'est arrêté sur une panique");
     }));
 }
+
+#[cfg(test)]
+#[path = "init.test.rs"]
+mod tests;

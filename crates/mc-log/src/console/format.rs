@@ -81,3 +81,7 @@ impl tracing::field::Visit for MessageOnly {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "format.test.rs"]
+mod tests;
