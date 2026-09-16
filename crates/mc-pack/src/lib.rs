@@ -15,12 +15,13 @@
 
 pub mod lockfile;
 pub mod manifest;
+pub mod source;
 
 use anyhow::{Context, Result};
 use lockfile::{LockedLoader, Lockfile};
-use manifest::Manifest;
 use mc_mods::Side;
-use std::path::{Path, PathBuf};
+use source::{Pack, Source};
+use std::path::PathBuf;
 
 /// Ce qu'une installation a produit, pour le compte rendu.
 #[derive(Debug)]
@@ -37,6 +38,10 @@ pub struct Outcome {
     pub lock: Lockfile,
     pub lock_path: PathBuf,
     pub previous_lock: Option<Lockfile>,
+    /// D'où venait le pack, tel qu'on l'a demandé.
+    pub source: String,
+    /// Le pack distant était injoignable et la copie locale a servi.
+    pub from_cache: bool,
 }
 
 #[derive(Default)]
@@ -56,31 +61,37 @@ pub type Progress<'a> = &'a (dyn Fn(&str) + Sync);
 #[tracing::instrument(
     name = "installation",
     skip(options, log),
-    fields(pack, minecraft, locked = options.locked, serveur = options.with_server)
+    fields(pack, minecraft, source = %source.describe(), rejeu, serveur = options.with_server)
 )]
-pub async fn install(
-    manifest_path: &Path,
-    options: &Options,
-    log: Progress<'_>,
-) -> Result<Outcome> {
-    let manifest = Manifest::load(manifest_path)?;
-    let lock_path = Lockfile::path_for(manifest_path);
-    let previous_lock = lock_path
-        .is_file()
-        .then(|| Lockfile::load(&lock_path))
-        .transpose()?;
+pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> Result<Outcome> {
+    let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
+    let Pack {
+        manifest,
+        lock: previous_lock,
+        lock_path,
+        replay,
+        from_cache,
+    } = source.load(&dl).await?;
+
+    // Un pack distant se rejoue toujours : c'est le verrou publié qui décide
+    // des versions, pas la machine du joueur. Voir `source`.
+    let replay = replay || options.locked;
 
     // Renseignés après lecture du manifeste : le span les porte, donc tout ce
     // qui suit est rattaché au pack sans avoir à le répéter à chaque ligne.
     tracing::Span::current().record("pack", &manifest.name);
     tracing::Span::current().record("minecraft", &manifest.minecraft);
+    tracing::Span::current().record("rejeu", replay);
 
-    let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
+    if from_cache {
+        log("Hors-ligne : pack repris de la dernière copie connue.");
+    }
+
     let layout = &options.layout;
     let shared = layout.shared();
 
     // --- 1. Chargeur ---------------------------------------------------------
-    let neoforge_version = if options.locked {
+    let neoforge_version = if replay {
         let lock = previous_lock
             .as_ref()
             .with_context(|| format!("{} absent : rien à rejouer", lock_path.display()))?;
@@ -161,7 +172,7 @@ pub async fn install(
 
     // --- 5. Mods -------------------------------------------------------------
     let registry = mc_mods::Registry::new(layout.cache().join("mods"))?;
-    let requests = if options.locked {
+    let requests = if replay {
         let lock = previous_lock.as_ref().expect("vérifié plus haut");
         tracing::info!(
             builds = lock.mods.len(),
@@ -248,17 +259,34 @@ pub async fn install(
     }
 
     // --- 6. Verrou -----------------------------------------------------------
-    let lock = Lockfile::from_plan(
-        &manifest.name,
-        &manifest.minecraft,
-        LockedLoader {
-            kind: manifest.loader.kind.clone(),
-            version: neoforge_version.clone(),
-        },
-        java_major,
-        &plan,
-    );
-    lock.save(&lock_path)?;
+    //
+    // Rejouer un verrou, c'est lui obéir, pas le réécrire. Le régénérer
+    // effacerait la colonne `reason` : tout y deviendrait « demandé par le
+    // manifeste », puisque c'est le verrou lui-même qui a dicté les demandes,
+    // et on perdrait la seule trace de ce qui n'avait jamais été demandé.
+    let lock = match (replay, &previous_lock) {
+        (true, Some(existing)) => {
+            tracing::debug!(
+                verrou = %lock_path.display(),
+                "verrou rejoué, laissé tel quel"
+            );
+            existing.clone()
+        }
+        _ => {
+            let fresh = Lockfile::from_plan(
+                &manifest.name,
+                &manifest.minecraft,
+                LockedLoader {
+                    kind: manifest.loader.kind.clone(),
+                    version: neoforge_version.clone(),
+                },
+                java_major,
+                &plan,
+            );
+            fresh.save(&lock_path)?;
+            fresh
+        }
+    };
 
     let mut removed = client.removed;
     removed.extend(server.removed);
@@ -276,6 +304,8 @@ pub async fn install(
         lock,
         lock_path,
         previous_lock,
+        source: source.describe(),
+        from_cache,
     })
 }
 
@@ -284,10 +314,15 @@ pub async fn install(
 /// Trois questions, dans l'ordre où elles font échouer un démarrage : les
 /// fichiers du jeu sont-ils là, les jars annoncés par le verrou sont-ils
 /// présents et intacts, et chaque `modId` exigé est-il fourni ?
-pub fn verify(manifest_path: &Path, options: &Options, deep: bool) -> Result<Vec<String>> {
-    let manifest = Manifest::load(manifest_path)?;
-    let lock_path = Lockfile::path_for(manifest_path);
-    let lock = Lockfile::load(&lock_path)?;
+pub fn verify(source: &Source, options: &Options, deep: bool) -> Result<Vec<String>> {
+    let pack = source.load_local()?;
+    let manifest = pack.manifest;
+    let lock = pack.lock.with_context(|| {
+        format!(
+            "{} absent : rien à vérifier tant que « mc-pack install » n'a pas tourné",
+            pack.lock_path.display()
+        )
+    })?;
 
     let mut problems = mc_instance::verify(
         &manifest.minecraft,

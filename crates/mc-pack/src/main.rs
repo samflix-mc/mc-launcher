@@ -1,12 +1,17 @@
-//! Installe un pack décrit par un manifeste JSON.
+//! Installe un pack, décrit par un manifeste JSON local ou publié.
 //!
-//!     mc-pack install packs/samflix.json
-//!     mc-pack install packs/samflix.json --locked      rejoue le verrou
+//!     mc-pack install                                  le pack publié, par défaut
+//!     mc-pack install https://mc-launcher-dev.ggy.info/pack/samflix.json
+//!     mc-pack install packs/samflix.json               un manifeste du dépôt
 //!     mc-pack install packs/samflix.json --with-server installe aussi le serveur
 //!     mc-pack lock    packs/samflix.json               résout sans installer le jeu
-//!     mc-pack verify  packs/samflix.json [--deep]
-//!     mc-pack launch  packs/samflix.json --pseudo Sam --serveur mc.exemple.fr
+//!     mc-pack verify  [source] [--deep]
+//!     mc-pack launch  [source] --pseudo Sam --serveur mc.exemple.fr
 //!     mc-pack diagnostic                               journaux et télémétrie
+//!
+//! Sans argument, la source est le pack publié par mc-content et servi par
+//! mc-launcher-site : c'est lui qui décide de la liste des mods, et un joueur
+//! n'a donc rien à cloner. Un chemin reste accepté, c'est ce qu'on édite.
 //!
 //! Options communes :
 //!     --instance <NOM>   nom de l'instance, par défaut celui du pack
@@ -18,7 +23,8 @@
 use anyhow::{Result, bail};
 use mc_pack::lockfile::{LockedLoader, Lockfile};
 use mc_pack::manifest::Manifest;
-use std::path::{Path, PathBuf};
+use mc_pack::source::{self, Source};
+use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -33,7 +39,7 @@ async fn main() -> Result<()> {
         std::process::exit(2);
     };
 
-    let mut manifest_path: Option<PathBuf> = None;
+    let mut source_arg: Option<String> = None;
     let mut options = mc_pack::Options::default();
     let mut deep = false;
 
@@ -62,7 +68,7 @@ async fn main() -> Result<()> {
                 options.layout = mc_instance::Layout::new(PathBuf::from(dir));
             }
             other if other.starts_with("--") => bail!("option inconnue : {other}"),
-            path => manifest_path = Some(PathBuf::from(path)),
+            path => source_arg = Some(path.to_string()),
         }
     }
 
@@ -72,10 +78,12 @@ async fn main() -> Result<()> {
         return diagnostic(&_log, incident_test);
     }
 
-    let Some(manifest_path) = manifest_path else {
-        usage();
-        std::process::exit(2);
-    };
+    // La source est construite après la boucle : `--data` peut déplacer la
+    // racine des données, dont dépend l'emplacement du cache d'un pack distant.
+    let source = Source::parse(
+        source_arg.as_deref().unwrap_or(source::DEFAULT_URL),
+        &options.layout,
+    );
 
     // Span racine : tout ce qui suit lui est rattaché, et sa durée est celle de
     // la commande. Dans le fichier comme dans Sentry, une exécution se lit ainsi
@@ -83,7 +91,7 @@ async fn main() -> Result<()> {
     let span = tracing::info_span!(
         "commande",
         nom = %command,
-        manifeste = %manifest_path.display(),
+        pack = %source.describe(),
         environnement = mc_log::environment::current().as_str(),
     );
     let _entree = span.enter();
@@ -92,15 +100,15 @@ async fn main() -> Result<()> {
     tracing::info!(
         environnement = mc_log::environment::current().as_str(),
         "mc-pack {command} sur {} — environnement {}",
-        manifest_path.display(),
+        source.describe(),
         mc_log::environment::current().as_str()
     );
 
     let result = match command.as_str() {
-        "install" => install(&manifest_path, &options).await,
-        "launch" => launch(&manifest_path, &options, pseudo, serveur, memoire, afficher).await,
-        "lock" => lock(&manifest_path, &options).await,
-        "verify" => verify(&manifest_path, &options, deep),
+        "install" => install(&source, &options).await,
+        "launch" => launch(&source, &options, pseudo, serveur, memoire, afficher).await,
+        "lock" => lock(&source, &options).await,
+        "verify" => verify(&source, &options, deep),
         other => {
             eprintln!("commande inconnue : {other}");
             usage();
@@ -134,11 +142,14 @@ async fn main() -> Result<()> {
 fn usage() {
     eprintln!(
         "usage :\n  \
-         mc-pack install <manifeste> [--locked] [--with-server] [--instance NOM] [--data DIR]\n  \
+         mc-pack install [source] [--locked] [--with-server] [--instance NOM] [--data DIR]\n  \
          mc-pack lock    <manifeste> [--data DIR]\n  \
-         mc-pack verify  <manifeste> [--deep] [--data DIR]\n  \
-         mc-pack launch  <manifeste> --pseudo NOM [--serveur HOTE[:PORT]] [--memoire MO] [--afficher]\n  \
-         mc-pack diagnostic [--incident-test]"
+         mc-pack verify  [source] [--deep] [--data DIR]\n  \
+         mc-pack launch  [source] --pseudo NOM [--serveur HOTE[:PORT]] [--memoire MO] [--afficher]\n  \
+         mc-pack diagnostic [--incident-test]\n\n\
+         « source » est un chemin vers un manifeste, ou une URL.\n  \
+         Par défaut : {}",
+        source::DEFAULT_URL
     );
 }
 
@@ -204,10 +215,14 @@ fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<()> {
     Ok(())
 }
 
-async fn install(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
-    let outcome = mc_pack::install(manifest_path, options, &|line| println!("{line}")).await?;
+async fn install(source: &Source, options: &mc_pack::Options) -> Result<()> {
+    let outcome = mc_pack::install(source, options, &|line| println!("{line}")).await?;
 
     println!("\nInstance « {} »", outcome.instance.name);
+    println!("  pack     : {}", outcome.source);
+    if outcome.from_cache {
+        println!("             (hors-ligne — copie locale, pas le pack publié)");
+    }
     println!("  jeu      : {}", outcome.instance.game_dir.display());
     println!(
         "  mods     : {} côté client, {} côté serveur",
@@ -237,7 +252,16 @@ async fn install(manifest_path: &Path, options: &mc_pack::Options) -> Result<()>
 /// C'est ce qu'on lance en revue : le verrou montre les versions retenues et
 /// les dépendances ajoutées, sans attendre le téléchargement de huit cents
 /// mégaoctets d'assets.
-async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
+async fn lock(source: &Source, options: &mc_pack::Options) -> Result<()> {
+    // Résoudre produit un verrou, et un verrou doit se poser quelque part.
+    // Un pack publié n'offre pas cet endroit — et n'en a pas besoin : il
+    // arrive déjà verrouillé, c'est justement ce qui en fait un pack publié.
+    let Some(manifest_path) = source.local_path() else {
+        bail!(
+            "lock travaille sur un manifeste à éditer : donner un chemin.\n\
+             Le pack publié est déjà verrouillé — c'est mc-content qui le résout."
+        );
+    };
     let manifest = Manifest::load(manifest_path)?;
     let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
     tracing::info!(
@@ -347,8 +371,8 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
     Ok(())
 }
 
-fn verify(manifest_path: &Path, options: &mc_pack::Options, deep: bool) -> Result<()> {
-    let problems = mc_pack::verify(manifest_path, options, deep)?;
+fn verify(source: &Source, options: &mc_pack::Options, deep: bool) -> Result<()> {
+    let problems = mc_pack::verify(source, options, deep)?;
     if problems.is_empty() {
         tracing::info!(
             exhaustif = deep,
@@ -402,7 +426,7 @@ fn report_unresolved(lock: &Lockfile) {
 /// distincts, et les enchaîner ferait attendre huit cents mégaoctets à qui
 /// voulait seulement lancer une partie.
 async fn launch(
-    manifest_path: &Path,
+    source: &Source,
     options: &mc_pack::Options,
     pseudo: Option<String>,
     serveur: Option<String>,
@@ -413,12 +437,15 @@ async fn launch(
         bail!("launch attend --pseudo <NOM>");
     };
 
-    let manifest = Manifest::load(manifest_path)?;
-    let lock_path = Lockfile::path_for(manifest_path);
-    let lock = Lockfile::load(&lock_path).map_err(|_| {
+    // Le pack posé sur cette machine, pas celui publié : on lance ce qui est
+    // installé. Aller chercher le pack du jour décrirait des mods que le
+    // dossier ne contient pas, et interdirait de jouer sans réseau.
+    let pack = source.load_local()?;
+    let manifest = pack.manifest;
+    let lock = pack.lock.ok_or_else(|| {
         anyhow::anyhow!(
             "{} absent : lancer « mc-pack install » avant de jouer",
-            lock_path.display()
+            pack.lock_path.display()
         )
     })?;
 

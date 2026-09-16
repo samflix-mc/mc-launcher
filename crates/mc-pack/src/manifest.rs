@@ -102,8 +102,15 @@ impl Manifest {
     pub fn load(path: &Path) -> Result<Manifest> {
         let raw = std::fs::read(path)
             .with_context(|| format!("lecture du manifeste {}", path.display()))?;
-        let manifest: Manifest = serde_json::from_slice(&raw)
-            .with_context(|| format!("manifeste {} illisible", path.display()))?;
+        Manifest::parse(&raw).with_context(|| format!("manifeste {} illisible", path.display()))
+    }
+
+    /// Lit un manifeste qui n'a pas de chemin — celui d'une réponse HTTP.
+    ///
+    /// La vérification est la même que pour un fichier : ce qui arrive du
+    /// réseau mérite moins de confiance, pas plus.
+    pub fn parse(raw: &[u8]) -> Result<Manifest> {
+        let manifest: Manifest = serde_json::from_slice(raw)?;
         manifest.check()?;
         Ok(manifest)
     }

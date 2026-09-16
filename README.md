@@ -16,12 +16,51 @@ Launcher de bureau pour un réseau Minecraft 1.21.1 / NeoForge.
 ## Installer un pack
 
 ```bash
-cargo run -p mc-pack --release -- install packs/samflix.json
-cargo run -p mc-pack --release -- install packs/samflix.json --locked   # rejoue le verrou
-cargo run -p mc-pack --release -- lock   packs/samflix.json             # résout sans installer
-cargo run -p mc-pack --release -- verify packs/samflix.json [--deep]
-cargo run -p mc-pack --release -- launch packs/samflix.json --pseudo Sam
+cargo run -p mc-pack --release -- install                       # le pack publié
+cargo run -p mc-pack --release -- install packs/samflix.json    # un manifeste du dépôt
+cargo run -p mc-pack --release -- lock   packs/samflix.json     # résout sans installer
+cargo run -p mc-pack --release -- verify [source] [--deep]
+cargo run -p mc-pack --release -- launch [source] --pseudo Sam
 ```
+
+### D'où vient la liste des mods
+
+Elle n'est pas décidée ici. Le pack est publié par
+[mc-content](https://github.com/samflix-mc/mc-content), aux côtés de ce que
+reçoivent les serveurs, et servi en HTTPS par
+[mc-launcher-site](https://github.com/samflix-mc/mc-launcher-site) :
+
+    https://mc-launcher.ggy.info/pack/samflix.json        production
+    https://mc-launcher-dev.ggy.info/pack/samflix.json    dev
+
+C'est l'adresse par défaut de `mc-pack`, et la raison en tient en une ligne :
+**le client et les serveurs doivent charger les mêmes builds.** Les registres
+NeoForge sont négociés à la connexion ; un mod en version différente d'un côté
+éjecte le joueur, sans message exploitable. Tenir deux inventaires — l'un pour
+le launcher, l'autre pour les serveurs — c'est accepter qu'ils divergent un
+jour, et découvrir lequel a raison en production.
+
+Un chemin local reste accepté, et c'est ce qu'on édite pour faire bouger le
+pack. La différence entre les deux n'est pas cosmétique :
+
+| source | versions | verrou |
+|---|---|---|
+| un chemin | résolues à chaque passage | réécrit à côté du manifeste |
+| une URL | **rejouées depuis le verrou publié** | téléchargé, jamais recalculé |
+
+Un joueur ne résout rien. S'il le faisait, sa machine choisirait ses propres
+versions le jour où un mod en publie une nouvelle — exactement la divergence
+qu'on cherche à éviter. `lock` refuse donc une URL : un pack publié arrive déjà
+verrouillé, c'est mc-content qui l'a résolu.
+
+Chaque téléchargement réussi laisse une copie dans `cache/packs/<hôte>/`. Sans
+réseau, cette copie prend le relais et l'utilisateur en est averti — jouer avec
+le pack d'hier vaut mieux que ne pas jouer. Le rangement par hôte n'est pas un
+détail : les manifestes de dev et de production portent le même nom de fichier,
+et à plat une panne de réseau ressortirait le pack du mauvais environnement.
+
+`launch` et `verify` ne touchent jamais au réseau : tous deux parlent de
+l'installation posée sur le disque. Seul `install` rafraîchit la copie locale.
 
 L'ordre des étapes découle des dépendances entre elles : la version du
 chargeur est résolue d'abord pour que le verrou consigne un numéro et non le
@@ -58,6 +97,15 @@ lui. Le manifeste dit ce qu'on veut, le verrou dit ce qu'on a eu : la version
 retenue quand aucune n'était imposée, et **les dépendances ajoutées
 d'elles-mêmes**, chacune avec la raison de sa présence. `install --locked` le
 rejoue à l'identique des mois plus tard.
+
+Chaque entrée porte son URL de téléchargement, ce qui rend le verrou lisible
+par autre chose que le launcher : la CI de mc-content vérifie que chacune
+répond, et un serveur peut installer le jar sans rien savoir de Modrinth.
+
+Rejouer un verrou ne le réécrit pas. Le régénérer effacerait la colonne
+`reason` — tout y deviendrait « demandé par le manifeste », puisque c'est le
+verrou lui-même qui a dicté les demandes — et on perdrait la seule trace de ce
+qui n'avait jamais été demandé.
 
 ## Où vivent les fichiers
 
@@ -180,9 +228,9 @@ chargement.
 ## Lancer le jeu
 
 ```bash
-mc-pack launch packs/samflix.json --pseudo Sam
-mc-pack launch packs/samflix.json --pseudo Sam --serveur mc.exemple.fr:25565
-mc-pack launch packs/samflix.json --pseudo Sam --afficher   # montre sans lancer
+mc-pack launch --pseudo Sam
+mc-pack launch --pseudo Sam --serveur mc.exemple.fr:25565
+mc-pack launch --pseudo Sam --afficher   # montre sans lancer
 ```
 
 `launch` ne réinstalle rien : il suppose l'installation faite et le dit si un
