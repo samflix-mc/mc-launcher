@@ -164,11 +164,11 @@ pub fn capture_game_crash(
             .insert(key.clone(), Value::String(redact(value)));
     }
 
-    let id = sentry::capture_event(event);
-    sentry::Hub::current()
-        .client()
-        .map(|client| client.flush(Some(std::time::Duration::from_secs(10))));
-    id
+    // Pas de vidage ici : une partie produit jusqu'à cinq exceptions relevées
+    // plus son plantage, et attendre la file à chaque fois immobilisait le
+    // launcher dix secondes par exception dès que le réseau manquait. C'est
+    // [`Guard`] qui attend, une seule fois, à la fin du programme.
+    sentry::capture_event(event)
 }
 
 /// Borne un texte sans couper au milieu d'une ligne.
@@ -178,7 +178,15 @@ fn truncate(text: &str, max: usize) -> String {
     }
     // La fin d'un journal est plus parlante que son début : c'est là que se
     // trouve ce qui a échoué.
-    let start = text.len() - max;
+    //
+    // `max` est un nombre d'octets, et un journal de jeu en contient de
+    // multi-octets — noms de mods accentués, « § », « … ». Trancher à l'aveugle
+    // au milieu d'un caractère fait paniquer le découpage, et le launcher
+    // mourrait dans la main qui rapporte le plantage.
+    let mut start = text.len() - max;
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
     let from = text[start..]
         .find('\n')
         .map(|offset| start + offset + 1)
@@ -375,6 +383,11 @@ fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
     options.environment = Some(environment::current().as_str().into());
     // Jamais : ce processus détient des jetons d'authentification.
     options.send_default_pii = false;
+    // Ce que `Guard` attend en se détruisant. Les deux secondes par défaut
+    // suffisaient à un incident isolé ; une partie qui se termine mal peut en
+    // avoir accumulé plusieurs, et c'est désormais le seul endroit où on les
+    // attend.
+    options.shutdown_timeout = std::time::Duration::from_secs(10);
     options.attach_stacktrace = true;
     // Le SDK renseigne sinon le nom de la machine. Sur un poste de joueur,
     // c'est une donnée identifiante qui n'apprend rien sur la panne : la chaîne
@@ -753,6 +766,16 @@ mod tests {
     fn les_journaux_vivent_sous_le_repertoire_de_donnees() {
         assert!(log_dir().ends_with("logs"));
         assert!(log_dir().starts_with(mc_dl::data_dir()));
+    }
+
+    #[test]
+    fn un_extrait_se_tronque_sans_couper_un_caractere() {
+        // Un journal de jeu est plein d'accents : trancher au milieu d'un
+        // caractère ferait paniquer le rapport de plantage lui-même.
+        let texte = "é".repeat(200);
+        let borne = truncate(&texte, 101);
+        assert!(borne.ends_with('é'));
+        assert!(texte.ends_with(borne.trim_start_matches("[…début tronqué…]\n")));
     }
 
     #[test]
