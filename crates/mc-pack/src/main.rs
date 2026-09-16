@@ -467,13 +467,117 @@ async fn launch(
         return Ok(());
     }
 
-    let status = mc_instance::launch::run(&command).await?;
-    if !status.success() {
-        bail!(
-            "Minecraft s'est arrêté avec le code {} — journaux dans {}",
-            status.code().unwrap_or(-1),
-            instance.game_dir.join("logs").display()
-        );
+    // Daté avant le lancement : c'est ce qui permet d'écarter le rapport d'une
+    // partie précédente, qui enverrait sur une fausse piste.
+    let started_at = mc_instance::crash::now();
+
+    let report = mc_instance::launch::run(&command).await?;
+
+    // Remontées avant le verdict : une erreur survenue pendant une partie qui
+    // s'est bien terminée compte autant qu'un plantage, et c'est elle qu'on ne
+    // verrait jamais autrement.
+    for erreur in &report.errors {
+        report_game_error(&instance, &lock, &version_id, erreur, None);
     }
-    Ok(())
+    if !report.errors.is_empty() {
+        eprintln!(
+            "\n{} erreurs relevées pendant la partie :",
+            report.errors.len()
+        );
+        for erreur in &report.errors {
+            eprintln!("  {} : {}", erreur.exception, erreur.message);
+        }
+    }
+
+    match report.outcome {
+        mc_instance::launch::Outcome::Normal => {
+            tracing::info!("Minecraft s'est terminé normalement");
+            Ok(())
+        }
+        // Fermer le jeu n'est pas une panne : le signaler comme telle
+        // ouvrirait un incident à chaque partie terminée au clavier.
+        mc_instance::launch::Outcome::Interrupted { signal } => {
+            tracing::info!(signal, "Minecraft a été interrompu");
+            println!("Minecraft a été interrompu (signal {signal}).");
+            Ok(())
+        }
+        mc_instance::launch::Outcome::Failed { code } => {
+            report_game_crash(&instance, &lock, &version_id, started_at, code);
+            bail!(
+                "Minecraft s'est arrêté avec le code {code} — journaux dans {}",
+                instance.game_dir.join("logs").display()
+            )
+        }
+    }
+}
+
+/// Cherche la cause d'un plantage du jeu et la remonte.
+///
+/// Sans cela, un incident ne porterait que « code de sortie 1 » : le launcher
+/// et le jeu sont deux processus, et la trace Java reste du côté du jeu. C'est
+/// pourtant le seul moment où elle est disponible — le joueur, lui, ne
+/// l'enverra pas.
+fn report_game_crash(
+    instance: &mc_instance::Instance,
+    lock: &Lockfile,
+    version_id: &str,
+    started_at: std::time::SystemTime,
+    code: i32,
+) {
+    let Some(crash) = mc_instance::crash::find(&instance.game_dir, started_at) else {
+        // Aucune trace exploitable : l'incident du launcher reste, et il dit
+        // au moins où chercher.
+        tracing::warn!(
+            code,
+            journaux = %instance.game_dir.join("logs").display(),
+            "Plantage sans trace exploitable dans les journaux du jeu"
+        );
+        return;
+    };
+
+    let id = report_game_error(instance, lock, version_id, &crash, Some(code));
+    eprintln!("\n{} : {}", crash.exception, crash.message);
+    eprintln!("  relevé dans {}", crash.source.display());
+    if mc_log::telemetry_active() {
+        eprintln!("  incident transmis sous l'identifiant {id}");
+    }
+}
+
+/// Transmet une exception du jeu, qu'elle l'ait arrêté ou non.
+///
+/// Le contexte joint est celui qu'on demanderait sinon au joueur : versions,
+/// mods présents, et d'où vient la trace.
+fn report_game_error(
+    instance: &mc_instance::Instance,
+    lock: &Lockfile,
+    version_id: &str,
+    crash: &mc_instance::crash::Crash,
+    code: Option<i32>,
+) -> sentry::types::Uuid {
+    let mods = mc_instance::crash::loaded_mods(&instance.game_dir).unwrap_or_default();
+    let mut contexte = std::collections::BTreeMap::from([
+        ("version".to_string(), version_id.to_string()),
+        ("minecraft".to_string(), lock.minecraft.clone()),
+        ("neoforge".to_string(), lock.loader.version.clone()),
+        ("source".to_string(), crash.source.display().to_string()),
+        ("mods".to_string(), mods.join("\n")),
+    ]);
+    if let Some(code) = code {
+        contexte.insert("code_sortie".to_string(), code.to_string());
+    } else {
+        // Sans quoi rien ne distinguerait, dans le tableau de bord, une erreur
+        // traversée d'une erreur fatale.
+        contexte.insert("fatale".to_string(), "non".to_string());
+    }
+
+    tracing::error!(
+        exception = %crash.exception,
+        source = %crash.source.display(),
+        fatale = code.is_some(),
+        "Minecraft : {} : {}",
+        crash.exception,
+        crash.message
+    );
+
+    mc_log::capture_game_crash(&crash.exception, &crash.message, &crash.excerpt, &contexte)
 }

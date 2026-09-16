@@ -968,6 +968,7 @@ dependencies = [
  "mc-java",
  "mc-log",
  "mc-mods",
+ "sentry",
  "serde",
  "serde_json",
  "tokio",

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "pack": "samflix",
-  "generated": "2026-09-16T01:25:06Z",
+  "generated": "2026-09-16T02:14:33Z",
   "minecraft": "1.21.1",
   "loader": {
     "type": "neoforge",
@@ -55,6 +55,22 @@
       "reason": "demandé par le manifeste",
       "provides": [
         "farmersdelight"
+      ]
+    },
+    {
+      "slug": "ferrite-core",
+      "name": "FerriteCore",
+      "origin": "modrinth",
+      "project": "uXXizFIs",
+      "file": "x7kQWVju",
+      "version": "7.0.3-neoforge",
+      "file_name": "ferritecore-7.0.3-neoforge.jar",
+      "sha1": "9563692efb708b6b568df27a01ec52f6311928ef",
+      "size": 121559,
+      "side": "both",
+      "reason": "demandé par le manifeste",
+      "provides": [
+        "ferritecore"
       ]
     },
     {

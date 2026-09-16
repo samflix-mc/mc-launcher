@@ -21,6 +21,7 @@
 //! l'installateur NeoForge l'exige : il y cherche le client vanilla à patcher
 //! et y dépose ce qu'il fabrique.
 
+pub mod crash;
 pub mod launch;
 pub mod neoforge;
 pub mod vanilla;

@@ -276,8 +276,21 @@ pub fn build(
         }
     }
 
-    // Le client de Mojang ferme la marche : NeoForge ne le déclare pas, et FML
-    // le transforme au chargement.
+    // Le client de Mojang ne rejoint le classpath que pour du vanilla pur.
+    //
+    // Sous un chargeur, l'installateur a produit sa propre découpe du client —
+    // `client-…-slim.jar` pour le code, `client-…-extra.jar` pour les
+    // ressources — et FML les résout lui-même à partir de `libraryDirectory`.
+    // Ajouter `1.21.1.jar` par-dessus donne deux modules qui exportent les
+    // mêmes paquets, et la JVM s'arrête avant le premier écran :
+    //
+    //     java.lang.module.ResolutionException: Modules _1._21._1 and
+    //     minecraft export package com.mojang.blaze3d.systems to module …
+    //
+    // Le nom `_1._21._1` est celui que la JVM dérive de `1.21.1.jar` : il
+    // désigne sans ambiguïté le jar ajouté ici, et c'est ce qui a permis de
+    // retrouver la cause.
+    let uses_loader = chain.len() > 1;
     let client_jar = shared
         .join("versions")
         .join(&base.id)
@@ -285,7 +298,14 @@ pub fn build(
     if !client_jar.is_file() {
         bail!("client absent : {}", client_jar.display());
     }
-    classpath.push(client_jar);
+    if uses_loader {
+        tracing::debug!(
+            client = %client_jar.display(),
+            "client vanilla laissé hors du classpath, le chargeur fournit le sien"
+        );
+    } else {
+        classpath.push(client_jar);
+    }
 
     let missing: Vec<&PathBuf> = classpath.iter().filter(|p| !p.is_file()).collect();
     if let Some(first) = missing.first() {
@@ -534,7 +554,7 @@ fn substitute(text: &str, variables: &BTreeMap<String, String>) -> String {
 
 /// Lance le jeu et attend qu'il se termine.
 #[tracing::instrument(name = "exécution du jeu", skip_all)]
-pub async fn run(command: &Command) -> Result<std::process::ExitStatus> {
+pub async fn run(command: &Command) -> Result<Report> {
     tracing::info!(
         java = %command.java.display(),
         repertoire = %command.working_dir.display(),
@@ -542,25 +562,128 @@ pub async fn run(command: &Command) -> Result<std::process::ExitStatus> {
         "Démarrage de Minecraft"
     );
 
-    let status = tokio::process::Command::new(&command.java)
+    use std::process::Stdio;
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    // La sortie est captée pour être lue, puis réécrite telle quelle : le
+    // joueur voit ce qu'il aurait vu, et le launcher peut en tirer les
+    // exceptions au passage. Les deux flux sont fusionnés parce que Minecraft
+    // écrit sur les deux sans distinction utile.
+    let mut child = tokio::process::Command::new(&command.java)
         .args(&command.args)
         .current_dir(&command.working_dir)
-        .status()
-        .await
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .with_context(|| format!("exécution de {}", command.java.display()))?;
 
-    if status.success() {
-        tracing::info!("Minecraft s'est terminé normalement");
-    } else {
-        // Le jeu écrit ses propres journaux ; le code de sortie seul ne dit
-        // pas pourquoi, et l'endroit où chercher se donne ici.
-        tracing::error!(
-            code = status.code(),
-            journaux = %command.working_dir.join("logs").display(),
-            "Minecraft s'est arrêté sur une erreur"
-        );
+    let mut watcher = crate::crash::Watcher::new();
+    let stdout = child.stdout.take().map(BufReader::new);
+    let stderr = child.stderr.take().map(BufReader::new);
+
+    let mut out_lines = stdout.map(|r| r.lines());
+    let mut err_lines = stderr.map(|r| r.lines());
+
+    loop {
+        let line = tokio::select! {
+            Ok(Some(line)) = async {
+                match &mut out_lines {
+                    Some(lines) => lines.next_line().await,
+                    None => Ok(None),
+                }
+            } => Some(line),
+            Ok(Some(line)) = async {
+                match &mut err_lines {
+                    Some(lines) => lines.next_line().await,
+                    None => Ok(None),
+                }
+            } => Some(line),
+            else => None,
+        };
+        match line {
+            Some(line) => {
+                println!("{line}");
+                watcher.line(&line);
+            }
+            None => break,
+        }
     }
-    Ok(status)
+
+    let status = child
+        .wait()
+        .await
+        .with_context(|| format!("attente de {}", command.java.display()))?;
+
+    let outcome = Outcome::from_status(&status);
+    // Rien n'est journalisé en erreur ici : c'est l'appelant qui décide, et
+    // c'est lui qui connaît le contexte. Le faire aux deux endroits produisait
+    // deux incidents distincts pour un seul échec, constaté sur MC-LAUNCHER-4
+    // et MC-LAUNCHER-5.
+    tracing::debug!(?outcome, code = status.code(), "Minecraft s'est terminé");
+
+    Ok(Report {
+        outcome,
+        errors: watcher.finish(),
+    })
+}
+
+/// Ce qu'une exécution du jeu a produit.
+#[derive(Debug)]
+pub struct Report {
+    pub outcome: Outcome,
+    /// Exceptions relevées dans la sortie, que le jeu ait planté ou non.
+    ///
+    /// Minecraft en rattrape beaucoup et continue : ces erreurs-là
+    /// n'apparaissent nulle part ailleurs, et ce sont souvent elles qui
+    /// expliquent un comportement signalé bien plus tard.
+    pub errors: Vec<crate::crash::Crash>,
+}
+
+/// Comment le jeu s'est terminé.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Outcome {
+    /// Sortie normale, écran de fin ou fermeture de la fenêtre.
+    Normal,
+    /// Arrêt demandé de l'extérieur : `Ctrl+C`, `kill`, fermeture de session.
+    ///
+    /// N'est pas une panne. Le confondre avec une erreur remplissait le
+    /// tableau de bord d'incidents à chaque fois qu'on fermait le jeu.
+    Interrupted { signal: i32 },
+    /// Le jeu s'est arrêté de lui-même sur une erreur.
+    Failed { code: i32 },
+}
+
+impl Outcome {
+    fn from_status(status: &std::process::ExitStatus) -> Outcome {
+        if status.success() {
+            return Outcome::Normal;
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            if let Some(signal) = status.signal() {
+                return Outcome::Interrupted { signal };
+            }
+            // Un shell traduit un signal en 128 + n. `status.signal()` ne le
+            // voit pas quand le code traverse un intermédiaire, d'où cette
+            // seconde lecture : 143 est un SIGTERM, 130 un Ctrl+C.
+            if let Some(code) = status.code()
+                && (129..=192).contains(&code)
+            {
+                return Outcome::Interrupted { signal: code - 128 };
+            }
+        }
+
+        Outcome::Failed {
+            code: status.code().unwrap_or(-1),
+        }
+    }
+
+    /// Y a-t-il matière à ouvrir un incident ?
+    pub fn is_failure(&self) -> bool {
+        matches!(self, Outcome::Failed { .. })
+    }
 }
 
 #[cfg(test)]
