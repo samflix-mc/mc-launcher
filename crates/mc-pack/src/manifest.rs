@@ -184,6 +184,40 @@ impl Manifest {
                 );
             }
         }
+
+        // Les clés de « servers » sont lues par server_for, qui cherche le nom
+        // rendu par Environment::as_str(). Une clé fautive ne provoque donc
+        // aucune erreur : elle ne correspond simplement à rien, et le jeu
+        // s'ouvre sur le menu comme si le pack n'avait rien déclaré. C'est le
+        // pire des silences — celui qui ressemble à une intention.
+        for (cle, serveur) in &self.servers {
+            let Some(environnement) = mc_log::Environment::parse(cle) else {
+                bail!(
+                    "« {cle} » n'est pas un environnement : attendus development, \
+                     preproduction ou production"
+                );
+            };
+            // Le nom canonique, et lui seul. Environment::parse accepte les
+            // alias courants — « dev », « staging » — mais la lecture cherche
+            // « development » : l'entrée serait acceptée ici et introuvable
+            // là-bas.
+            if environnement.as_str() != cle {
+                bail!(
+                    "« {cle} » est un alias ; écrire « {} », qui est le nom cherché \
+                     à la lecture",
+                    environnement.as_str()
+                );
+            }
+            if environnement == mc_log::Environment::Local {
+                bail!(
+                    "« local » ne serait jamais lu : un binaire compilé à la main \
+                     rejoint le serveur de « development »"
+                );
+            }
+            if serveur.host.trim().is_empty() {
+                bail!("le serveur déclaré pour « {cle} » n'a pas d'hôte");
+            }
+        }
         Ok(())
     }
 
@@ -196,19 +230,27 @@ impl Manifest {
         self.java.unwrap_or(mojang_says)
     }
 
-    /// Serveur à rejoindre pour un environnement donné.
+    /// Environnement dont les serveurs s'appliquent à celui-ci.
     ///
     /// `local` retombe sur `development` : un binaire compilé à la main est un
     /// binaire de travail, et le serveur de travail est celui de dev. C'est le
     /// même raisonnement que pour l'adresse du pack, et il vaut mieux qu'ils ne
     /// divergent pas — un launcher qui installerait le pack de dev pour
     /// rejoindre la production ferait exactement ce que tout ceci empêche.
+    ///
+    /// Rendu public parce que l'affichage en a besoin : dire « local » à
+    /// quelqu'un qui diagnostique, alors que l'entrée lue est « development »,
+    /// l'envoie chercher une clé qui n'existe pas.
+    pub fn environnement_serveur(env: mc_log::Environment) -> mc_log::Environment {
+        match env {
+            mc_log::Environment::Local => mc_log::Environment::Development,
+            autre => autre,
+        }
+    }
+
+    /// Serveur à rejoindre pour un environnement donné.
     pub fn server_for(&self, env: mc_log::Environment) -> Option<&Server> {
-        let cle = match env {
-            mc_log::Environment::Local => mc_log::Environment::Development.as_str(),
-            autre => autre.as_str(),
-        };
-        self.servers.get(cle)
+        self.servers.get(Self::environnement_serveur(env).as_str())
     }
 }
 
@@ -293,6 +335,63 @@ mod tests {
             avec_serveurs()
                 .server_for(mc_log::Environment::Preproduction)
                 .is_none()
+        );
+    }
+
+    fn avec_cle(cle: &str, host: &str) -> Manifest {
+        let mut manifest = base();
+        manifest.servers.insert(
+            cle.into(),
+            Server {
+                host: host.into(),
+                port: None,
+            },
+        );
+        manifest
+    }
+
+    #[test]
+    fn une_cle_de_serveur_fautive_est_refusee() {
+        // Sans ce contrôle, une faute de frappe ne provoque rien : la clé ne
+        // correspond à aucun environnement, le jeu s'ouvre sur le menu, et
+        // cela ressemble exactement à un pack qui n'aurait rien déclaré.
+        let erreur = avec_cle("prodution", "mc.ggy.info").check().unwrap_err();
+        assert!(erreur.to_string().contains("prodution"));
+    }
+
+    #[test]
+    fn un_alias_est_refuse_parce_qu_il_ne_serait_pas_lu() {
+        // Environment::parse accepte « dev », mais server_for cherche
+        // « development » : l'entrée passerait ici et resterait introuvable.
+        let erreur = avec_cle("dev", "mc-dev.ggy.info").check().unwrap_err();
+        assert!(erreur.to_string().contains("development"));
+    }
+
+    #[test]
+    fn une_cle_local_est_refusee() {
+        let erreur = avec_cle("local", "mc-dev.ggy.info").check().unwrap_err();
+        assert!(erreur.to_string().contains("development"));
+    }
+
+    #[test]
+    fn un_hote_vide_est_refuse() {
+        assert!(avec_cle("production", "   ").check().is_err());
+    }
+
+    #[test]
+    fn les_cles_canoniques_passent() {
+        assert!(avec_serveurs().check().is_ok());
+    }
+
+    #[test]
+    fn un_binaire_local_lit_la_cle_development() {
+        assert_eq!(
+            Manifest::environnement_serveur(mc_log::Environment::Local),
+            mc_log::Environment::Development
+        );
+        assert_eq!(
+            Manifest::environnement_serveur(mc_log::Environment::Production),
+            mc_log::Environment::Production
         );
     }
 
