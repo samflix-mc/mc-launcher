@@ -380,6 +380,11 @@ pub async fn resolve(
     resolve_with(registry, requests, mc, loader, Options::default()).await
 }
 
+#[tracing::instrument(
+    name = "résolution",
+    skip(registry, requests, options),
+    fields(demandes = requests.len(), mc, loader)
+)]
 pub async fn resolve_with(
     registry: &Registry,
     requests: &[Request],
@@ -522,8 +527,21 @@ pub async fn resolve_with(
         }
 
         // --- Téléchargement, puis lecture de ce que les jars exigent vraiment ---
+        let a_telecharger = chosen
+            .values()
+            .filter(|m| m.path.as_os_str().is_empty())
+            .count();
+        let debut = std::time::Instant::now();
         download_all(registry, &mut chosen).await?;
         inspect_all(&mut chosen)?;
+        if a_telecharger > 0 {
+            tracing::info!(
+                tour = pass,
+                jars = a_telecharger,
+                duree_ms = debut.elapsed().as_millis(),
+                "jars téléchargés et analysés"
+            );
+        }
 
         // --- Rattrapage : ce qui manque encore ---
         let missing = missing_requirements(&chosen);

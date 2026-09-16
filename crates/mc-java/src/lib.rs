@@ -198,10 +198,19 @@ pub async fn detect(major: u32, runtime_dir: &Path) -> Option<Java> {
 }
 
 /// Garantit la présence d'un Java ≥ `major` : détection, sinon installation.
+#[tracing::instrument(name = "runtime java", skip(runtime_dir))]
 pub async fn ensure(major: u32, runtime_dir: &Path) -> Result<Java> {
     if let Some(java) = detect(major, runtime_dir).await {
+        tracing::debug!(
+            version = %java.version.full,
+            chemin = %java.path.display(),
+            "runtime existant retenu"
+        );
         return Ok(java);
     }
+    // Le seul cas qui coûte du temps et de la bande passante : il mérite d'être
+    // visible sans avoir à relever la verbosité.
+    tracing::info!(majeur = major, "aucun Java utilisable, installation");
     install(major, runtime_dir).await
 }
 
@@ -248,6 +257,7 @@ fn platform() -> Result<(&'static str, &'static str)> {
 /// tout ce que fait le launcher, y compris aux *processors* de l'installateur
 /// NeoForge, qui sont des jars. Adoptium ne publie pas de JRE pour toutes les
 /// combinaisons de plateformes, d'où le repli sur le JDK.
+#[tracing::instrument(name = "installation java", skip(runtime_dir))]
 pub async fn install(major: u32, runtime_dir: &Path) -> Result<Java> {
     let (os, arch) = platform()?;
     std::fs::create_dir_all(runtime_dir)

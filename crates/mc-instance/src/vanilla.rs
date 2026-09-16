@@ -187,6 +187,7 @@ pub fn maven_path(name: &str) -> Option<String> {
 }
 
 /// Installe les fichiers Mojang d'une version dans un répertoire partagé.
+#[tracing::instrument(name = "jeu vanilla", skip(shared, dl))]
 pub async fn install(mc: &str, shared: &Path, dl: &Downloader) -> Result<Vanilla> {
     let manifest: Manifest = serde_json::from_slice(&dl.bytes(MANIFEST).await?)
         .context("manifeste des versions illisible")?;
@@ -226,6 +227,13 @@ pub async fn install(mc: &str, shared: &Path, dl: &Downloader) -> Result<Vanilla
     .await
     .context("téléchargement du client")?;
 
+    tracing::debug!(
+        version = %version.id,
+        java_exige = version.java_version.as_ref().map(|j| j.major_version),
+        bibliotheques_declarees = version.libraries.len(),
+        "descripteur de version lu"
+    );
+
     let libraries = install_libraries(&version, shared, dl).await?;
     let assets_downloaded = install_assets(&version.asset_index, shared, dl).await?;
 
@@ -241,6 +249,7 @@ pub async fn install(mc: &str, shared: &Path, dl: &Downloader) -> Result<Vanilla
     })
 }
 
+#[tracing::instrument(name = "bibliothèques", skip_all)]
 async fn install_libraries(
     version: &VersionJson,
     shared: &Path,
@@ -292,6 +301,7 @@ async fn install_libraries(
     results.into_iter().collect()
 }
 
+#[tracing::instrument(name = "assets", skip_all, fields(index = %index.id))]
 async fn install_assets(index: &AssetIndexRef, shared: &Path, dl: &Downloader) -> Result<usize> {
     use futures_util::stream::{self, StreamExt};
 
@@ -337,11 +347,20 @@ async fn install_assets(index: &AssetIndexRef, shared: &Path, dl: &Downloader) -
         .await;
 
     let mut downloaded = 0;
+    let total = results.len();
     for result in results {
         if result? == mc_dl::Fetched::Downloaded {
             downloaded += 1;
         }
     }
+    // L'étape la plus longue d'une première installation, et la plus muette
+    // d'une seconde : dire combien d'objets ont été passés explique pourquoi.
+    tracing::info!(
+        total,
+        telecharges = downloaded,
+        deja_presents = total - downloaded,
+        "assets"
+    );
     Ok(downloaded)
 }
 

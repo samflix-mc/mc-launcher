@@ -68,7 +68,19 @@ async fn main() -> Result<()> {
         std::process::exit(2);
     };
 
-    tracing::info!(commande = %command, manifeste = %manifest_path.display(), "démarrage");
+    // Span racine : tout ce qui suit lui est rattaché, et sa durée est celle de
+    // la commande. Dans le fichier comme dans Sentry, une exécution se lit ainsi
+    // d'un bloc même quand plusieurs se succèdent.
+    let span = tracing::info_span!(
+        "commande",
+        nom = %command,
+        manifeste = %manifest_path.display(),
+        environnement = mc_log::environment::current().as_str(),
+    );
+    let _entree = span.enter();
+
+    let debut = std::time::Instant::now();
+    tracing::info!("démarrage");
 
     let result = match command.as_str() {
         "install" => install(&manifest_path, &options).await,
@@ -83,10 +95,17 @@ async fn main() -> Result<()> {
 
     // Une erreur remontée jusqu'ici met fin au programme : c'est le dernier
     // endroit où elle peut devenir un incident plutôt qu'un simple message.
-    if let Err(error) = &result {
-        tracing::error!(commande = %command, erreur = ?error, "échec");
-        if let Some(path) = _log.log_path() {
-            eprintln!("\nJournal détaillé : {}", path.display());
+    match &result {
+        Ok(_) => tracing::info!(duree_ms = debut.elapsed().as_millis(), "terminé"),
+        Err(error) => {
+            tracing::error!(
+                duree_ms = debut.elapsed().as_millis(),
+                erreur = ?error,
+                "échec"
+            );
+            if let Some(path) = _log.log_path() {
+                eprintln!("\nJournal détaillé : {}", path.display());
+            }
         }
     }
     result
@@ -200,12 +219,23 @@ async fn install(manifest_path: &Path, options: &mc_pack::Options) -> Result<()>
 async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
     let manifest = Manifest::load(manifest_path)?;
     let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
+    tracing::info!(
+        pack = %manifest.name,
+        minecraft = %manifest.minecraft,
+        demandes = manifest.mods.len(),
+        "manifeste lu"
+    );
 
     let neoforge_version = if manifest.loader.is_latest() {
         mc_instance::neoforge::latest_for(&manifest.minecraft, &dl).await?
     } else {
         manifest.loader.version.clone()
     };
+    tracing::info!(
+        neoforge = %neoforge_version,
+        epingle = !manifest.loader.is_latest(),
+        "version du chargeur retenue"
+    );
 
     let registry = mc_mods::Registry::new(options.layout.cache().join("mods"))?;
     let plan = mc_mods::resolve(
@@ -215,6 +245,18 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
         "neoforge",
     )
     .await?;
+
+    let ajoutes = plan
+        .mods
+        .iter()
+        .filter(|m| m.reason != mc_mods::Reason::Explicit)
+        .count();
+    tracing::info!(
+        total = plan.mods.len(),
+        ajoutes,
+        non_resolus = plan.unresolved.len(),
+        "mods résolus"
+    );
 
     let lock_path = Lockfile::path_for(manifest_path);
     let previous = lock_path
@@ -232,6 +274,16 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
         &plan,
     );
     lock.save(&lock_path)?;
+
+    // Le verrou est le produit de la commande : sa position et ce qui a bougé
+    // sont ce qu'on cherchera dans le journal si une revue surprend.
+    let changements = previous.as_ref().map(|p| lock.diff(p).len()).unwrap_or(0);
+    tracing::info!(
+        verrou = %lock_path.display(),
+        changements,
+        nouveau = previous.is_none(),
+        "verrou écrit"
+    );
 
     println!(
         "NeoForge {} — {} mods",
@@ -261,8 +313,20 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
 fn verify(manifest_path: &Path, options: &mc_pack::Options, deep: bool) -> Result<()> {
     let problems = mc_pack::verify(manifest_path, options, deep)?;
     if problems.is_empty() {
+        tracing::info!(exhaustif = deep, "installation conforme");
         println!("Installation complète et conforme au verrou.");
         return Ok(());
+    }
+    // Une anomalie de vérification n'est pas une panne du programme : elle
+    // décrit l'installation. D'où `warn` plutôt que `error` — l'incident, c'est
+    // le code de sortie, que l'appelant voit déjà.
+    tracing::warn!(
+        anomalies = problems.len(),
+        exhaustif = deep,
+        "installation non conforme"
+    );
+    for problem in &problems {
+        tracing::debug!(anomalie = %problem, "détail");
     }
     eprintln!("{} anomalies :", problems.len());
     for problem in &problems {

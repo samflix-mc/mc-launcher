@@ -105,6 +105,7 @@ pub fn version_id(version: &str) -> String {
 /// Les fichiers vanilla de la version visée doivent déjà s'y trouver :
 /// l'installateur applique ses patchs au client de Mojang et échoue s'il ne le
 /// trouve pas.
+#[tracing::instrument(name = "neoforge client", skip(shared, cache, java, dl))]
 pub async fn install_client(
     version: &str,
     shared: &Path,
@@ -117,10 +118,14 @@ pub async fn install_client(
         .join(version_id(version))
         .join(format!("{}.json", version_id(version)));
     if produced.is_file() {
+        tracing::debug!(version, "déjà installé, installateur non relancé");
         return Ok(produced);
     }
 
     let installer = fetch_installer(version, cache, dl).await?;
+    // L'installateur applique des patchs binaires : sur une machine lente c'est
+    // une minute pendant laquelle rien ne bouge à l'écran.
+    tracing::info!(version, "exécution de l'installateur NeoForge");
 
     // L'installateur refuse de démarrer sans ce fichier : il y inscrit un
     // profil pour le launcher officiel. On n'en fait rien, mais son absence
@@ -143,6 +148,7 @@ pub async fn install_client(
 }
 
 /// Installe un serveur NeoForge complet dans son propre répertoire.
+#[tracing::instrument(name = "neoforge serveur", skip(dir, cache, java, dl))]
 pub async fn install_server(
     version: &str,
     dir: &Path,

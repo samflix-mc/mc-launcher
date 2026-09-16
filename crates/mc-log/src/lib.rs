@@ -12,6 +12,39 @@
 //!   automatique évite d'avoir à demander à un joueur de reproduire un bug
 //!   qu'il a déjà rencontré.
 //!
+//! ## Quel niveau pour quoi
+//!
+//! Sans règle, les niveaux dérivent : tout finit en `info` et le fichier
+//! devient illisible, ou tout finit en `debug` et la console ne dit plus rien.
+//! La règle tient en une question — **qui a besoin de lire cette ligne ?**
+//!
+//! | niveau | qui lit | exemples |
+//! |---|---|---|
+//! | `error` | l'utilisateur, tout de suite | l'installation a échoué, une dépendance est introuvable |
+//! | `warn` | celui qui diagnostique après coup | un réessai réseau, une clé refusée, un repli de source |
+//! | `info` | le compte rendu de l'exécution | les jalons : version résolue, 7 mods retenus, instance installée |
+//! | `debug` | celui qui cherche pourquoi | chaque mod retenu, chaque fichier écrit, chaque durée |
+//! | `trace` | le dernier recours | chaque requête HTTP, chaque fichier déjà conforme |
+//!
+//! La ligne à tenir est celle de `info` : l'enchaînement des `info` d'une
+//! exécution doit **raconter ce que le programme a fait**, sans détail inutile
+//! et sans trou. C'est ce qu'on relit en premier quand quelque chose a raté, et
+//! c'est ce que Sentry conserve.
+//!
+//! Les opérations qui durent ou qui peuvent échouer sont des **spans**, pas des
+//! événements : un span porte sa durée et ses champs, et rattache tout ce qui
+//! se produit pendant. Une installation lente se lit alors directement, sans
+//! avoir à soustraire des horodatages.
+//!
+//! ## Journal et affichage ne sont pas la même chose
+//!
+//! Les commandes écrivent sur la sortie standard un compte rendu mis en forme,
+//! destiné à un humain qui attend devant son terminal. Ce n'est pas un journal :
+//! ça ne porte ni niveau, ni champ, ni horodatage, et une interface graphique
+//! l'afficherait autrement. Les deux coexistent donc volontairement — le même
+//! jalon apparaît une fois en texte pour l'utilisateur, une fois en événement
+//! structuré pour le diagnostic.
+//!
 //! ## Ce qui ne part pas
 //!
 //! Le launcher détient des jetons Microsoft, Xbox Live et Minecraft. La
