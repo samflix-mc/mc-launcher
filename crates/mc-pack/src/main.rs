@@ -15,9 +15,13 @@
 //!
 //! **Lequel des trois packs** dépend de l'environnement de ce binaire, que la
 //! CI lui fige à la compilation : un launcher de préproduction télécharge le
-//! pack de préproduction, et rejoint le serveur que ce pack désigne pour elle.
-//! L'adresse était auparavant écrite en dur sur la production, si bien qu'une
-//! préproduction n'éprouvait rien de ce qu'elle était censée éprouver.
+//! pack de préproduction. L'adresse était auparavant écrite en dur sur la
+//! production, si bien qu'une préproduction n'éprouvait rien de ce qu'elle était
+//! censée éprouver.
+//!
+//! Le pack désigne aussi le serveur à rejoindre, par environnement — **quand il
+//! en désigne un**. La préproduction n'a pas de serveurs Minecraft derrière
+//! elle, et le jeu s'y ouvre donc sur le menu.
 //!
 //! Options communes :
 //!     --instance <NOM>   nom de l'instance, par défaut celui du pack
@@ -478,6 +482,7 @@ async fn launch(
     // Minecraft derrière elle, et le jeu s'y lance sans rejoindre quoi que ce
     // soit.
     let environnement = mc_log::environment::current();
+    let demande_explicite = serveur.is_some();
     let cible = serveur.or_else(|| {
         manifest
             .server_for(environnement)
@@ -503,10 +508,18 @@ async fn launch(
     println!("  version : {version_id}");
     println!("  joueur  : {} ({})", session.name, session.uuid);
     println!("  mods    : {}", instance.mods_dir().display());
-    match &launch_options.quick_play {
-        Some(mc_instance::launch::QuickPlay::Multiplayer(hote)) => {
-            println!("  serveur : {hote} ({})", environnement.as_str())
+    // La provenance est dite, pas seulement l'adresse : « mc.exemple.fr
+    // (production) » laissait croire que l'hôte venait du pack, alors qu'un
+    // --serveur peut désigner n'importe quoi. Quelqu'un qui diagnostique une
+    // éjection a besoin de savoir lequel des deux il regarde.
+    match (&launch_options.quick_play, demande_explicite) {
+        (Some(mc_instance::launch::QuickPlay::Multiplayer(hote)), true) => {
+            println!("  serveur : {hote} — demandé en ligne de commande")
         }
+        (Some(mc_instance::launch::QuickPlay::Multiplayer(hote)), false) => println!(
+            "  serveur : {hote} — déclaré par le pack pour « {} »",
+            environnement.as_str()
+        ),
         _ => println!(
             "  serveur : aucun pour « {} » — le jeu s'ouvrira sur le menu",
             environnement.as_str()
