@@ -9,6 +9,13 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# Les binaires publiés sur tag sont les seuls à porter « production ».
+# Sans cette déclaration ils retomberaient sur « local », le défaut prudent :
+# un incident de production classé en local se remarque, l'inverse pollue
+# silencieusement le seul environnement qu'on surveille.
+env:
+  SAMFLIX_ENV: production
+
 jobs:
   release:
     uses: samflix-mc/.github/.github/workflows/release-rust.yml@main

@@ -131,6 +131,13 @@ fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<()> {
         "  version    : {}",
         option_env!("CARGO_PKG_VERSION").unwrap_or("inconnue")
     );
+    // Affiché avec sa provenance : un environnement inattendu se remonte ainsi
+    // à sa source sans avoir à relire le code.
+    println!(
+        "  environnement : {} ({})",
+        mc_log::environment::current().as_str(),
+        mc_log::environment::origin()
+    );
 
     if incident_test {
         if !mc_log::telemetry_active() {

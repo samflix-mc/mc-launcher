@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# L'environnement suit ce que la CI construit : la branche principale prépare
+# une publication, tout le reste est du travail en cours. Le tag de production
+# est posé par le workflow de release, jamais ici.
+env:
+  SAMFLIX_ENV: ${{ github.ref == 'refs/heads/main' && 'preproduction' || 'development' }}
+
 jobs:
   check:
     runs-on: ubuntu-24.04-arm

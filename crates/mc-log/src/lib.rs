@@ -21,10 +21,13 @@
 //! cher que le jeton d'un compte Microsoft publié dans un tableau de bord.
 //!
 //! La remontée se coupe par `SAMFLIX_TELEMETRY=0`, et le DSN se remplace par
-//! `SENTRY_DSN`.
+//! `SENTRY_DSN`. L'environnement de déploiement est déclaré par `SAMFLIX_ENV`
+//! et vaut `local` à défaut — voir [`environment`].
 
+pub mod environment;
 pub mod redact;
 
+pub use environment::Environment;
 pub use redact::redact;
 
 use std::path::{Path, PathBuf};
@@ -258,11 +261,8 @@ fn init_sentry(component: &str) -> Option<sentry::ClientInitGuard> {
     // version de mc-pack d'une autre. La release nomme le launcher entier ; le
     // composant est porté par une étiquette séparée.
     options.release = Some(format!("mc-launcher@{}", env!("CARGO_PKG_VERSION")).into());
-    options.environment = Some(if cfg!(debug_assertions) {
-        "development".into()
-    } else {
-        "production".into()
-    });
+    // Déclaré, jamais déduit du profil de compilation : voir [`environment`].
+    options.environment = Some(environment::current().as_str().into());
     // Jamais : ce processus détient des jetons d'authentification.
     options.send_default_pii = false;
     options.attach_stacktrace = true;

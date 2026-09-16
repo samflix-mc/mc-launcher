@@ -224,6 +224,31 @@ dernières opérations. Pas d'adresse IP, pas de pseudo, pas de jeton.
 
 `SAMFLIX_TELEMETRY=0` coupe la remontée entièrement ; `SENTRY_DSN` la redirige.
 
+### Environnements
+
+| valeur | d'où elle vient |
+|---|---|
+| `local` | défaut — aucune déclaration, y compris en `--release` |
+| `development` | CI, sur une branche de travail |
+| `preproduction` | CI, sur `main` |
+| `production` | workflow de release, sur un tag `v*` |
+
+Un environnement décrit un **déploiement**, pas un profil de compilation. Les
+déduire l'un de l'autre a un coût immédiat : `cargo run --release` sur un poste
+n'a pas `debug_assertions` et se classait donc en `production` — les premiers
+incidents de test du projet y sont arrivés ainsi, dans un environnement où rien
+n'avait jamais été déployé.
+
+Il est donc déclaré par `SAMFLIX_ENV`, que la CI fige à la compilation et que
+le lancement peut surcharger — ce qui permet de rejouer un binaire de
+production en local sans salir la production. `mc-pack diagnostic` affiche la
+valeur retenue **et sa provenance**, pour qu'un environnement inattendu se
+remonte à sa source sans relire le code.
+
+Le défaut est `local` par prudence : un incident de production classé en local
+se remarque, puisqu'on le cherche et qu'on ne le trouve pas. L'inverse pollue
+silencieusement le seul environnement qu'on surveille vraiment.
+
 ## mc-auth
 
 Device code Microsoft → Xbox Live → XSTS → `login_with_xbox` → licence → profil.
