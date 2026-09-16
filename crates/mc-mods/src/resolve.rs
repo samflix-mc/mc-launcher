@@ -105,6 +105,53 @@ impl Reason {
     }
 }
 
+/// Ce qui départage deux branches qui réclament le même projet.
+///
+/// Le manifeste prime sur ce qu'une API déclare, qui prime sur ce qu'un jar
+/// exige ; et à origine égale, une demande épinglée prime sur une demande
+/// ouverte. Sans cet ordre, le premier arrivé gardait la place — donc le hasard
+/// du parcours décidait de la version installée.
+fn autorite(reason: &Reason, request: &Request) -> u8 {
+    let origine = match reason {
+        Reason::Explicit => 4,
+        Reason::Declared { .. } => 2,
+        Reason::Implicit { .. } => 0,
+    };
+    origine + u8::from(request.file.is_some() || request.version.is_some())
+}
+
+/// File de résolution : le manifeste d'abord, les dépendances ensuite.
+///
+/// Une seule file suffisait tant qu'on ne regardait que le résultat. Mais elle
+/// se vidait en pile : la dépendance d'une demande déjà dépilée passait avant
+/// les demandes restantes. Un mod à la fois épinglé par le verrou et dépendance
+/// d'un autre était donc résolu sans son épinglage, et la demande épinglée
+/// arrivait sur une clé déjà prise.
+#[derive(Default)]
+struct FileDeResolution {
+    manifeste: Vec<(Request, Reason)>,
+    derivees: Vec<(Request, Reason)>,
+}
+
+impl FileDeResolution {
+    fn pousser(&mut self, request: Request, reason: Reason) {
+        match reason {
+            Reason::Explicit => self.manifeste.push((request, reason)),
+            _ => self.derivees.push((request, reason)),
+        }
+    }
+
+    /// Dépile en profondeur, mais jamais une dépendance tant que le manifeste
+    /// n'est pas entièrement traité.
+    fn suivante(&mut self) -> Option<(Request, Reason)> {
+        self.manifeste.pop().or_else(|| self.derivees.pop())
+    }
+
+    fn est_vide(&self) -> bool {
+        self.manifeste.is_empty() && self.derivees.is_empty()
+    }
+}
+
 /// Un mod résolu, téléchargé et analysé.
 #[derive(Debug, Clone)]
 pub struct Installed {
@@ -395,14 +442,16 @@ pub async fn resolve_with(
     // Clé d'unicité : un projet ne peut être présent qu'une fois. Deux versions
     // du même mod dans `mods` font échouer NeoForge au chargement.
     let mut chosen: BTreeMap<(Origin, String), Installed> = BTreeMap::new();
+    // Au nom de quoi chaque clé a été retenue, pour savoir si une demande
+    // arrivée ensuite a le droit de reprendre la place.
+    let mut autorites: BTreeMap<(Origin, String), u8> = BTreeMap::new();
     let mut plan = Plan::default();
 
     // --- Tour 1 : ce que le manifeste demande, et ce que les API déclarent ---
-    let mut queue: Vec<(Request, Reason)> = requests
-        .iter()
-        .cloned()
-        .map(|r| (r, Reason::Explicit))
-        .collect();
+    let mut queue = FileDeResolution::default();
+    for request in requests {
+        queue.pousser(request.clone(), Reason::Explicit);
+    }
 
     let mut pass = 0;
     loop {
@@ -415,7 +464,7 @@ pub async fn resolve_with(
         }
 
         // Résolution en largeur : les dépendances déclarées rejoignent la file.
-        while let Some((request, reason)) = queue.pop() {
+        while let Some((request, reason)) = queue.suivante() {
             let key = |c: &Candidate| (c.origin, c.project_id.clone());
 
             let candidate = match registry.pinned(&request, mc, loader).await? {
@@ -479,11 +528,41 @@ pub async fn resolve_with(
             );
 
             let id = key(&candidate);
-            if let Some(existing) = chosen.get_mut(&id) {
-                // Déjà retenu par une autre branche : on ne retélécharge pas,
+            let entrante = autorite(&reason, &request);
+            let mut cote = side_for(&request, &candidate);
+
+            if let Some(existing) = chosen.get(&id) {
+                let retenue = autorites.get(&id).copied().unwrap_or(0);
+                cote = existing.side.union(cote);
+
+                // Déjà retenu par une branche au moins aussi autoritaire, ou
+                // les deux désignent le même build : on ne retélécharge pas,
                 // mais le côté doit couvrir les deux usages.
-                existing.side = existing.side.union(side_for(&request, &candidate));
-                continue;
+                if entrante <= retenue || existing.candidate.version_id == candidate.version_id {
+                    if let Some(existing) = chosen.get_mut(&id) {
+                        existing.side = cote;
+                    }
+                    autorites.insert(id, retenue.max(entrante));
+                    continue;
+                }
+
+                // Une demande plus autoritaire arrive après coup. Se contenter
+                // de fusionner les côtés reviendrait à installer le build de
+                // l'autre branche en gardant le silence : le joueur n'aurait
+                // pas la version que le verrou promet, et rien ne le dirait.
+                tracing::warn!(
+                    slug = %candidate.slug,
+                    ecartee = %existing.candidate.version_number,
+                    retenue = %candidate.version_number,
+                    "« {} » : {} impose {}, qui remplace {} retenue jusqu'ici",
+                    candidate.slug,
+                    reason.describe(),
+                    candidate.version_number,
+                    existing.candidate.version_number,
+                );
+                // L'insertion ci-dessous écrase l'entrée : le chemin repart
+                // vide, donc le bon jar sera téléchargé, et les dépendances du
+                // build qui l'emporte repassent par la file.
             }
 
             let deps: Vec<_> = if options.follow_declared {
@@ -494,10 +573,11 @@ pub async fn resolve_with(
             let parent = candidate.name.clone();
             let source = candidate.origin;
 
+            autorites.insert(id.clone(), entrante);
             chosen.insert(
                 id,
                 Installed {
-                    side: side_for(&request, &candidate),
+                    side: cote,
                     path: PathBuf::new(),
                     provides: BTreeSet::new(),
                     requires: Vec::new(),
@@ -509,7 +589,7 @@ pub async fn resolve_with(
             for dep in deps {
                 // Une dépendance se résout dans la source de son parent : un
                 // identifiant Modrinth n'existe pas chez CurseForge.
-                queue.push((
+                queue.pousser(
                     Request {
                         slug: dep.project_id,
                         source: Some(source),
@@ -522,7 +602,7 @@ pub async fn resolve_with(
                         expected_sha1: None,
                     },
                     Reason::Declared { by: parent.clone() },
-                ));
+                );
             }
         }
 
@@ -570,7 +650,7 @@ pub async fn resolve_with(
                 expected_sha1: None,
             };
             match pick(found, &request) {
-                Some(candidate) => queue.push((
+                Some(candidate) => queue.pousser(
                     Request {
                         slug: candidate.project_id.clone(),
                         source: Some(candidate.origin),
@@ -584,7 +664,7 @@ pub async fn resolve_with(
                         by: required_by,
                         mod_id,
                     },
-                )),
+                ),
                 // Une dépendance introuvable n'arrête pas tout : elle peut être
                 // fournie par un jar non encore analysé, ou relever d'un mod
                 // absent des deux plateformes. L'appelant tranche.
@@ -603,7 +683,7 @@ pub async fn resolve_with(
             }
         }
 
-        if queue.is_empty() {
+        if queue.est_vide() {
             break;
         }
         // Un nouveau tour va résoudre la file : les manques déjà consignés
@@ -1026,6 +1106,70 @@ mod tests {
         ]);
         deduplicate_by_mod_id(&mut chosen);
         assert_eq!(chosen.len(), 2);
+    }
+
+    #[test]
+    fn le_manifeste_passe_avant_les_dependances_meme_poussees_en_cours_de_route() {
+        // Le défaut d'origine tenait entièrement ici. En pile unique, la
+        // dépendance poussée par « b » passait avant la demande « a » restante :
+        // « a » était résolu sans son épinglage, et la demande épinglée trouvait
+        // ensuite la clé prise. Le joueur installait un autre build que celui du
+        // verrou, sans que rien ne le signale.
+        let mut queue = FileDeResolution::default();
+        queue.pousser(Request::new("a"), Reason::Explicit);
+        queue.pousser(Request::new("b"), Reason::Explicit);
+
+        let (premier, _) = queue.suivante().unwrap();
+        assert_eq!(premier.slug, "b");
+        queue.pousser(Request::new("a"), Reason::Declared { by: "b".into() });
+
+        let (ensuite, raison) = queue.suivante().unwrap();
+        assert_eq!(ensuite.slug, "a");
+        assert_eq!(raison, Reason::Explicit);
+
+        let (enfin, raison) = queue.suivante().unwrap();
+        assert_eq!(enfin.slug, "a");
+        assert_eq!(raison, Reason::Declared { by: "b".into() });
+        assert!(queue.est_vide());
+    }
+
+    #[test]
+    fn le_manifeste_fait_autorite_sur_une_dependance_meme_epinglee() {
+        let mut epinglee = Request::new("jade");
+        epinglee.file = Some("abc".into());
+
+        assert!(
+            autorite(&Reason::Explicit, &Request::new("jade"))
+                > autorite(&Reason::Declared { by: "x".into() }, &epinglee)
+        );
+    }
+
+    #[test]
+    fn a_origine_egale_l_epinglage_fait_autorite() {
+        let mut epinglee = Request::new("jade");
+        epinglee.file = Some("abc".into());
+        let raison = Reason::Declared { by: "x".into() };
+
+        assert!(autorite(&raison, &epinglee) > autorite(&raison, &Request::new("jade")));
+
+        // Le numéro de version épingle tout autant que l'identifiant de build.
+        let mut par_version = Request::new("jade");
+        par_version.version = Some("1.2.3".into());
+        assert_eq!(autorite(&raison, &par_version), autorite(&raison, &epinglee));
+    }
+
+    #[test]
+    fn une_dependance_declaree_fait_autorite_sur_une_dependance_implicite() {
+        assert!(
+            autorite(&Reason::Declared { by: "x".into() }, &Request::new("lib"))
+                > autorite(
+                    &Reason::Implicit {
+                        by: "x".into(),
+                        mod_id: "lib".into()
+                    },
+                    &Request::new("lib")
+                )
+        );
     }
 
     #[test]
