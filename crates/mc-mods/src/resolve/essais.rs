@@ -51,7 +51,7 @@ pub(crate) fn installed(slug: &str, provides: &[&str], requires: &[(&str, Side)]
         reason: Reason::Explicit,
         autorite: 4,
         path: PathBuf::from("/cache").join(format!("{slug}.jar")),
-        provides: provides.iter().map(|s| s.to_string()).collect(),
+        provides: provides.iter().map(ToString::to_string).collect(),
         requires: requires
             .iter()
             .map(|(id, side)| Requirement {

@@ -1,7 +1,7 @@
 use super::*;
 
 fn lire(args: &[&str]) -> Arguments {
-    Arguments::lire(args.iter().map(|s| s.to_string()))
+    Arguments::lire(args.iter().map(ToString::to_string))
         .expect("arguments valides")
         .expect("une commande")
 }
@@ -35,7 +35,7 @@ fn les_options_a_valeur_prennent_le_mot_suivant() {
 /// frappe sur `--pseudo` lancerait sinon le jeu sous un autre nom.
 #[test]
 fn une_option_inconnue_arrete_tout() {
-    let erreur = Arguments::lire(["launch", "--psuedo", "Sam"].iter().map(|s| s.to_string()))
+    let erreur = Arguments::lire(["launch", "--psuedo", "Sam"].iter().map(ToString::to_string))
         .expect_err("option inconnue");
     assert!(erreur.to_string().contains("--psuedo"), "{erreur}");
 }
