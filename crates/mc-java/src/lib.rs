@@ -210,7 +210,10 @@ pub async fn ensure(major: u32, runtime_dir: &Path) -> Result<Java> {
     }
     // Le seul cas qui coûte du temps et de la bande passante : il mérite d'être
     // visible sans avoir à relever la verbosité.
-    tracing::info!(majeur = major, "aucun Java utilisable, installation");
+    tracing::info!(
+        majeur = major,
+        "Aucun Java {major} sur ce poste, installation de Temurin"
+    );
     install(major, runtime_dir).await
 }
 

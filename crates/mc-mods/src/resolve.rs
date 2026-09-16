@@ -539,7 +539,8 @@ pub async fn resolve_with(
                 tour = pass,
                 jars = a_telecharger,
                 duree_ms = debut.elapsed().as_millis(),
-                "jars téléchargés et analysés"
+                "{a_telecharger} jars téléchargés et analysés en {} ms (tour {pass})",
+                debut.elapsed().as_millis()
             );
         }
 
@@ -556,7 +557,7 @@ pub async fn resolve_with(
             tracing::info!(
                 mod_id = %mod_id,
                 exige_par = %required_by,
-                "dépendance implicite détectée dans un jar"
+                "Dépendance implicite : {required_by} exige « {mod_id} », qu'aucune API ne déclarait"
             );
             let found = registry.find_by_mod_id(&mod_id, mc, loader).await?;
             let request = Request {
@@ -591,7 +592,7 @@ pub async fn resolve_with(
                     tracing::error!(
                         mod_id = %mod_id,
                         exige_par = %required_by,
-                        "dépendance introuvable sur toutes les sources"
+                        "« {mod_id} », exigé par {required_by}, est introuvable sur toutes les sources"
                     );
                     plan.unresolved.push(Unresolved {
                         mod_id,

@@ -359,7 +359,8 @@ async fn install_assets(index: &AssetIndexRef, shared: &Path, dl: &Downloader) -
         total,
         telecharges = downloaded,
         deja_presents = total - downloaded,
-        "assets"
+        "{downloaded} assets téléchargés sur {total} ({} déjà présents)",
+        total - downloaded
     );
     Ok(downloaded)
 }

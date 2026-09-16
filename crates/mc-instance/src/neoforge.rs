@@ -125,7 +125,10 @@ pub async fn install_client(
     let installer = fetch_installer(version, cache, dl).await?;
     // L'installateur applique des patchs binaires : sur une machine lente c'est
     // une minute pendant laquelle rien ne bouge à l'écran.
-    tracing::info!(version, "exécution de l'installateur NeoForge");
+    tracing::info!(
+        version,
+        "Exécution de l'installateur NeoForge {version} — peut prendre une minute"
+    );
 
     // L'installateur refuse de démarrer sans ce fichier : il y inscrit un
     // profil pour le launcher officiel. On n'en fait rien, mais son absence

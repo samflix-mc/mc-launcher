@@ -80,7 +80,12 @@ async fn main() -> Result<()> {
     let _entree = span.enter();
 
     let debut = std::time::Instant::now();
-    tracing::info!("démarrage");
+    tracing::info!(
+        environnement = mc_log::environment::current().as_str(),
+        "mc-pack {command} sur {} — environnement {}",
+        manifest_path.display(),
+        mc_log::environment::current().as_str()
+    );
 
     let result = match command.as_str() {
         "install" => install(&manifest_path, &options).await,
@@ -96,12 +101,17 @@ async fn main() -> Result<()> {
     // Une erreur remontée jusqu'ici met fin au programme : c'est le dernier
     // endroit où elle peut devenir un incident plutôt qu'un simple message.
     match &result {
-        Ok(_) => tracing::info!(duree_ms = debut.elapsed().as_millis(), "terminé"),
+        Ok(_) => tracing::info!(
+            duree_ms = debut.elapsed().as_millis(),
+            "mc-pack {command} terminé en {:.1} s",
+            debut.elapsed().as_secs_f64()
+        ),
         Err(error) => {
             tracing::error!(
                 duree_ms = debut.elapsed().as_millis(),
                 erreur = ?error,
-                "échec"
+                "mc-pack {command} a échoué après {:.1} s : {error}",
+                debut.elapsed().as_secs_f64()
             );
             if let Some(path) = _log.log_path() {
                 eprintln!("\nJournal détaillé : {}", path.display());
@@ -223,7 +233,10 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
         pack = %manifest.name,
         minecraft = %manifest.minecraft,
         demandes = manifest.mods.len(),
-        "manifeste lu"
+        "Pack « {} » : Minecraft {}, {} mods demandés",
+        manifest.name,
+        manifest.minecraft,
+        manifest.mods.len()
     );
 
     let neoforge_version = if manifest.loader.is_latest() {
@@ -234,7 +247,13 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
     tracing::info!(
         neoforge = %neoforge_version,
         epingle = !manifest.loader.is_latest(),
-        "version du chargeur retenue"
+        "NeoForge {} retenu ({})",
+        neoforge_version,
+        if manifest.loader.is_latest() {
+            "dernière version publiée"
+        } else {
+            "épinglé par le manifeste"
+        }
     );
 
     let registry = mc_mods::Registry::new(options.layout.cache().join("mods"))?;
@@ -255,7 +274,8 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
         total = plan.mods.len(),
         ajoutes,
         non_resolus = plan.unresolved.len(),
-        "mods résolus"
+        "{} mods résolus, dont {ajoutes} ajoutés par dépendance",
+        plan.mods.len()
     );
 
     let lock_path = Lockfile::path_for(manifest_path);
@@ -282,7 +302,13 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
         verrou = %lock_path.display(),
         changements,
         nouveau = previous.is_none(),
-        "verrou écrit"
+        "Verrou écrit dans {} ({})",
+        lock_path.display(),
+        match (previous.is_none(), changements) {
+            (true, _) => "nouveau".to_string(),
+            (false, 0) => "inchangé".to_string(),
+            (false, n) => format!("{n} changements"),
+        }
     );
 
     println!(
@@ -313,7 +339,11 @@ async fn lock(manifest_path: &Path, options: &mc_pack::Options) -> Result<()> {
 fn verify(manifest_path: &Path, options: &mc_pack::Options, deep: bool) -> Result<()> {
     let problems = mc_pack::verify(manifest_path, options, deep)?;
     if problems.is_empty() {
-        tracing::info!(exhaustif = deep, "installation conforme");
+        tracing::info!(
+            exhaustif = deep,
+            "Installation conforme au verrou{}",
+            if deep { ", empreintes comprises" } else { "" }
+        );
         println!("Installation complète et conforme au verrou.");
         return Ok(());
     }
@@ -323,7 +353,8 @@ fn verify(manifest_path: &Path, options: &mc_pack::Options, deep: bool) -> Resul
     tracing::warn!(
         anomalies = problems.len(),
         exhaustif = deep,
-        "installation non conforme"
+        "Installation non conforme : {} anomalies",
+        problems.len()
     );
     for problem in &problems {
         tracing::debug!(anomalie = %problem, "détail");

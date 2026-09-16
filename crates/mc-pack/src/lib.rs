@@ -94,7 +94,8 @@ pub async fn install(
         minecraft = %manifest.minecraft,
         neoforge = %neoforge_version,
         epingle = !manifest.loader.is_latest(),
-        "versions retenues"
+        "Minecraft {} avec NeoForge {neoforge_version}",
+        manifest.minecraft
     );
     log(&format!(
         "Minecraft {} — NeoForge {neoforge_version}",
@@ -110,7 +111,9 @@ pub async fn install(
         bibliotheques = game.libraries.len(),
         assets_telecharges = game.assets_downloaded,
         index_assets = %game.asset_index_id,
-        "fichiers du jeu en place"
+        "Fichiers du jeu en place : {} bibliothèques, {} assets téléchargés",
+        game.libraries.len(),
+        game.assets_downloaded
     );
     log(&format!(
         "  {} bibliothèques, {} assets téléchargés",
@@ -127,7 +130,12 @@ pub async fn install(
         version = %java.version.full,
         majeur_exige = java_major,
         origine = ?java.origin,
-        "runtime Java"
+        "Java {} utilisé ({})",
+        java.version.full,
+        match java.origin {
+            mc_java::Origin::Managed => "installé par le launcher",
+            mc_java::Origin::System => "runtime du système",
+        }
     );
     log(&format!(
         "Java {} — {}",
@@ -146,20 +154,31 @@ pub async fn install(
     )
     .await
     .with_context(|| format!("installation de NeoForge {neoforge_version}"))?;
-    tracing::info!(version = %neoforge_version, "chargeur NeoForge en place");
+    tracing::info!(
+        version = %neoforge_version,
+        "Chargeur NeoForge {neoforge_version} en place"
+    );
 
     // --- 5. Mods -------------------------------------------------------------
     let registry = mc_mods::Registry::new(layout.cache().join("mods"))?;
     let requests = if options.locked {
         let lock = previous_lock.as_ref().expect("vérifié plus haut");
-        tracing::info!(builds = lock.mods.len(), "rejeu du verrou");
+        tracing::info!(
+            builds = lock.mods.len(),
+            "Rejeu du verrou : {} builds épinglés",
+            lock.mods.len()
+        );
         log(&format!(
             "Mods : {} builds rejoués depuis le verrou",
             lock.mods.len()
         ));
         lock.requests()
     } else {
-        tracing::info!(demandes = manifest.mods.len(), "résolution des mods");
+        tracing::info!(
+            demandes = manifest.mods.len(),
+            "Résolution de {} mods demandés",
+            manifest.mods.len()
+        );
         log("Résolution des mods…");
         manifest.requests()?
     };
@@ -174,7 +193,8 @@ pub async fn install(
         total = plan.mods.len(),
         ajoutes = added,
         non_resolus = plan.unresolved.len(),
-        "mods résolus"
+        "{} mods résolus, dont {added} ajoutés par dépendance",
+        plan.mods.len()
     );
     log(&format!(
         "  {} mods, dont {added} ajoutés par résolution des dépendances",
@@ -203,7 +223,10 @@ pub async fn install(
         client = client.installed,
         serveur = server.installed,
         retires = client.removed.len() + server.removed.len(),
-        "mods déployés"
+        "Instance « {} » : {} mods côté client, {} côté serveur",
+        instance.name,
+        client.installed,
+        server.installed
     );
 
     if options.with_server {
@@ -217,7 +240,11 @@ pub async fn install(
         )
         .await
         .with_context(|| format!("installation du serveur NeoForge {neoforge_version}"))?;
-        tracing::info!(repertoire = %server_dir.display(), "serveur NeoForge en place");
+        tracing::info!(
+            repertoire = %server_dir.display(),
+            "Serveur NeoForge installé dans {}",
+            server_dir.display()
+        );
     }
 
     // --- 6. Verrou -----------------------------------------------------------
