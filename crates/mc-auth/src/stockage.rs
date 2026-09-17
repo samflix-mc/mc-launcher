@@ -6,7 +6,7 @@
 //! reconnaît déjà `refresh_token` et `access_token`, mais le mieux reste de ne
 //! pas l'écrire.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 
@@ -23,17 +23,35 @@ pub fn chemin() -> PathBuf {
 }
 
 /// La session enregistrée, ou `None` si personne ne s'est connecté ici.
+pub fn charger() -> Option<serde_json::Value> {
+    charger_depuis(&chemin())
+}
+
+/// Écrit la session, lisible par son seul propriétaire.
+pub fn enregistrer(etat: &serde_json::Value) -> Result<()> {
+    enregistrer_dans(&chemin(), etat)
+}
+
+/// Oublie la session. Ne pas en avoir n'est pas une erreur.
+pub fn effacer() -> Result<()> {
+    effacer_de(&chemin())
+}
+
+/// Les trois opérations prennent le chemin en argument plutôt que de le lire
+/// de l'environnement : c'est le seul moyen de vérifier qu'un fichier corrompu
+/// n'empêche pas de jouer, et que le jeton est bien écrit en `0600`, sans
+/// toucher à la session réelle du poste qui exécute les tests.
 ///
 /// Un fichier illisible n'est pas une erreur fatale : il vaut « pas de
 /// session », et l'appelant proposera de se connecter. Le contraire
 /// empêcherait de jouer à cause d'un fichier corrompu.
-pub fn charger() -> Option<serde_json::Value> {
-    let brut = std::fs::read(chemin()).ok()?;
+pub(crate) fn charger_depuis(chemin: &Path) -> Option<serde_json::Value> {
+    let brut = std::fs::read(chemin).ok()?;
     match serde_json::from_slice(&brut) {
         Ok(etat) => Some(etat),
         Err(erreur) => {
             tracing::warn!(
-                fichier = %chemin().display(),
+                fichier = %chemin.display(),
                 erreur = %erreur,
                 "session enregistrée illisible, connexion à refaire"
             );
@@ -42,27 +60,24 @@ pub fn charger() -> Option<serde_json::Value> {
     }
 }
 
-/// Écrit la session, lisible par son seul propriétaire.
-pub fn enregistrer(etat: &serde_json::Value) -> Result<()> {
-    let chemin = chemin();
+pub(crate) fn enregistrer_dans(chemin: &Path, etat: &serde_json::Value) -> Result<()> {
     if let Some(parent) = chemin.parent() {
         std::fs::create_dir_all(parent)
             .with_context(|| format!("création de {}", parent.display()))?;
     }
 
     let brut = serde_json::to_vec_pretty(etat).context("sérialisation de la session")?;
-    ecrire_protege(&chemin, &brut).with_context(|| format!("écriture de {}", chemin.display()))?;
+    ecrire_protege(chemin, &brut).with_context(|| format!("écriture de {}", chemin.display()))?;
 
     tracing::debug!(fichier = %chemin.display(), "session enregistrée");
     Ok(())
 }
 
-/// Oublie la session. Ne pas en avoir n'est pas une erreur.
-pub fn effacer() -> Result<()> {
-    match std::fs::remove_file(chemin()) {
+pub(crate) fn effacer_de(chemin: &Path) -> Result<()> {
+    match std::fs::remove_file(chemin) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e).with_context(|| format!("suppression de {}", chemin().display())),
+        Err(e) => Err(e).with_context(|| format!("suppression de {}", chemin.display())),
     }
 }
 

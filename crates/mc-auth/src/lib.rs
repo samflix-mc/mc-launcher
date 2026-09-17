@@ -66,3 +66,7 @@ impl Session {
         !self.minecraft_token.is_empty()
     }
 }
+
+#[cfg(test)]
+#[path = "lib.test.rs"]
+mod tests;

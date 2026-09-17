@@ -97,3 +97,7 @@ fn client() -> Result<reqwest::Client> {
         .build()
         .context("construction du client HTTP")
 }
+
+#[cfg(test)]
+#[path = "auth.test.rs"]
+mod tests;
