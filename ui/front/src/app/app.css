@@ -1,0 +1,135 @@
+.launcher {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 32px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.entete h1 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: 0.5px;
+}
+
+.sous-titre {
+  margin: 4px 0 0;
+  color: var(--texte-attenue);
+  font-size: 14px;
+}
+
+.carte {
+  background: var(--carte);
+  border: 1px solid var(--bordure);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.carte h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--texte-attenue);
+}
+
+.explication {
+  margin: 0;
+  color: var(--texte-attenue);
+  font-size: 14px;
+}
+
+.profil {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0;
+  width: 100%;
+}
+
+.profil dt {
+  color: var(--texte-attenue);
+  font-size: 13px;
+}
+
+.profil dd {
+  margin: 0;
+}
+
+.mono,
+.code {
+  font-family: ui-monospace, monospace;
+}
+
+/* Le code est lu à l'écran puis recopié sur un téléphone ou dans une autre
+   fenêtre : il est la seule chose de cet écran qu'on regarde de loin. */
+.code {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: 3px;
+  color: var(--accent-clair);
+}
+
+.bouton {
+  font: inherit;
+  padding: 9px 18px;
+  border-radius: 7px;
+  border: 1px solid var(--bordure);
+  background: transparent;
+  color: var(--texte);
+  cursor: pointer;
+}
+
+.bouton:hover:not(:disabled) {
+  border-color: var(--texte-attenue);
+}
+
+.bouton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bouton--principal {
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.bouton--principal:hover:not(:disabled) {
+  background: var(--accent-clair);
+  border-color: var(--accent-clair);
+}
+
+.bouton:focus-visible {
+  outline: 2px solid var(--accent-clair);
+  outline-offset: 2px;
+}
+
+.bandeau {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--bordure);
+  background: var(--carte);
+  font-size: 14px;
+}
+
+.bandeau--avertissement {
+  border-color: var(--avertissement);
+  color: var(--avertissement);
+}
+
+.bandeau--erreur {
+  border-color: var(--erreur);
+  color: var(--erreur);
+}
+
+.bandeau code {
+  font-family: ui-monospace, monospace;
+}

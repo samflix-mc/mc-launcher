@@ -1,0 +1,10 @@
+# pnpm 12 n'exécute aucun script d'installation sans autorisation explicite, et
+# la lit ici. Les quatre qui suivent sont la chaîne de compilation d'Angular :
+# esbuild déplie son binaire natif, lmdb et msgpackr son cache de build,
+# @parcel/watcher la surveillance des fichiers. Sans eux, `ng build` retombe sur
+# des implémentations JavaScript nettement plus lentes — ou échoue.
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  lmdb: true
+  msgpackr-extract: true

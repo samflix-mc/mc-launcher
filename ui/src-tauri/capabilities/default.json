@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Ce que la fenêtre a le droit de demander au système : les quatre commandes du launcher, et l'ouverture de la page de connexion Microsoft.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:allow-open-url",
+    "opener:allow-default-urls"
+  ]
+}

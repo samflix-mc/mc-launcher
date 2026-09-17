@@ -1,0 +1,45 @@
+# Un workspace à part, volontairement.
+#
+# `[workspace]` vide détache ce crate de celui de la racine : l'interface est
+# encore une maquette, et rien de ce qui la concerne — la chaîne WebKit, le
+# verrou pnpm, le temps de compilation de Tauri — n'a de raison de peser sur
+# le `cargo test` du launcher. Le jour où elle devient le point d'entrée du
+# produit, il suffira de l'ajouter aux membres de la racine.
+[workspace]
+
+[package]
+name = "samflix-launcher"
+version = "0.1.0"
+description = "Interface du launcher samflix-mc"
+edition = "2024"
+license = "MIT"
+
+[lib]
+# Un nom distinct de celui du paquet : sur mobile, Tauri charge la
+# bibliothèque, et elle ne peut pas porter le nom du binaire.
+name = "samflix_launcher_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6", features = [] }
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2.11", features = [] }
+tauri-plugin-opener = "2"
+tracing = "0.1"
+
+# La chaîne Microsoft → Xbox Live → XSTS → Minecraft, telle qu'elle est déjà
+# écrite et testée pour la ligne de commande. L'interface ne la réécrit pas :
+# elle l'appelle, et n'ajoute que de quoi l'afficher.
+mc-auth = { path = "../../crates/mc-auth" }
+# Pour la censure des jetons : tout ce que ce binaire journalise passe par
+# elle, fenêtre graphique comprise.
+mc-log = { path = "../../crates/mc-log" }
+
+# Le trousseau du système — Secret Service sous Linux, Keychain sous macOS,
+# Credential Manager sous Windows. Voir `coffre.rs` pour ce qui se passe quand
+# la machine n'en a pas.
+keyring = "4"

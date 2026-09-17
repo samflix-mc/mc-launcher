@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "samflix-launcher",
+  "version": "0.1.0",
+  "identifier": "mc.samflix.launcher",
+  "build": {
+    "frontendDist": "../front/dist/front/browser",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "pnpm --dir front start",
+    "beforeBuildCommand": "pnpm --dir front build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "samflix-mc",
+        "width": 880,
+        "height": 620,
+        "minWidth": 720,
+        "minHeight": 520,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

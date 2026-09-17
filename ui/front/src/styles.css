@@ -1,0 +1,49 @@
+/*
+ * Les quelques règles qui valent pour toute la fenêtre.
+ *
+ * Pas de framework : l'écran tient en trois cartes et quatre boutons, et une
+ * dépendance de mise en forme coûterait plus à relire qu'elle ne fait gagner.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --fond: #14161a;
+  --carte: #1c1f25;
+  --bordure: #2b303a;
+  --texte: #e6e8ec;
+  --texte-attenue: #9aa2b1;
+  --accent: #5b8731; /* le vert de Minecraft, déjà celui du README */
+  --accent-clair: #71a83e;
+  --avertissement: #d9a441;
+  --erreur: #e06c5d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--fond);
+  color: var(--texte);
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* La fenêtre n'est pas une page web : rien à sélectionner ni à faire glisser,
+   sauf le texte qu'on recopie — le code d'appareil et l'UUID. */
+body {
+  user-select: none;
+}
+
+.mono,
+.code {
+  user-select: text;
+}
