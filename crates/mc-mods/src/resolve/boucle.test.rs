@@ -1,5 +1,7 @@
 use super::{resolve, resolve_with};
-use crate::essais::{Atelier, Projet, Version, jar, jar_avec_embarque, publier};
+use crate::essais::{
+    Atelier, Projet, Version, jar, jar_avec_deux_embarques, jar_avec_embarque, publier,
+};
 use crate::jar::Side;
 use crate::resolve::demande::Request;
 use crate::resolve::registre::Registry;
@@ -178,11 +180,19 @@ async fn une_bibliotheque_embarquee_ne_provoque_pas_de_doublon() {
     .unwrap();
 
     assert_eq!(retenus(&plan), vec!["architectury"]);
+    // Le jar embarqué est compté comme apport, et non comme identité : c'est
+    // ce qui permet à un autre mod d'embarquer la même bibliothèque sans
+    // passer pour un doublon.
     assert!(
-        plan.mods[0].provides.contains("cloth-config"),
+        plan.mods[0].bundled.contains("cloth-config"),
         "le jar embarqué n'est pas compté : {:?}",
-        plan.mods[0].provides
+        plan.mods[0].bundled
     );
+    assert!(
+        !plan.mods[0].provides.contains("cloth-config"),
+        "un modId embarqué ne doit pas devenir l'identité du mod"
+    );
+    assert!(plan.mods[0].fournit().any(|id| id == "cloth-config"));
 }
 
 /// Ce que personne ne peut fournir n'arrête pas l'installation : c'est
@@ -399,5 +409,177 @@ async fn un_pack_qui_ne_se_stabilise_pas_finit_par_s_arreter() {
     assert!(
         format!("{erreur:#}").contains("ne se stabilise pas"),
         "{erreur:#}"
+    );
+}
+
+/// Le cas qui a fait retirer Sodium, Iris et EntityCulling du pack samflix.
+///
+/// Deux mods distincts embarquent la même bibliothèque — les shims Fabric pour
+/// Sodium et Iris, les libs de tr7zw pour EntityCulling et Not Enough
+/// Animations. Un `modId` embarqué n'est pas l'identité du mod : NeoForge sait
+/// dédupliquer les jars embarqués au chargement, et un pack qui garde Iris sans
+/// Sodium est cassé.
+#[tokio::test]
+async fn deux_mods_qui_embarquent_la_meme_bibliotheque_survivent_tous_les_deux() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("embarque-partage");
+
+    for slug in ["sodium", "iris"] {
+        let contenu = jar_avec_embarque(slug, "fabric_api_base");
+        let route = format!("/{slug}.jar");
+        serveur.octets(&route, &contenu);
+        publier(
+            &serveur,
+            &Projet::nouveau(slug).version(Version::nouvelle(
+                "1.0",
+                &serveur.url(&route),
+                &contenu,
+            )),
+        );
+    }
+
+    let plan = resolve(
+        &registre(&atelier, &serveur),
+        &demandes(&["sodium", "iris"]),
+        MC,
+        LOADER,
+    )
+    .await
+    .expect("les deux mods sont demandés au manifeste");
+
+    assert_eq!(retenus(&plan), vec!["iris", "sodium"], "un mod a disparu");
+}
+
+/// Deux jars portant réellement le même `modId` racine restent dédupliqués : la
+/// règle d'origine vaut toujours, c'est son périmètre qui était trop large.
+/// Ici les deux sont explicites, donc la contradiction du manifeste s'annonce.
+#[tokio::test]
+async fn deux_mods_explicites_du_meme_modid_racine_arretent_la_resolution() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("meme-modid-racine");
+
+    // Deux projets distincts publient le même mod — le cas d'un fork, ou d'un
+    // miroir. NeoForge n'en chargerait qu'un.
+    for slug in ["jade", "jade-miroir"] {
+        let contenu = jar("jade", &[]);
+        let route = format!("/{slug}.jar");
+        serveur.octets(&route, &contenu);
+        publier(
+            &serveur,
+            &Projet::nouveau(slug).version(Version::nouvelle(
+                "1.0",
+                &serveur.url(&route),
+                &contenu,
+            )),
+        );
+    }
+
+    let erreur = resolve(
+        &registre(&atelier, &serveur),
+        &demandes(&["jade", "jade-miroir"]),
+        MC,
+        LOADER,
+    )
+    .await
+    .expect_err("le manifeste demande deux fois le même mod");
+
+    // Le mod écarté, celui qui garde la place et le modId en cause doivent
+    // être nommés : sans eux, le message n'apprend rien.
+    let texte = format!("{erreur:#}");
+    assert!(texte.contains("jade-miroir"), "{texte}");
+    assert!(texte.contains("modId"), "{texte}");
+}
+
+/// Une dépendance écartée au profit d'un mod qui porte le même `modId` racine
+/// n'est pas une contradiction : personne ne l'avait demandée nommément. La
+/// résolution continue, en le disant.
+#[tokio::test]
+async fn une_dependance_ecartee_par_deduplication_n_arrete_rien() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("dedup-dependance");
+
+    // `principal` exige `jade`, que deux projets fournissent sous le même
+    // modId racine ; l'un est demandé au manifeste, l'autre arrive par
+    // dépendance déclarée.
+    let jade = jar("jade", &[]);
+    serveur.octets("/jade.jar", &jade);
+    publier(
+        &serveur,
+        &Projet::nouveau("jade").version(Version::nouvelle(
+            "1.0",
+            &serveur.url("/jade.jar"),
+            &jade,
+        )),
+    );
+
+    let miroir = jar("jade", &[]);
+    serveur.octets("/jade-miroir.jar", &miroir);
+    publier(
+        &serveur,
+        &Projet::nouveau("jade-miroir").version(Version::nouvelle(
+            "1.0",
+            &serveur.url("/jade-miroir.jar"),
+            &miroir,
+        )),
+    );
+
+    let principal = jar("principal", &[]);
+    serveur.octets("/principal.jar", &principal);
+    publier(
+        &serveur,
+        &Projet::nouveau("principal").version(
+            Version::nouvelle("1.0", &serveur.url("/principal.jar"), &principal)
+                .declare("jade-miroir"),
+        ),
+    );
+
+    let plan = resolve(
+        &registre(&atelier, &serveur),
+        &demandes(&["jade", "principal"]),
+        MC,
+        LOADER,
+    )
+    .await
+    .expect("une dépendance écartée n'arrête pas l'installation");
+
+    assert_eq!(retenus(&plan), vec!["jade", "principal"]);
+}
+
+/// La seconde collision constatée sur le pack : EntityCulling et Not Enough
+/// Animations embarquent tous deux `transition` et `trender`, les libs de
+/// tr7zw. Deux bibliothèques partagées et non une seule — la déduplication
+/// fautive s'arrêtait à la première rencontrée, mais le résultat était le même.
+#[tokio::test]
+async fn deux_bibliotheques_partagees_ne_font_pas_davantage_un_doublon() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("tr7zw");
+
+    for slug in ["entityculling", "not-enough-animations"] {
+        let contenu = jar_avec_deux_embarques(slug, "transition", "trender");
+        let route = format!("/{slug}.jar");
+        serveur.octets(&route, &contenu);
+        publier(
+            &serveur,
+            &Projet::nouveau(slug).version(Version::nouvelle(
+                "1.0",
+                &serveur.url(&route),
+                &contenu,
+            )),
+        );
+    }
+
+    let plan = resolve(
+        &registre(&atelier, &serveur),
+        &demandes(&["entityculling", "not-enough-animations"]),
+        MC,
+        LOADER,
+    )
+    .await
+    .expect("les deux mods sont demandés au manifeste");
+
+    assert_eq!(
+        retenus(&plan),
+        vec!["entityculling", "not-enough-animations"],
+        "un mod a disparu"
     );
 }

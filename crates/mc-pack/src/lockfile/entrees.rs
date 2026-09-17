@@ -43,6 +43,12 @@ pub struct LockedMod {
     pub reason: String,
     /// `modId` fournis par ce jar, jars embarqués compris. Ce sont eux qui
     /// satisfont les dépendances des autres.
+    ///
+    /// Volontairement l'union des deux : ce champ répond à « cette dépendance
+    /// est-elle couverte ? », jamais à « ces deux entrées sont-elles le même
+    /// mod ? ». La seconde question se tranche sur le seul `modId` du
+    /// descripteur, et c'est le résolveur qui s'en charge — les avoir confondus
+    /// supprimait des mods légitimes du pack.
     pub provides: Vec<String>,
 }
 

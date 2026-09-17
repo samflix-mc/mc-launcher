@@ -80,6 +80,7 @@ pub(super) async fn retenir(
             side: cote,
             path: PathBuf::new(),
             provides: BTreeSet::new(),
+            bundled: BTreeSet::new(),
             requires: Vec::new(),
             autorite: entrante,
             reason,

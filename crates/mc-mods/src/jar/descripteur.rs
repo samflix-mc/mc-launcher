@@ -28,10 +28,35 @@ pub struct Requirement {
 /// Contenu utile d'un jar de mod.
 #[derive(Debug, Clone, Default)]
 pub struct JarInfo {
-    /// `modId` que ce jar fournit, y compris ceux de ses jars embarqués.
+    /// `modId` déclarés par le descripteur de ce jar. **Identité du mod.**
+    ///
+    /// C'est le seul ensemble qui fasse échouer NeoForge en double, et donc le
+    /// seul sur lequel deux projets puissent être dits redondants.
     pub provides: BTreeSet<String>,
+    /// `modId` apportés par les jars embarqués (JarJar).
+    ///
+    /// Ils satisfont des dépendances mais ne définissent aucune identité : deux
+    /// mods embarquent légitimement la même bibliothèque, et NeoForge sait les
+    /// dédupliquer au chargement. Les confondre avec [`provides`] faisait
+    /// passer Sodium et Iris pour un doublon — ils partagent quatre shims
+    /// Fabric — et supprimait l'un des deux en silence.
+    ///
+    /// [`provides`]: JarInfo::provides
+    pub bundled: BTreeSet<String>,
     /// Dépendances obligatoires, hors plateforme.
     pub requires: Vec<Requirement>,
+}
+
+impl JarInfo {
+    /// Tout ce que ce jar apporte, racine et embarqués confondus.
+    ///
+    /// C'est ce qui satisfait une dépendance — par opposition à [`provides`],
+    /// qui dit qui est ce mod.
+    ///
+    /// [`provides`]: JarInfo::provides
+    pub fn fournit(&self) -> impl Iterator<Item = &String> {
+        self.provides.iter().chain(self.bundled.iter())
+    }
 }
 
 mod analyse;

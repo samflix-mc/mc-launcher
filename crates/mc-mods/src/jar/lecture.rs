@@ -32,8 +32,13 @@ pub fn inspect_bytes(bytes: &[u8]) -> Result<JarInfo> {
         // Seuls les `modId` fournis comptent : les dépendances d'une
         // bibliothèque embarquée sont, par construction, satisfaites par le
         // mod qui l'embarque.
+        //
+        // Ils rejoignent `bundled` et non `provides` : ce jar les apporte, mais
+        // ils ne disent pas qui il est. Deux mods embarquent légitimement la
+        // même bibliothèque — un jar embarqué par un jar embarqué reste un
+        // apport, d'où la reprise de `fournit` et non des seuls `provides`.
         if let Ok(sub) = inspect_bytes(&nested) {
-            info.provides.extend(sub.provides);
+            info.bundled.extend(sub.fournit().cloned());
         }
     }
 

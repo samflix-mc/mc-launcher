@@ -14,7 +14,11 @@
 //!   `META-INF/jarjar/`. Elles fournissent leur `modId` sans exister comme
 //!   fichier séparé. Les ignorer ferait conclure à une dépendance manquante et
 //!   installerait un doublon — deux versions du même mod, ce que NeoForge
-//!   refuse ;
+//!   refuse. Mais elles restent **séparées de l'identité du mod** : les
+//!   confondre coûtait plus cher encore, deux mods qui embarquent la même
+//!   bibliothèque passant alors pour un doublon. Sodium et Iris partagent
+//!   quatre shims Fabric, et le résolveur en supprimait un des deux en
+//!   silence ;
 //! - **le `side` d'une dépendance** : une dépendance déclarée `side = "CLIENT"`
 //!   n'a rien à faire dans le dossier `mods` du serveur.
 

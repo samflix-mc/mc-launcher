@@ -16,6 +16,7 @@ pub(super) fn inspect_all(chosen: &mut BTreeMap<(Origin, String), Installed>) ->
         }
         let info = crate::jar::inspect(&entry.path)?;
         entry.provides = info.provides;
+        entry.bundled = info.bundled;
         entry.requires = info.requires;
     }
     Ok(())
@@ -25,7 +26,10 @@ pub(super) fn inspect_all(chosen: &mut BTreeMap<(Origin, String), Installed>) ->
 pub(super) fn missing_requirements(
     chosen: &BTreeMap<(Origin, String), Installed>,
 ) -> Vec<(String, String, Side)> {
-    let provided: BTreeSet<&String> = chosen.values().flat_map(|m| m.provides.iter()).collect();
+    // Racine *et* embarqués : ce qui satisfait une dépendance n'est pas ce qui
+    // définit une identité. Un mod qui embarque sa bibliothèque la fournit —
+    // l'installer en plus donnerait deux versions du même modId.
+    let provided: BTreeSet<&String> = chosen.values().flat_map(|m| m.fournit()).collect();
 
     let mut missing: BTreeMap<String, (String, Side)> = BTreeMap::new();
     for entry in chosen.values() {

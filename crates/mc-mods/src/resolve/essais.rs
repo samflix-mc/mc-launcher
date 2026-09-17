@@ -52,6 +52,7 @@ pub(crate) fn installed(slug: &str, provides: &[&str], requires: &[(&str, Side)]
         autorite: 4,
         path: PathBuf::from("/cache").join(format!("{slug}.jar")),
         provides: provides.iter().map(ToString::to_string).collect(),
+        bundled: std::collections::BTreeSet::new(),
         requires: requires
             .iter()
             .map(|(id, side)| Requirement {
@@ -61,6 +62,15 @@ pub(crate) fn installed(slug: &str, provides: &[&str], requires: &[(&str, Side)]
             })
             .collect(),
     }
+}
+
+/// Le même mod, qui embarque les bibliothèques données par JarJar.
+///
+/// Elles rejoignent `bundled` et non `provides` : elles satisfont des
+/// dépendances sans dire qui est ce mod.
+pub(crate) fn embarquant(mut retenu: Installed, ids: &[&str]) -> Installed {
+    retenu.bundled = ids.iter().map(ToString::to_string).collect();
+    retenu
 }
 
 /// La table des retenus, indexée comme la résolution l'indexe.

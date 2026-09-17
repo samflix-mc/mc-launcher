@@ -74,7 +74,35 @@ pub async fn resolve_with(
         }
     }
 
-    deduplicate_by_mod_id(&mut chosen);
+    // Un mod qui disparaît du plan doit se voir. Avant, `lock` rendait 0 en
+    // ayant perdu la moitié de son manifeste, et seule la CI de mc-content s'en
+    // apercevait — après coup, et ailleurs.
+    let ecartes = deduplicate_by_mod_id(&mut chosen);
+    for eviction in &ecartes {
+        tracing::warn!(
+            ecarte = %eviction.ecarte,
+            retenu = %eviction.retenu,
+            mod_id = %eviction.mod_id,
+            "« {} » écarté au profit de « {} » : les deux déclarent le modId « {} »",
+            eviction.ecarte,
+            eviction.retenu,
+            eviction.mod_id
+        );
+    }
+    // Perdre une dépendance au profit d'un mod qui porte le même modId est le
+    // fonctionnement attendu ; perdre un mod que le manifeste nomme est une
+    // contradiction de ce manifeste, et c'est à son auteur de trancher.
+    if let Some(eviction) = ecartes.iter().find(|e| e.explicite) {
+        bail!(
+            "« {} » et « {} » déclarent tous deux le modId « {} » : NeoForge n'en \
+             chargerait qu'un.\n\
+             Les deux sont demandés par le manifeste — en retirer un.",
+            eviction.ecarte,
+            eviction.retenu,
+            eviction.mod_id
+        );
+    }
+
     plan.mods = chosen.into_values().collect();
     plan.mods
         .sort_by(|a, b| a.candidate.slug.cmp(&b.candidate.slug));

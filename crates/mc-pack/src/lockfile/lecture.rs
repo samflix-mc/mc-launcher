@@ -42,7 +42,12 @@ impl Lockfile {
                     size: m.candidate.size,
                     side: m.side.as_str().to_string(),
                     reason: m.reason.describe(),
-                    provides: m.provides.iter().cloned().collect(),
+                    // Racine *et* embarqués : ce champ sert à `verify` pour
+                    // décider qu'une dépendance est satisfaite, jamais à
+                    // reconnaître un doublon. Le résolveur, lui, distingue les
+                    // deux — deux mods embarquent légitimement la même
+                    // bibliothèque.
+                    provides: m.fournit().cloned().collect(),
                 })
                 .collect(),
             unresolved: plan

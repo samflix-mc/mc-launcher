@@ -42,6 +42,24 @@ pub(crate) fn jar_avec_embarque(mod_id: &str, embarque: &str) -> Vec<u8> {
     ])
 }
 
+/// Un jar qui embarque deux bibliothèques, comme les mods de tr7zw.
+pub(crate) fn jar_avec_deux_embarques(mod_id: &str, une: &str, autre: &str) -> Vec<u8> {
+    let premiere = jar(une, &[]);
+    let seconde = jar(autre, &[]);
+    let toml = format!(
+        "modLoader=\"javafml\"\nloaderVersion=\"[1,)\"\nlicense=\"MIT\"\n\n\
+         [[mods]]\nmodId=\"{mod_id}\"\nversion=\"1.0\"\n"
+    );
+    let metadata = br#"{"jars":[{"path":"META-INF/jarjar/une.jar"},
+                               {"path":"META-INF/jarjar/autre.jar"}]}"#;
+    archive(&[
+        ("META-INF/neoforge.mods.toml", toml.as_bytes()),
+        ("META-INF/jarjar/metadata.json", metadata),
+        ("META-INF/jarjar/une.jar", &premiere),
+        ("META-INF/jarjar/autre.jar", &seconde),
+    ])
+}
+
 pub(crate) fn archive(entrees: &[(&str, &[u8])]) -> Vec<u8> {
     let mut ecrivain = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     let options: zip::write::FileOptions<'_, ()> =

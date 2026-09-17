@@ -17,8 +17,14 @@ pub struct Installed {
     pub reason: Reason,
     /// Chemin dans le cache du launcher.
     pub path: PathBuf,
-    /// `modId` que ce jar fournit, jars embarqués compris.
+    /// `modId` déclarés par le descripteur du jar. **Identité du mod**, et
+    /// seule base sur laquelle deux projets peuvent être dits redondants.
     pub provides: BTreeSet<String>,
+    /// `modId` apportés par les jars embarqués (JarJar).
+    ///
+    /// Ils satisfont des dépendances sans définir d'identité — voir
+    /// [`crate::jar::JarInfo::bundled`].
+    pub bundled: BTreeSet<String>,
     /// `modId` que ce jar exige pour démarrer, hors plateforme.
     pub requires: Vec<crate::jar::Requirement>,
     /// Au nom de quoi ce build occupe la place — voir [`autorite`].
@@ -43,6 +49,19 @@ pub struct Unresolved {
     pub mod_id: String,
     pub required_by: String,
     pub side: Side,
+}
+
+impl Installed {
+    /// Tout ce que ce mod apporte, racine et embarqués confondus.
+    ///
+    /// C'est ce qui satisfait une dépendance. La déduplication, elle, ne
+    /// regarde que [`provides`] : les deux usages n'ont pas la même sémantique,
+    /// et les avoir confondus supprimait des mods légitimes.
+    ///
+    /// [`provides`]: Installed::provides
+    pub fn fournit(&self) -> impl Iterator<Item = &String> {
+        self.provides.iter().chain(self.bundled.iter())
+    }
 }
 
 impl Plan {
