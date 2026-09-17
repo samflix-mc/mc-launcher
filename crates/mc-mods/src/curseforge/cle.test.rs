@@ -89,6 +89,40 @@ fn a_defaut_de_variable_la_cle_se_lit_dans_le_fichier() {
     std::fs::remove_dir_all(&racine).ok();
 }
 
+/// La source CurseForge n'existe que si une clé est disponible : sans elle,
+/// c'est le site qui prend tout. Rendre `None` alors qu'une clé est posée
+/// ferait renoncer à la Core API — la seule à publier les empreintes — sans
+/// que rien ne le signale.
+#[test]
+fn la_source_n_existe_qu_avec_une_cle() {
+    let _garde = garde_environnement();
+    let dl = std::sync::Arc::new(mc_dl::Downloader::new("essai").unwrap());
+
+    // SAFETY : le garde sérialise les tests de ce fichier et rend ce qu'il a
+    // trouvé.
+    unsafe {
+        std::env::set_var("CURSEFORGE_API_KEY", "$2a$10$une-cle");
+    }
+    assert!(super::super::CurseForge::from_env(dl.clone()).is_some());
+
+    // Sans clé nulle part : ni variable, ni fichier dans une configuration
+    // qu'on vide pour l'occasion.
+    let racine = std::env::temp_dir().join(format!(
+        "mc-mods-sans-cle-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::remove_dir_all(&racine).ok();
+    std::fs::create_dir_all(&racine).unwrap();
+    unsafe {
+        std::env::remove_var("CURSEFORGE_API_KEY");
+        std::env::set_var("XDG_CONFIG_HOME", &racine);
+    }
+    assert!(super::super::CurseForge::from_env(dl).is_none());
+
+    std::fs::remove_dir_all(&racine).ok();
+}
+
 /// Sérialise les tests qui posent les variables de ce module, et rend leur
 /// valeur d'origine. Sans cela, deux d'entre eux se contredisent — et depuis
 /// l'édition 2024, un `set_var` concurrent n'est pas une course mais un

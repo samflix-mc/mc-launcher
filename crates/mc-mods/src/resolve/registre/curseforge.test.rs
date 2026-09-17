@@ -8,6 +8,19 @@ fn registre(atelier: &Atelier, serveur: &mc_essais::Serveur, cle: Option<&str>) 
     Registry::pour_essais(atelier.racine.join("cache"), &serveur.base(), cle).unwrap()
 }
 
+/// Le registre sait s'il a une clé, et la résolution s'en sert pour décider
+/// quoi annoncer au joueur quand un mod reste introuvable : sans clé, il lui
+/// manque une source entière, et le lui dire évite de chercher une panne là où
+/// il n'y a qu'une configuration absente.
+#[tokio::test]
+async fn le_registre_sait_s_il_a_une_cle() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-cle-presente");
+
+    assert!(registre(&atelier, &serveur, Some("$2a$10$cle")).has_curseforge());
+    assert!(!registre(&atelier, &serveur, None).has_curseforge());
+}
+
 /// Un projet servi par la Core API, avec sa clé.
 fn publier_core(serveur: &mc_essais::Serveur, id: u32, slug: &str) {
     serveur.json(

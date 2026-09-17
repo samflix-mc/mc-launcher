@@ -68,3 +68,7 @@ impl Modrinth {
         Ok(Vec::new())
     }
 }
+
+#[cfg(test)]
+#[path = "recherche.test.rs"]
+mod tests;

@@ -1,4 +1,4 @@
-use super::{Side, missing_requirements};
+use super::{Side, inspect_all, missing_requirements};
 use crate::resolve::essais::{embarquant, installed, map};
 
 #[test]
@@ -56,6 +56,23 @@ fn une_dependance_embarquee_par_un_autre_mod_ne_manque_pas_non_plus() {
         embarquant(installed("un-autre", &["autre"], &[]), &["bookshelf"]),
     ]);
     assert!(missing_requirements(&chosen).is_empty());
+}
+
+/// L'inspection ne lit que les jars fraîchement téléchargés : ceux qui
+/// déclarent déjà ce qu'ils fournissent ont été lus, et ceux qui n'ont pas de
+/// fichier n'existent pas encore sur le disque. Confondre les deux conditions
+/// enverrait `jar::inspect` ouvrir un chemin vide — la résolution s'arrêterait
+/// sur une erreur de lecture, au lieu de continuer son tour.
+#[test]
+fn une_entree_sans_fichier_n_est_pas_ouverte() {
+    let mut chosen = map(vec![installed("pas-encore", &[], &[])]);
+    for entree in chosen.values_mut() {
+        // Rien de téléchargé : pas de chemin, et rien de déclaré.
+        entree.path = std::path::PathBuf::new();
+        entree.provides.clear();
+    }
+
+    inspect_all(&mut chosen).expect("une entrée sans fichier se saute");
 }
 
 #[test]

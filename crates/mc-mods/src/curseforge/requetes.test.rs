@@ -247,3 +247,61 @@ async fn la_recherche_par_modid_passe_par_les_resultats_de_recherche() {
     assert_eq!(trouves.len(), 1);
     assert_eq!(trouves[0].slug, "bookshelf-lib");
 }
+
+/// La recherche par `modId` parcourt les résultats jusqu'à en trouver un qui
+/// ait une version compatible. S'arrêter au premier venu rendrait une liste
+/// vide dès que le classement par pertinence met en tête un projet homonyme
+/// sans build pour cette version du jeu — et le mod serait déclaré introuvable
+/// alors qu'il est juste en deuxième position.
+#[tokio::test]
+async fn la_recherche_par_modid_passe_au_resultat_suivant() {
+    let serveur = mc_essais::Serveur::neuf().await;
+
+    serveur.json(
+        "/mods/search",
+        &format!(
+            r#"{{"data":[{},{}]}}"#,
+            projet(1, "homonyme"),
+            projet(2, "le-bon")
+        ),
+    );
+    serveur.json(
+        "/mods/1/files",
+        r#"{"data":[],"pagination":{"totalCount":0}}"#,
+    );
+    serveur.json(
+        "/mods/2/files",
+        &format!(
+            r#"{{"data":[{}],"pagination":{{"totalCount":1}}}}"#,
+            fichier(20, 2, "le-bon")
+        ),
+    );
+    serveur.json(
+        "/mods/1",
+        &format!(r#"{{"data":{}}}"#, projet(1, "homonyme")),
+    );
+    serveur.json("/mods/2", &format!(r#"{{"data":{}}}"#, projet(2, "le-bon")));
+
+    let trouves = client(&serveur)
+        .find_by_mod_id("unmod", MC, LOADER)
+        .await
+        .unwrap();
+
+    assert_eq!(trouves.len(), 1, "{trouves:?}");
+    assert_eq!(trouves[0].file_name, "le-bon.jar");
+}
+
+/// Un build qui n'existe plus se dit par « rien », et non par une erreur : un
+/// verrou peut citer un fichier que CurseForge a retiré, et c'est à l'appelant
+/// de décider s'il retombe sur le site ou s'il s'arrête.
+#[tokio::test]
+async fn un_build_retire_rend_rien_plutot_qu_une_erreur() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    serveur.code("/mods/files", 404);
+
+    let trouve = client(&serveur)
+        .candidate_by_file("7")
+        .await
+        .expect("un 404 n'est pas une panne");
+    assert!(trouve.is_none());
+}
