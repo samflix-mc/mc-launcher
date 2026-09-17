@@ -6,10 +6,11 @@ fn verrouille(slug: &str, side: &str) -> LockedMod {
     LockedMod {
         slug: slug.into(),
         name: slug.into(),
-        origin: Origin::Modrinth,
+        source: Origin::Modrinth,
         project: slug.into(),
         file: "1".into(),
         version: "1.0".into(),
+        channel: mc_mods::Channel::Release,
         file_name: format!("{slug}.jar"),
         url: format!("https://exemple.invalid/{slug}.jar"),
         sha1: None,
@@ -35,7 +36,8 @@ fn un_mod_du_verrou_absent_de_l_instance_se_voit() {
 
     let lock = Lockfile {
         schema: 1,
-        pack: "samflix".into(),
+        name: "samflix".into(),
+        version: None,
         generated: "2025-01-01T00:00:00Z".into(),
         minecraft: "1.21.1".into(),
         loader: LockedLoader {
@@ -43,6 +45,7 @@ fn un_mod_du_verrou_absent_de_l_instance_se_voit() {
             version: "21.1.250".into(),
         },
         java: 21,
+        servers: Default::default(),
         mods: vec![
             verrouille("jei", "both"),
             verrouille("jade", "client"),

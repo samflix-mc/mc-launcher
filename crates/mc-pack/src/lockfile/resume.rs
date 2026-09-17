@@ -12,7 +12,7 @@ impl Lockfile {
             .iter()
             .map(|m| mc_mods::Request {
                 slug: m.project.clone(),
-                source: Some(m.origin),
+                source: Some(m.source),
                 file: Some(m.file.clone()),
                 version: None,
                 side: Side::parse(&m.side),

@@ -129,3 +129,33 @@ Rejouer un verrou ne le réécrit pas. Le régénérer effacerait la colonne
 `reason` — tout y deviendrait « demandé par le manifeste », puisque c'est le
 verrou lui-même qui a dicté les demandes — et on perdrait la seule trace de ce
 qui n'avait jamais été demandé.
+
+## Le verrou a la forme du manifeste
+
+Les deux fichiers vivent côte à côte, se lisent l'un après l'autre et se
+comparent du regard. Qu'ils nomment la même chose autrement coûte à chaque
+lecture : le nom du pack s'appelait `name` dans l'un et `pack` dans l'autre, la
+source d'un mod `source` ici et `origin` là.
+
+Le verrou reprend donc le vocabulaire du manifeste, et **tout ce qu'il
+déclare** — nom, version, minecraft, chargeur, java, serveurs. Un verrou seul
+suffit alors à installer *et* à savoir où se connecter : un script de serveur ou
+la CI de mc-content n'ont plus besoin des deux fichiers.
+
+Ce qu'il ajoute, et qui justifie son existence :
+
+| | |
+|---|---|
+| `generated` | quand il a été écrit |
+| `file`, `version`, `channel` | le build exact retenu, et son canal |
+| `project`, `file_name`, `url` | de quoi retrouver et télécharger le jar sans rien résoudre |
+| `sha1`, `sha512`, `size` | de quoi vérifier ce qu'on a reçu |
+| `reason` | pourquoi ce mod est là — demandé, ou tiré par un autre |
+| `provides` | les `modId` qu'il fournit, jars embarqués compris |
+| `unresolved` | ce que personne n'a su fournir |
+
+Les anciens noms restent **acceptés en lecture** : un verrou publié avant ce
+changement se lit sans être réécrit, et le champ `channel` qui lui manque vaut
+`release` — supposer une préversion sur un pack que personne n'a touché ferait
+apparaître des avertissements infondés.
+

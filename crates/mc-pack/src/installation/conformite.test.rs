@@ -22,7 +22,7 @@ fn un_verrou_rejoue_a_l_identique_ne_signale_rien() {
 #[test]
 fn un_projet_demande_par_son_identifiant_reste_le_meme_mod() {
     let mut curseforge = entree("fix-gpu-memory-leak", "both", None);
-    curseforge.origin = Origin::CurseForge;
+    curseforge.source = Origin::CurseForge;
     curseforge.project = "882495".to_string();
     curseforge.file = "5513549".to_string();
     let attendu = verrou(vec![curseforge]);

@@ -28,8 +28,7 @@ pub async fn lock(source: &Source, options: &mc_pack::Options) -> Result<()> {
         .then(|| Lockfile::load(&lock_path))
         .transpose()?;
     let lock = Lockfile::from_plan(
-        &manifest.name,
-        &manifest.minecraft,
+        &manifest,
         LockedLoader {
             kind: manifest.loader.kind.clone(),
             version: neoforge_version,

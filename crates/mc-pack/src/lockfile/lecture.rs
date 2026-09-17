@@ -11,30 +11,36 @@ use super::horodatage::now_utc;
 use super::{LockedLoader, Lockfile};
 
 impl Lockfile {
+    /// Le verrou d'un plan, adossé au manifeste qui l'a demandé.
+    ///
+    /// Prend le manifeste entier plutôt que trois de ses champs : le verrou en
+    /// reprend le nom, la version et les serveurs, et cette liste s'allongera.
     pub fn from_plan(
-        pack: &str,
-        minecraft: &str,
+        manifest: &crate::manifest::Manifest,
         loader: LockedLoader,
         java: u32,
         plan: &Plan,
     ) -> Lockfile {
         Lockfile {
             schema: crate::manifest::SCHEMA,
-            pack: pack.to_string(),
+            name: manifest.name.clone(),
+            version: manifest.version.clone(),
             generated: now_utc(),
-            minecraft: minecraft.to_string(),
+            minecraft: manifest.minecraft.clone(),
             loader,
             java,
+            servers: manifest.servers.clone(),
             mods: plan
                 .mods
                 .iter()
                 .map(|m| LockedMod {
                     slug: m.candidate.slug.clone(),
                     name: m.candidate.name.clone(),
-                    origin: m.candidate.origin,
+                    source: m.candidate.origin,
                     project: m.candidate.project_id.clone(),
                     file: m.candidate.version_id.clone(),
                     version: m.candidate.version_number.clone(),
+                    channel: m.candidate.channel,
                     file_name: m.candidate.file_name.clone(),
                     url: m.candidate.url.clone(),
                     sha1: m.candidate.sha1.clone(),

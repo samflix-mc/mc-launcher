@@ -13,13 +13,22 @@ pub struct LockedLoader {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockedMod {
     pub slug: String,
+    /// Nom d'affichage du projet — « Just Enough Items » pour `jei`.
     pub name: String,
-    pub origin: Origin,
+    /// D'où vient le mod. `origin` dans les verrous d'avant ; `source` est le
+    /// nom qu'emploie le manifeste pour la même chose, et les deux fichiers se
+    /// lisent l'un après l'autre.
+    #[serde(alias = "origin")]
+    pub source: Origin,
     /// Identifiant du projet dans sa source.
     pub project: String,
     /// Identifiant du build. C'est lui qui permet de rejouer l'installation.
     pub file: String,
     pub version: String,
+    /// Canal du build retenu. Une préversion dans un pack se remarque ici, et
+    /// le manifeste emploie le même mot.
+    #[serde(default = "canal_par_defaut")]
+    pub channel: mc_mods::Channel,
     pub file_name: String,
     /// URL de téléchargement directe, telle que la source l'a donnée.
     ///
@@ -71,4 +80,13 @@ impl LockedMod {
             .map(mc_dl::Checksum::Sha512)
             .or_else(|| self.sha1.clone().map(mc_dl::Checksum::Sha1))
     }
+}
+
+/// Le canal des verrous écrits avant que ce champ n'existe.
+///
+/// `release` et non le canal réel : un verrou d'avant ne dit rien du canal, et
+/// supposer une préversion ferait apparaître des avertissements sur un pack
+/// que personne n'a touché.
+fn canal_par_defaut() -> mc_mods::Channel {
+    mc_mods::Channel::Release
 }

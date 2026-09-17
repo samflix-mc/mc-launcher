@@ -103,7 +103,8 @@ pub(crate) const MANIFESTE: &str = r#"{"schema":1,"name":"samflix","minecraft":"
 pub(crate) fn verrou(mods: Vec<LockedMod>) -> Lockfile {
     Lockfile {
         schema: crate::manifest::SCHEMA,
-        pack: "samflix".into(),
+        name: "samflix".into(),
+        version: None,
         generated: "2026-09-17T00:00:00Z".into(),
         minecraft: "1.21.1".into(),
         loader: LockedLoader {
@@ -111,6 +112,7 @@ pub(crate) fn verrou(mods: Vec<LockedMod>) -> Lockfile {
             version: "21.1.250".into(),
         },
         java: 21,
+        servers: Default::default(),
         mods,
         unresolved: Vec::new(),
     }
@@ -121,10 +123,11 @@ pub(crate) fn entree(slug: &str, side: &str, contenu: Option<&[u8]>) -> LockedMo
     LockedMod {
         slug: slug.to_string(),
         name: slug.to_string(),
-        origin: mc_mods::Origin::Modrinth,
+        source: mc_mods::Origin::Modrinth,
         project: format!("{slug}-id"),
         file: format!("{slug}-1.0"),
         version: "1.0".into(),
+        channel: mc_mods::Channel::Release,
         file_name: format!("{slug}.jar"),
         url: format!("https://exemple.invalid/{slug}.jar"),
         sha1: contenu.map(|c| mc_dl::Checksum::Sha1(String::new()).of(c)),

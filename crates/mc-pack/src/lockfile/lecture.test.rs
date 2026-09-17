@@ -27,10 +27,11 @@ pub(crate) fn locked(slug: &str, file: &str, version: &str) -> LockedMod {
     LockedMod {
         slug: slug.into(),
         name: slug.into(),
-        origin: Origin::Modrinth,
+        source: Origin::Modrinth,
         project: slug.into(),
         file: file.into(),
         version: version.into(),
+        channel: mc_mods::Channel::Release,
         file_name: format!("{slug}.jar"),
         url: format!("https://exemple.invalid/{slug}.jar"),
         sha1: None,
@@ -45,7 +46,8 @@ pub(crate) fn locked(slug: &str, file: &str, version: &str) -> LockedMod {
 pub(crate) fn lock(mods: Vec<LockedMod>) -> Lockfile {
     Lockfile {
         schema: 1,
-        pack: "essai".into(),
+        name: "essai".into(),
+        version: None,
         generated: "2025-01-01T00:00:00Z".into(),
         minecraft: "1.21.1".into(),
         loader: LockedLoader {
@@ -53,6 +55,7 @@ pub(crate) fn lock(mods: Vec<LockedMod>) -> Lockfile {
             version: "21.1.250".into(),
         },
         java: 21,
+        servers: Default::default(),
         mods,
         unresolved: Vec::new(),
     }

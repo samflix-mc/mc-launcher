@@ -54,7 +54,7 @@ fn un_verrou_neuf_est_ecrit_avec_la_version_posee() {
     )
     .unwrap();
 
-    assert_eq!(retenu.pack, "samflix");
+    assert_eq!(retenu.name, "samflix");
     assert_eq!(retenu.loader.version, "21.1.999");
     assert_eq!(retenu.loader.kind, "neoforge");
     assert_eq!(retenu.java, 21);

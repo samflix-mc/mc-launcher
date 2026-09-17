@@ -45,7 +45,7 @@ pub(super) fn ecarts<'a>(attendu: &Lockfile, poses: impl Iterator<Item = Pose<'a
     let mut ecarts = Vec::new();
 
     for exige in &attendu.mods {
-        match poses.get(&(exige.origin, exige.project.as_str())) {
+        match poses.get(&(exige.source, exige.project.as_str())) {
             None => ecarts.push(format!("{} : épinglé par le verrou, absent", exige.slug)),
             Some(pose) if *pose != exige.file => ecarts.push(format!(
                 "{} : build {} attendu, {pose} posé",
@@ -62,7 +62,7 @@ pub(super) fn ecarts<'a>(attendu: &Lockfile, poses: impl Iterator<Item = Pose<'a
     let exiges: std::collections::BTreeSet<(Origin, &str)> = attendu
         .mods
         .iter()
-        .map(|m| (m.origin, m.project.as_str()))
+        .map(|m| (m.source, m.project.as_str()))
         .collect();
     for (origin, projet) in poses.keys() {
         if !exiges.contains(&(*origin, *projet)) {

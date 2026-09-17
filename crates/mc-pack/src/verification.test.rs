@@ -233,5 +233,5 @@ fn le_verrou_lu_est_bien_celui_du_pack() {
     let (atelier, _options, _source) =
         installation("verif-identite", vec![entree("jei", "client", Some(JAR))]);
     let relu = Lockfile::load(&atelier.racine.join("samflix.lock.json")).unwrap();
-    assert_eq!(relu.pack, "samflix");
+    assert_eq!(relu.name, "samflix");
 }

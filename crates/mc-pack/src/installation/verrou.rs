@@ -32,8 +32,7 @@ pub(super) fn retenir(
         }
         _ => {
             let fresh = Lockfile::from_plan(
-                &manifest.name,
-                &manifest.minecraft,
+                manifest,
                 LockedLoader {
                     kind: manifest.loader.kind.clone(),
                     version: neoforge_version.to_string(),
