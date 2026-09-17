@@ -93,3 +93,7 @@ pub(super) fn classpath(
         .join(separator);
     Ok((classpath, classpath_text))
 }
+
+#[cfg(test)]
+#[path = "classpath.test.rs"]
+mod tests;

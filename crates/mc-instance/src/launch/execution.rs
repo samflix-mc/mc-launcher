@@ -82,3 +82,7 @@ pub async fn run(command: &Command) -> Result<Report> {
         errors: watcher.finish(),
     })
 }
+
+#[cfg(test)]
+#[path = "execution.test.rs"]
+mod tests;

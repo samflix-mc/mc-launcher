@@ -95,3 +95,7 @@ pub fn loaded_mods(game_dir: &Path) -> Result<Vec<String>> {
     names.sort();
     Ok(names)
 }
+
+#[cfg(test)]
+#[path = "surveillance.test.rs"]
+mod tests;

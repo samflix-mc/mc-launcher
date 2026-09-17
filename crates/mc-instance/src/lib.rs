@@ -24,6 +24,9 @@
 mod disposition;
 mod verification;
 
+#[cfg(test)]
+mod essais;
+
 pub mod crash;
 pub mod launch;
 pub mod neoforge;

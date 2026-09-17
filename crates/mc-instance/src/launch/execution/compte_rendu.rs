@@ -58,3 +58,7 @@ impl Outcome {
         matches!(self, Outcome::Failed { .. })
     }
 }
+
+#[cfg(test)]
+#[path = "compte_rendu.test.rs"]
+mod tests;

@@ -76,3 +76,7 @@ pub fn verify(
 
     Ok(problems)
 }
+
+#[cfg(test)]
+#[path = "verification.test.rs"]
+mod tests;

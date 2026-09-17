@@ -91,3 +91,7 @@ pub fn build(
         working_dir: game_dir.to_path_buf(),
     })
 }
+
+#[cfg(test)]
+#[path = "chemin.test.rs"]
+mod tests;

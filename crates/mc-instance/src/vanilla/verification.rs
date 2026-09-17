@@ -88,3 +88,7 @@ pub fn classpath(version_json: &Path, shared: &Path) -> Result<Vec<PathBuf>> {
     }
     Ok(out)
 }
+
+#[cfg(test)]
+#[path = "verification.test.rs"]
+mod tests;

@@ -67,3 +67,7 @@ pub(in crate::launch) fn assembler(
     args.extend(game);
     args
 }
+
+#[cfg(test)]
+#[path = "assemblage.test.rs"]
+mod tests;

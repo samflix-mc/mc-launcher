@@ -34,3 +34,7 @@ impl Command {
 }
 
 // --- Lecture des descripteurs ------------------------------------------------
+
+#[cfg(test)]
+#[path = "commande.test.rs"]
+mod tests;

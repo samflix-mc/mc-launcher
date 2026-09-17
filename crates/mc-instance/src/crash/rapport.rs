@@ -46,3 +46,7 @@ fn parse_file(path: &Path) -> Option<Crash> {
 pub fn now() -> std::time::SystemTime {
     std::time::SystemTime::now()
 }
+
+#[cfg(test)]
+#[path = "rapport.test.rs"]
+mod tests;
