@@ -3,11 +3,14 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 
 import { Launcher, messageDErreur, type CodeAppareil, type Compte } from './launcher';
 
+// Sans `styleUrl` : la mise en forme est entièrement dans `src/styles.css`.
+// Angular injecterait les styles d'un composant à l'exécution, et le CSP à
+// nonce que Tauri pose en production les rejette — le fichier de styles dit
+// pourquoi en détail.
 @Component({
   selector: 'app-root',
   imports: [],
   templateUrl: './app.html',
-  styleUrl: './app.css',
 })
 export class App implements OnDestroy {
   private readonly launcher = inject(Launcher);

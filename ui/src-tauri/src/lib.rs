@@ -23,14 +23,26 @@
 
 mod coffre;
 mod commandes;
+mod webkit;
 
 /// Monte la fenêtre et rend la main quand elle se ferme.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // En premier, avant le moindre fil : l'appel écrit l'environnement du
+    // processus, et ce n'est sûr que tant qu'il est seul à y toucher.
+    let dmabuf_desactive = webkit::regler_le_rendu();
+
     // Le garde tient les couches de journalisation ouvertes : le lâcher ici
     // viderait le fichier de son contenu tamponné et couperait Sentry avant
     // même l'affichage de la fenêtre.
     let _journal = mc_log::init("samflix-launcher");
+
+    if dmabuf_desactive {
+        // Une fenêtre blanche sous NVIDIA se diagnostique mal ; savoir que le
+        // contournement s'est déclenché — ou pas — est la première chose à
+        // vérifier dans le journal.
+        tracing::info!("pilote NVIDIA détecté, rendu DMA-BUF de WebKit désactivé");
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())

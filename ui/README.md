@@ -14,9 +14,21 @@ cargo tauri dev        # démarre le serveur Angular puis la fenêtre
 cargo tauri build      # binaire + paquets dans target/release
 ```
 
-> Sous NVIDIA + Wayland, WebKitGTK ne démarre pas sans
-> `WEBKIT_DISABLE_DMABUF_RENDERER=1`. La fenêtre se ferme aussitôt ouverte, avec
-> une erreur DMA-BUF.
+`build` produit quatre choses dans `src-tauri/target/release` : le binaire
+`samflix-launcher`, et sous `bundle/` un `.deb`, un `.rpm` et une `.AppImage`.
+Les paquets déclarent `libwebkit2gtk-4.1` et `libgtk-3` et posent le `.desktop`
+et les icônes ; l'AppImage les embarque et se lance telle quelle.
+
+```bash
+./target/release/bundle/appimage/samflix-launcher_0.1.0_amd64.AppImage
+```
+
+Rien à poser dans l'environnement : sous NVIDIA, WebKitGTK rendait une fenêtre
+blanche tant qu'on ne lui passait pas `WEBKIT_DISABLE_DMABUF_RENDERER=1`. Le
+programme le fait maintenant pour lui-même, au premier appel de `run()`, et
+seulement si le module noyau `nvidia` est chargé — voir
+`src-tauri/src/webkit.rs`. Poser la variable à la main reste possible et
+l'emporte, dans les deux sens.
 
 ## Ce qui est branché, et ce qui ne l'est pas
 
@@ -46,6 +58,21 @@ deux côtés, sont dans `src-tauri/src/coffre.rs`.
 
 La fenêtre journalise par `mc-log`, pas par `tauri-plugin-log` : la censure des
 jetons s'applique aussi à ce que le joueur joindra à un rapport.
+
+## Vérifier en production, pas seulement en `dev`
+
+Les deux modes ne servent pas la même page. En `tauri dev`, c'est le serveur
+Angular qui sert, sans CSP ; en production, c'est Tauri, avec le CSP de
+`tauri.conf.json` et un nonce qu'il injecte lui-même. Or un nonce annule
+`'unsafe-inline'` : tout ce qu'Angular injecterait à l'exécution — les styles
+d'un composant, un gestionnaire `onload` posé par le « critical CSS » — est
+alors rejeté, et la fenêtre s'affiche sans mise en forme. En `dev`, jamais.
+
+D'où deux réglages qui n'ont l'air de rien : aucun `styleUrl` sur le composant
+(tout est dans `src/styles.css`, chargé par `<link>`) et `inlineCritical: false`
+dans `angular.json`. Le CSP peut alors rester strict — `style-src 'self'`, sans
+`'unsafe-inline'`. La règle qui s'en déduit : une modification de l'interface se
+regarde au moins une fois dans un `cargo tauri build`.
 
 ## Pourquoi un workspace Cargo à part
 
