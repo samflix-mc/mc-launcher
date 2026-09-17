@@ -5,7 +5,7 @@ use anyhow::Result;
 use crate::Candidate;
 
 use super::CurseForgeWeb;
-use super::api::WebFile;
+use super::api::{Un, WebFile};
 use super::conversion::to_candidate;
 
 impl CurseForgeWeb {
@@ -18,14 +18,18 @@ impl CurseForgeWeb {
         let Some((project_id, name)) = self.resolve_project(id_or_slug).await? else {
             return Ok(None);
         };
-        let Some(file): Option<WebFile> = self
+        // `Un<WebFile>` et non `WebFile` : la route enveloppe l'objet dans
+        // `data`, comme les listes. Le lire sans enveloppe faisait échouer la
+        // désérialisation, et un build épinglé bien présent était déclaré
+        // introuvable.
+        let Some(file): Option<Un<WebFile>> = self
             .get_json(&format!("{}/mods/{project_id}/files/{file_id}", self.web))
             .await?
         else {
             return Ok(None);
         };
         Ok(Some(to_candidate(
-            &self.web, project_id, id_or_slug, &name, file,
+            &self.web, project_id, id_or_slug, &name, file.data,
         )))
     }
 

@@ -9,6 +9,17 @@ pub(crate) struct Page<T> {
     pub(crate) pagination: Option<Pagination>,
 }
 
+/// Une réponse qui ne porte qu'un objet.
+///
+/// Les routes du site enveloppent **tout** dans `data`, la liste comme l'unité.
+/// Lire un objet unique sans son enveloppe donne une désérialisation qui
+/// échoue — et, parce que l'échec était avalé, un build épinglé qui existe et
+/// qu'on déclare introuvable.
+#[derive(Debug, Deserialize)]
+pub(crate) struct Un<T> {
+    pub(crate) data: T,
+}
+
 #[derive(Debug, Deserialize)]
 pub(crate) struct Pagination {
     #[serde(rename = "totalCount")]

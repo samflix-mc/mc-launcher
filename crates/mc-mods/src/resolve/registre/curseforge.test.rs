@@ -186,9 +186,10 @@ async fn un_build_epingle_bascule_aussi_sur_le_site() {
     serveur.json("/widget/jei", r#"{"id":42,"title":"JEI"}"#);
     serveur.json(
         "/web/mods/42/files/2",
-        r#"{"id":2,"fileName":"jei-web.jar","displayName":"1.0","fileLength":1,
+        // Enveloppé dans `data`, comme la route le rend réellement.
+        r#"{"data":{"id":2,"fileName":"jei-web.jar","displayName":"1.0","fileLength":1,
             "releaseType":1,"dateCreated":"2026-01-01T00:00:00Z",
-            "gameVersions":["1.21.1","NeoForge"]}"#,
+            "gameVersions":["1.21.1","NeoForge"]}}"#,
     );
 
     let trouve = registre(&atelier, &serveur, Some("$2a$10$revoquee"))
@@ -336,9 +337,10 @@ async fn un_refus_de_cle_sur_un_build_epingle_se_retient() {
     serveur.json("/widget/jei", r#"{"id":42,"title":"JEI"}"#);
     serveur.json(
         "/web/mods/42/files/2",
-        r#"{"id":2,"fileName":"jei-web.jar","displayName":"1.0","fileLength":1,
+        // Enveloppé dans `data`, comme la route le rend réellement.
+        r#"{"data":{"id":2,"fileName":"jei-web.jar","displayName":"1.0","fileLength":1,
             "releaseType":1,"dateCreated":"2026-01-01T00:00:00Z",
-            "gameVersions":["1.21.1","NeoForge"]}"#,
+            "gameVersions":["1.21.1","NeoForge"]}}"#,
     );
 
     let registre = registre(&atelier, &serveur, Some("$2a$10$revoquee"));

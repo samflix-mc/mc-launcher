@@ -6,10 +6,14 @@ fn client(serveur: &mc_essais::Serveur) -> CurseForgeWeb {
     CurseForgeWeb::avec_bases(dl, &serveur.base(), &serveur.url("/widget"))
 }
 
-const FICHIER: &str = r#"{"id":5001,"fileName":"jei-19.jar","displayName":"JEI 19",
+/// Ce que la route rend réellement : l'objet **enveloppé dans `data`**, comme
+/// les listes. La suite servait l'objet nu, ce qui validait un contrat que
+/// l'API ne respecte pas — et laissait passer une désérialisation qui échouait
+/// en production sur chaque build épinglé.
+const FICHIER: &str = r#"{"data":{"id":5001,"fileName":"jei-19.jar","displayName":"JEI 19",
                           "fileLength":2048,"releaseType":2,
                           "dateCreated":"2026-01-01T00:00:00Z",
-                          "gameVersions":["1.21.1","NeoForge"]}"#;
+                          "gameVersions":["1.21.1","NeoForge"]}}"#;
 
 /// Un build épinglé n'est pas filtré par l'API : il est rendu tel quel, avec
 /// son canal, et c'est ce qui rend une installation reproductible.
@@ -84,4 +88,48 @@ async fn la_recherche_par_modid_passe_par_le_slug() {
 
     assert_eq!(trouves.len(), 1);
     assert_eq!(trouves[0].slug, "bookshelf");
+}
+
+/// La régression exacte observée en installation : la route rend l'objet
+/// enveloppé, le code le lisait nu, la désérialisation échouait, et l'échec
+/// était avalé — « build 5513549 épinglé pour 882495 : introuvable », pour un
+/// build qui existait bel et bien.
+#[tokio::test]
+async fn un_objet_sans_son_enveloppe_ne_passe_pas_pour_une_absence() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    serveur.json("/widget/jei", r#"{"id":238222,"title":"JEI"}"#);
+    // L'objet nu, tel que la suite le servait avant : ce n'est pas ce que
+    // l'API rend, et le code ne doit plus s'en accommoder.
+    serveur.json(
+        "/mods/238222/files/5001",
+        r#"{"id":5001,"fileName":"jei.jar","displayName":"JEI","fileLength":1,
+            "releaseType":1,"dateCreated":"2026-01-01T00:00:00Z","gameVersions":[]}"#,
+    );
+
+    assert!(
+        client(&serveur)
+            .candidate_by_file("jei", "5001")
+            .await
+            .unwrap()
+            .is_none(),
+        "une réponse hors contrat ne doit pas être prise pour un candidat"
+    );
+}
+
+/// Un identifiant numérique ne demande aucun appel à cfwidget : c'est déjà
+/// l'identifiant du projet. C'est le cas de tous les mods qu'un verrou épingle
+/// par leur identifiant CurseForge.
+#[tokio::test]
+async fn un_projet_numerique_se_resout_sans_passer_par_le_widget() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    serveur.json("/mods/882495/files/5513549", FICHIER);
+
+    let trouve = client(&serveur)
+        .candidate_by_file("882495", "5513549")
+        .await
+        .unwrap()
+        .expect("le build existe");
+
+    assert_eq!(trouve.version_id, "5001");
+    assert_eq!(serveur.appels("/widget/882495"), 0);
 }

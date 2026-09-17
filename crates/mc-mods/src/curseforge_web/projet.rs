@@ -22,9 +22,23 @@ impl CurseForgeWeb {
         // dans les deux cas, cette source n'a rien à offrir, et l'appelant doit
         // pouvoir continuer sans que tout s'arrête.
         if !response.status().is_success() {
+            tracing::debug!(url, statut = %response.status(), "route du site sans réponse");
             return Ok(None);
         }
-        Ok(response.json().await.ok())
+
+        // Une réponse qui arrive mais ne se lit pas n'est **pas** la même chose
+        // qu'une absence, et la confondre coûte cher : une enveloppe `data`
+        // oubliée a fait déclarer introuvable un build épinglé qui existait,
+        // sans qu'une seule ligne le dise. On continue de rendre `None` — le
+        // site sert parfois une page Cloudflare en HTTP 200, et tout arrêter
+        // rendrait le repli inutilisable — mais on le dit.
+        match response.json().await {
+            Ok(lu) => Ok(Some(lu)),
+            Err(erreur) => {
+                tracing::warn!(url, erreur = %erreur, "réponse du site illisible");
+                Ok(None)
+            }
+        }
     }
 
     /// Identifiant de projet à partir d'un slug.
