@@ -63,3 +63,7 @@ pub async fn ensure(major: u32, runtime_dir: &Path) -> Result<Java> {
     );
     install(major, runtime_dir).await
 }
+
+#[cfg(test)]
+#[path = "detection.test.rs"]
+mod tests;

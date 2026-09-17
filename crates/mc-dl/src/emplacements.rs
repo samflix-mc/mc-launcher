@@ -34,3 +34,7 @@ pub fn data_dir() -> PathBuf {
         .join("share")
         .join("samflix-mc")
 }
+
+#[cfg(test)]
+#[path = "emplacements.test.rs"]
+mod tests;

@@ -5,7 +5,7 @@
 //!     mc-java --major 17   autre version majeure
 //!     mc-java --dir <DIR>  autre répertoire de runtimes
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -24,25 +24,60 @@ async fn main() -> ExitCode {
     }
 }
 
-async fn run() -> Result<ExitCode> {
-    let mut major = 21;
-    let mut check_only = false;
-    let mut dir: Option<PathBuf> = None;
+/// Ce que la ligne de commande demande.
+#[derive(Debug, PartialEq, Eq)]
+struct Reglages {
+    major: u32,
+    check_only: bool,
+    dir: Option<PathBuf>,
+}
 
-    let mut args = std::env::args().skip(1);
+impl Default for Reglages {
+    fn default() -> Self {
+        // Minecraft 1.21.1 exige Java 21 : en dessous, le jeu s'arrête sur
+        // `UnsupportedClassVersionError` avant même d'afficher une fenêtre.
+        Reglages {
+            major: 21,
+            check_only: false,
+            dir: None,
+        }
+    }
+}
+
+/// Lecture des arguments, séparée de ce qu'ils déclenchent.
+fn analyser(args: impl Iterator<Item = String>) -> Result<Reglages> {
+    let mut reglages = Reglages::default();
+    let mut args = args.peekable();
+
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--check" => check_only = true,
+            "--check" => reglages.check_only = true,
             "--major" => {
-                major = args
-                    .next()
-                    .and_then(|v| v.parse().ok())
-                    .unwrap_or_else(|| panic!("--major attend un entier"));
+                // Une valeur illisible s'annonce comme une erreur ordinaire :
+                // une panique afficherait une trace d'appels là où il n'y a
+                // qu'une faute de frappe.
+                let brut = args.next().context("--major attend un entier")?;
+                reglages.major = brut
+                    .parse()
+                    .with_context(|| format!("--major attend un entier, reçu « {brut} »"))?;
             }
-            "--dir" => dir = args.next().map(PathBuf::from),
+            "--dir" => {
+                reglages.dir = Some(PathBuf::from(
+                    args.next().context("--dir attend un chemin")?,
+                ));
+            }
             other => bail!("option inconnue : {other}"),
         }
     }
+    Ok(reglages)
+}
+
+async fn run() -> Result<ExitCode> {
+    let Reglages {
+        major,
+        check_only,
+        dir,
+    } = analyser(std::env::args().skip(1))?;
 
     let runtime_dir = dir.unwrap_or_else(mc_java::default_runtime_dir);
 
@@ -73,3 +108,7 @@ async fn run() -> Result<ExitCode> {
     );
     Ok(ExitCode::SUCCESS)
 }
+
+#[cfg(test)]
+#[path = "main.test.rs"]
+mod tests;

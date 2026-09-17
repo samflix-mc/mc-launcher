@@ -3,7 +3,7 @@
 use anyhow::{Context, Result, bail};
 use std::path::Path;
 
-use crate::adoptium::{Asset, platform};
+use crate::adoptium::{API, Asset, platform, url_assets};
 use crate::archive::{extract, single_child};
 use crate::emplacements::{java_exe, managed_home};
 use crate::version::{Java, Origin, probe};
@@ -11,6 +11,11 @@ use crate::version::{Java, Origin, probe};
 /// combinaisons de plateformes, d'où le repli sur le JDK.
 #[tracing::instrument(name = "installation java", skip(runtime_dir))]
 pub async fn install(major: u32, runtime_dir: &Path) -> Result<Java> {
+    install_depuis(API, major, runtime_dir).await
+}
+
+/// La même installation, contre une racine d'API donnée.
+pub(crate) async fn install_depuis(base: &str, major: u32, runtime_dir: &Path) -> Result<Java> {
     let (os, arch) = platform()?;
     tokio::fs::create_dir_all(runtime_dir)
         .await
@@ -19,11 +24,7 @@ pub async fn install(major: u32, runtime_dir: &Path) -> Result<Java> {
 
     let mut asset = None;
     for image in ["jre", "jdk"] {
-        let url = format!(
-            "https://api.adoptium.net/v3/assets/latest/{major}/hotspot\
-             ?architecture={arch}&image_type={image}&os={os}&vendor=eclipse"
-        );
-        let body = dl.bytes(&url).await?;
+        let body = dl.bytes(&url_assets(base, major, os, arch, image)).await?;
         let assets: Vec<Asset> = serde_json::from_slice(&body)
             .with_context(|| format!("réponse Adoptium illisible pour {image} {major}"))?;
         if let Some(found) = assets.into_iter().find(|a| a.binary.image_type == image) {
@@ -86,3 +87,7 @@ pub async fn install(major: u32, runtime_dir: &Path) -> Result<Java> {
         origin: Origin::Managed,
     })
 }
+
+#[cfg(test)]
+#[path = "installation.test.rs"]
+mod tests;

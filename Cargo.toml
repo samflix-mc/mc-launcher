@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/mc-auth",
     "crates/mc-dl",
+    "crates/mc-essais",
     "crates/mc-log",
     "crates/mc-java",
     "crates/mc-mods",

@@ -68,3 +68,7 @@ impl Downloader {
         Ok(response.bytes().await?.to_vec())
     }
 }
+
+#[cfg(test)]
+#[path = "telechargement.test.rs"]
+mod tests;

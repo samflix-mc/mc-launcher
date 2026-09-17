@@ -67,3 +67,7 @@ impl Check<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "check.test.rs"]
+mod tests;

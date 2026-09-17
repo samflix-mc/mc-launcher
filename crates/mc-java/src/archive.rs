@@ -61,3 +61,7 @@ fn extract_zip(archive: &Path, into: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "archive.test.rs"]
+mod tests;

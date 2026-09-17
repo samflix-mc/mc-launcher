@@ -68,3 +68,7 @@ pub(crate) fn candidates(runtime_dir: &Path, major: u32) -> Vec<PathBuf> {
 
     found
 }
+
+#[cfg(test)]
+#[path = "emplacements.test.rs"]
+mod tests;

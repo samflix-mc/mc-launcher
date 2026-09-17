@@ -22,6 +22,22 @@ pub(crate) struct Package {
     pub(crate) checksum: String,
 }
 
+/// Racine de l'API qui publie les binaires Temurin.
+pub(crate) const API: &str = "https://api.adoptium.net/v3";
+
+/// L'URL du dernier binaire publié pour une plateforme et un type d'image.
+///
+/// La racine est un argument : c'est ce qui permet d'éprouver l'installation
+/// complète — téléchargement, vérification d'empreinte, extraction, contrôle du
+/// binaire posé — sans sortir sur le réseau ni dépendre de la disponibilité
+/// d'Adoptium.
+pub(crate) fn url_assets(base: &str, major: u32, os: &str, arch: &str, image: &str) -> String {
+    format!(
+        "{base}/assets/latest/{major}/hotspot\
+         ?architecture={arch}&image_type={image}&os={os}&vendor=eclipse"
+    )
+}
+
 /// Couple `(os, architecture)` au vocabulaire d'Adoptium.
 pub(crate) fn platform() -> Result<(&'static str, &'static str)> {
     let os = match std::env::consts::OS {
@@ -37,3 +53,7 @@ pub(crate) fn platform() -> Result<(&'static str, &'static str)> {
     };
     Ok((os, arch))
 }
+
+#[cfg(test)]
+#[path = "adoptium.test.rs"]
+mod tests;
