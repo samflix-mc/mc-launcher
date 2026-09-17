@@ -102,7 +102,12 @@ fn ecrire_executable(chemin: &Path, script: &str) {
     use std::os::unix::fs::PermissionsExt;
     std::fs::create_dir_all(chemin.parent().unwrap()).unwrap();
     std::fs::write(chemin, script).unwrap();
-    std::fs::set_permissions(chemin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    // 0o700 et non 0o755 : le seul à devoir lancer ce script est le processus
+    // qui vient de l'écrire. Lui donner les droits du groupe et des autres ne
+    // servirait rien et poserait, dans un répertoire temporaire partagé, un
+    // exécutable que n'importe quel compte du poste pourrait remplacer entre
+    // son écriture et son lancement.
+    std::fs::set_permissions(chemin, std::fs::Permissions::from_mode(0o700)).unwrap();
 }
 
 /// Fabrique l'archive que publie Adoptium : un répertoire racine au nom de la

@@ -38,7 +38,9 @@ async fn un_echec_rapporte_les_deux_sorties() {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        // 0o700 : seul le processus qui vient d'écrire ce script le lance, et
+        // il vit dans un répertoire temporaire que tout le poste partage.
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
 
     let erreur = run_installer(
