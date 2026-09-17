@@ -62,3 +62,31 @@ fn un_secret_qui_commence_comme_un_schema_reste_masque_en_entier() {
         assert_eq!(redact(entree), attendu, "entrée : {entree}");
     }
 }
+
+/// Un mot-clé sans valeur derrière lui ne cache rien : poser un masque
+/// annoncerait un secret là où il n'y en a pas, et rendrait un journal
+/// trompeur — on chercherait une fuite qui n'a pas eu lieu.
+#[test]
+fn un_mot_cle_qui_n_annonce_rien_ne_se_masque_pas() {
+    for texte in [
+        "token=",
+        "api_key: ",
+        "Authorization:",
+        "mot de passe oublié, voir secret",
+    ] {
+        assert_eq!(redact(texte), texte, "entrée : {texte}");
+    }
+}
+
+/// Le schéma ne s'efface au profit de ce qu'il introduit que s'il introduit
+/// quelque chose. Un « Bearer » suivi d'un blanc en fin de ligne n'introduit
+/// rien : c'est lui qu'il faut masquer, faute de quoi la ligne ressortirait
+/// telle quelle.
+#[test]
+fn un_schema_suivi_du_vide_reste_la_valeur_a_masquer() {
+    assert_eq!(redact("authorization: bearer "), "authorization: [secret] ");
+    assert_eq!(
+        redact("Authorization: Bearer\n"),
+        "Authorization: [secret]\n"
+    );
+}

@@ -33,11 +33,7 @@ impl Downloader {
     pub async fn bytes(&self, url: &str) -> Result<Vec<u8>> {
         let mut last = None;
         for attempt in 0..self.retries {
-            if attempt > 0 {
-                // Palier court : les 5xx d'un CDN passent en quelques secondes,
-                // et un modpack fait des milliers de requêtes.
-                tokio::time::sleep(Duration::from_millis(400 * u64::from(attempt))).await;
-            }
+            tokio::time::sleep(palier(attempt)).await;
             match self.try_bytes(url).await {
                 Ok(b) => {
                     tracing::trace!(url, octets = b.len(), tentative = attempt + 1, "GET");
@@ -67,6 +63,17 @@ impl Downloader {
         }
         Ok(response.bytes().await?.to_vec())
     }
+}
+
+/// Attente avant la tentative numéro `attempt`, la première étant la zéro.
+///
+/// Palier court et croissant : les 5xx d'un CDN passent en quelques secondes,
+/// et un modpack fait des milliers de requêtes — attendre une seconde à chacune
+/// coûterait plus cher que les erreurs qu'on évite. La première tentative
+/// n'attend pas, ce que dit ici le produit par zéro plutôt qu'une condition :
+/// une durée nulle se vérifie, une branche sautée ne se voit pas.
+fn palier(attempt: u32) -> Duration {
+    Duration::from_millis(400 * u64::from(attempt))
 }
 
 #[cfg(test)]

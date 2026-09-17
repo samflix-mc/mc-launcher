@@ -1,4 +1,15 @@
-use super::Downloader;
+use super::{Downloader, palier};
+
+/// Le palier décide de ce que coûte une source qui bafouille : trop court, on
+/// réessaie avant que le CDN ne se soit remis ; trop long, un modpack de mille
+/// fichiers passe ses minutes à attendre. Le calcul se vérifie donc, faute de
+/// quoi seule une horloge dans un test pourrait le dire.
+#[test]
+fn la_premiere_tentative_part_sans_attendre_et_les_suivantes_patientent() {
+    assert_eq!(palier(0), std::time::Duration::ZERO);
+    assert_eq!(palier(1), std::time::Duration::from_millis(400));
+    assert_eq!(palier(2), std::time::Duration::from_millis(800));
+}
 
 fn client() -> Downloader {
     Downloader::new(crate::USER_AGENT).expect("le client se construit")
