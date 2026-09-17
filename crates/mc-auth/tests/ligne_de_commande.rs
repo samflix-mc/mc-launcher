@@ -22,6 +22,12 @@ fn mc_auth(args: &[&str], maison: &Path) -> Output {
         .env("HOME", maison)
         // Rien ne doit partir chez Sentry parce qu'une suite a tourné.
         .env("SAMFLIX_TELEMETRY", "0")
+        // Et surtout : pas de trousseau. Le fichier de session s'isole en
+        // déplaçant XDG_CONFIG_HOME, le trousseau non — il est unique pour la
+        // session de l'utilisateur. Sans cette variable, « logout » efface la
+        // vraie session Microsoft du poste qui exécute la suite, et le joueur
+        // doit se reconnecter après chaque « cargo test ».
+        .env("SAMFLIX_SANS_TROUSSEAU", "1")
         .output()
         .expect("le binaire mc-auth a été construit par cargo test")
 }

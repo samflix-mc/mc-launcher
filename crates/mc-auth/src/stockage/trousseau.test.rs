@@ -36,3 +36,44 @@ fn le_service_et_l_entree_ne_bougent_pas() {
     assert_eq!(SERVICE, "samflix-mc");
     assert_eq!(ENTREE, "session-minecraft");
 }
+
+/// Le trousseau de cette machine garde-t-il vraiment ce qu'on lui confie ?
+///
+/// Ignoré par défaut : il écrit dans le portefeuille de l'utilisateur, ce
+/// qu'une suite ne doit pas faire sans qu'on le demande. À lancer quand une
+/// session s'évapore d'un lancement à l'autre :
+///
+/// ```sh
+/// cargo test -p mc-auth -- --ignored --nocapture le_trousseau_garde
+/// ```
+///
+/// Écrit sous un service distinct de celui du launcher, pour ne pas écraser la
+/// session en cours, et nettoie derrière lui.
+#[test]
+#[ignore = "touche au portefeuille de la machine"]
+fn le_trousseau_garde_ce_qu_on_lui_confie() {
+    const ESSAI: &str = "samflix-mc-essai";
+
+    let entree = keyring::Entry::new(ESSAI, "diagnostic").expect("le trousseau s'ouvre");
+    entree.set_password("valeur-temoin").expect("écriture");
+
+    // Relu par une entrée neuve : la première peut très bien avoir gardé la
+    // valeur en mémoire sans que rien ne soit persisté.
+    let relu = keyring::Entry::new(ESSAI, "diagnostic")
+        .expect("le trousseau s'ouvre")
+        .get_password();
+
+    // `MC_TROUSSEAU_TEMOIN=1` laisse l'entrée en place : c'est ce qui permet
+    // de vérifier depuis un autre processus — `secret-tool lookup service
+    // samflix-mc-essai username diagnostic` — qu'elle a bien été persistée et
+    // pas seulement gardée en mémoire par le portefeuille.
+    if std::env::var_os("MC_TROUSSEAU_TEMOIN").is_none() {
+        let _ = entree.delete_credential();
+    }
+
+    assert_eq!(
+        relu.as_deref().ok(),
+        Some("valeur-temoin"),
+        "le trousseau a accepté l'écriture sans la rendre : {relu:?}"
+    );
+}

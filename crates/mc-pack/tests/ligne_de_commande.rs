@@ -20,6 +20,9 @@ fn mc_pack(args: &[&str], maison: &Path) -> Output {
         .env("HOME", maison)
         // Rien ne doit partir chez Sentry parce qu'une suite a tourné.
         .env("SAMFLIX_TELEMETRY", "0")
+        // Aucune suite ne touche au trousseau du poste : il ne s'isole pas
+        // par une variable de chemin, contrairement au fichier de session.
+        .env("SAMFLIX_SANS_TROUSSEAU", "1")
         .output()
         .expect("le binaire mc-pack a été construit par cargo test")
 }

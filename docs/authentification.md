@@ -16,9 +16,16 @@ La chaîne est un *device code flow* : Microsoft → Xbox Live → XSTS →
 `login_with_xbox` → licence → profil. Il évite une URI de redirection et un
 serveur HTTP local ; le joueur ouvre une page et saisit un code.
 
-La session vit dans `~/.config/samflix-mc/session.json`, en `0600` : elle
-contient un jeton de rafraîchissement, qui rouvre le compte sans mot de passe
-ni second facteur. Elle se renouvelle toute seule d'un lancement à l'autre.
+La session vit dans le **trousseau du système** — Secret Service, Keychain,
+Credential Manager — sous le service `samflix-mc`. Elle contient un jeton de
+rafraîchissement, qui rouvre le compte sans mot de passe ni second facteur, et
+se renouvelle toute seule d'un lancement à l'autre.
+
+Une machine sans trousseau retombe sur `~/.config/samflix-mc/session.json`, en
+`0600`, avec un `warn` dans le journal. `SAMFLIX_SANS_TROUSSEAU=1` force ce
+second chemin — sur un poste où le portefeuille redemande sa phrase à chaque
+accès, ou dans une suite de tests : le fichier s'isole en déplaçant
+`XDG_CONFIG_HOME`, le trousseau non.
 
 Le choix du mode est explicite. `--pseudo` demande une session hors-ligne ; son
 absence demande le compte enregistré. Aucun repli silencieux de l'un vers
