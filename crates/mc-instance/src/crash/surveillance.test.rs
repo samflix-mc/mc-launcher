@@ -128,3 +128,28 @@ fn un_repertoire_de_mods_absent_donne_une_liste_vide() {
     let arbre = crate::essais::Arbre::neuf("mods-absents");
     assert!(loaded_mods(&arbre.game_dir()).unwrap().is_empty());
 }
+
+/// Une trace peut faire des milliers de cadres — une récursion infinie en
+/// produit jusqu'à ce que la pile cède. L'extrait s'arrête à soixante lignes :
+/// ce qui suit n'apprend rien, et un événement démesuré se fait refuser.
+#[test]
+fn une_trace_interminable_est_bornee() {
+    let mut lignes = vec!["java.lang.StackOverflowError: pile pleine".to_string()];
+    lignes.extend((0..200).map(|i| format!("\tat net.minecraft.Recursion(R.java:{i})")));
+    let vues: Vec<&str> = lignes.iter().map(String::as_str).collect();
+
+    let trouve = observer(&vues);
+    assert_eq!(trouve.len(), 1, "{trouve:?}");
+
+    // La déclaration, plus soixante cadres : pas cinquante-neuf, pas soixante
+    // et un. C'est la borne elle-même qu'on vérifie, et elle ne tient qu'à un
+    // compteur qui avance d'un à chaque ligne retenue.
+    assert_eq!(
+        trouve[0].excerpt.lines().count(),
+        1 + super::EXCERPT_LINES,
+        "{:?}",
+        trouve[0]
+    );
+    assert!(trouve[0].excerpt.contains("R.java:59"), "{:?}", trouve[0]);
+    assert!(!trouve[0].excerpt.contains("R.java:60"), "{:?}", trouve[0]);
+}

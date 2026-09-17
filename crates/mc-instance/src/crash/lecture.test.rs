@@ -1,4 +1,29 @@
-use super::parse;
+use super::{EXCERPT_LINES, parse};
+
+/// L'extrait prend cinq lignes avant l'exception — ce que le jeu était en
+/// train de faire — et soixante après. Un fichier de plantage en fait des
+/// milliers : tout joindre ferait refuser l'événement, n'en joindre aucune
+/// laisserait un incident sans trace.
+#[test]
+fn l_extrait_cadre_l_exception_sans_emporter_tout_le_fichier() {
+    let mut lignes: Vec<String> = (0..20).map(|i| format!("avant-{i:02}")).collect();
+    lignes.push("java.lang.NullPointerException: rien".to_string());
+    lignes.extend((0..200).map(|i| format!("\tat quelque.part(Chose.java:{i})")));
+
+    let crash = parse(&lignes.join("\n")).expect("exception trouvée");
+    let extrait: Vec<&str> = crash.excerpt.lines().collect();
+
+    // Cinq lignes de contexte, puis l'exception et ce qui la suit.
+    assert_eq!(extrait.len(), 5 + EXCERPT_LINES);
+    assert_eq!(extrait[0], "avant-15");
+    assert_eq!(extrait[5], "java.lang.NullPointerException: rien");
+    // La soixantième ligne à partir de l'exception, et pas une de plus.
+    assert!(
+        extrait.last().unwrap().contains("Chose.java:58"),
+        "dernière ligne : {:?}",
+        extrait.last()
+    );
+}
 
 #[test]
 fn reconnait_une_exception_de_resolution_de_modules() {
