@@ -1,4 +1,4 @@
-use super::load_remote;
+use super::{copie_complete, load_remote};
 use crate::essais::{Atelier, MANIFESTE, entree, verrou};
 use crate::lockfile::Lockfile;
 use crate::manifest::Manifest;
@@ -126,4 +126,38 @@ async fn sans_reseau_ni_copie_l_echec_nomme_le_cache() {
     let texte = format!("{erreur:#}");
     assert!(texte.contains("inutilisable"), "{texte}");
     assert!(texte.contains("cache"), "{texte}");
+}
+
+/// Une copie locale n'est exploitable que si elle est entière. Un manifeste
+/// sans son verrou ferait résoudre à nouveau alors que le réseau est justement
+/// injoignable ; un verrou sans son manifeste ne dit pas quel pack il
+/// verrouille. N'en exiger qu'un laisserait l'installation continuer sur une
+/// moitié de pack.
+#[test]
+fn une_copie_locale_n_est_utilisable_que_complete() {
+    let atelier = Atelier::neuf("copie-locale");
+    let manifeste = atelier.racine.join("samflix.json");
+    let verrou_local = atelier.racine.join("samflix.lock.json");
+
+    assert!(
+        !copie_complete(&manifeste, &verrou_local),
+        "rien sur le disque"
+    );
+
+    std::fs::write(&manifeste, MANIFESTE).unwrap();
+    assert!(
+        !copie_complete(&manifeste, &verrou_local),
+        "le verrou manque"
+    );
+
+    verrou(vec![entree("jei", "both", None)])
+        .save(&verrou_local)
+        .unwrap();
+    assert!(copie_complete(&manifeste, &verrou_local));
+
+    std::fs::remove_file(&manifeste).unwrap();
+    assert!(
+        !copie_complete(&manifeste, &verrou_local),
+        "le manifeste manque"
+    );
 }

@@ -27,9 +27,7 @@ pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> R
         from_cache,
     } = source.load(&dl).await?;
 
-    // Un pack distant se rejoue toujours : c'est le verrou publié qui décide
-    // des versions, pas la machine du joueur. Voir `source`.
-    let replay = replay || options.locked;
+    let replay = doit_rejouer(replay, options.locked);
 
     // Renseignés après lecture du manifeste : le span les porte, donc tout ce
     // qui suit est rattaché au pack sans avoir à le répéter à chaque ligne.
@@ -102,3 +100,19 @@ pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> R
         from_cache,
     ))
 }
+
+/// Faut-il rejouer le verrou plutôt que de résoudre à nouveau ?
+///
+/// Deux raisons, indépendantes l'une de l'autre. Un pack distant se rejoue
+/// toujours : c'est le verrou publié qui décide des versions, pas la machine
+/// du joueur. Et « --locked » l'exige explicitement, y compris sur un
+/// manifeste local qu'on est en train d'éditer. Les confondre ferait résoudre
+/// à nouveau un pack publié, et le joueur n'aurait pas les versions que le
+/// réseau a validées.
+fn doit_rejouer(pack_distant: bool, locked: bool) -> bool {
+    pack_distant || locked
+}
+
+#[cfg(test)]
+#[path = "installation.test.rs"]
+mod tests;

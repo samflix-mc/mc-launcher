@@ -59,7 +59,7 @@ pub(in crate::source) async fn load_remote(
         });
     }
 
-    if !manifest_cache.is_file() || !lock_cache.is_file() {
+    if !copie_complete(&manifest_cache, &lock_cache) {
         bail!(
             "pack {url} inutilisable, et aucune copie dans {}",
             cache_dir.display()
@@ -95,6 +95,16 @@ async fn fetch_pair(
     let lock = Lockfile::parse(&raw)
         .with_context(|| format!("{lock_url} ne contient pas un verrou lisible"))?;
     Ok((manifest, lock))
+}
+
+/// La copie locale est-elle exploitable ?
+///
+/// Il faut les deux fichiers : un manifeste sans son verrou ferait résoudre à
+/// nouveau alors que le réseau est justement injoignable, et un verrou sans
+/// son manifeste ne dit pas quel pack il verrouille. N'en exiger qu'un
+/// laisserait l'installation continuer sur une moitié de pack.
+fn copie_complete(manifest_cache: &std::path::Path, lock_cache: &std::path::Path) -> bool {
+    manifest_cache.is_file() && lock_cache.is_file()
 }
 
 #[cfg(test)]

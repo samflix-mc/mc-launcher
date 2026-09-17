@@ -1,4 +1,4 @@
-use super::Server;
+use super::{Server, porte_deja_un_port};
 use crate::manifest::essais::{base, serveur};
 
 #[test]
@@ -53,4 +53,23 @@ fn un_hote_deja_suffixe_d_un_port_est_signale() {
             .map(Server::address),
         Some("mc.ggy.info:25566".into())
     );
+}
+
+/// Un hôte qui porte déjà son port ne doit pas en recevoir un second :
+/// « hôte:25565:25566 » est refusé par Guava, comme l'est une IPv6 nue. Les
+/// deux moitiés de la règle comptent — il faut un port *et* que ce qui précède
+/// ne soit pas une adresse IPv6 sans crochets, dont les deux-points ne
+/// séparent pas un port.
+#[test]
+fn un_hote_qui_porte_deja_son_port_est_reconnu() {
+    assert!(porte_deja_un_port("mc.exemple.fr:25565"));
+    assert!(porte_deja_un_port("[2001:db8::1]:25565"));
+
+    // Pas de port du tout.
+    assert!(!porte_deja_un_port("mc.exemple.fr"));
+    // Ce qui suit les deux-points n'est pas un port.
+    assert!(!porte_deja_un_port("mc.exemple.fr:jeu"));
+    // Une IPv6 nue : ses deux-points ne séparent pas un port, et le dernier
+    // groupe peut passer pour un nombre.
+    assert!(!porte_deja_un_port("2001:db8::25565"));
 }

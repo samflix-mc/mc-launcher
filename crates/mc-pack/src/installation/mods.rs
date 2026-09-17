@@ -56,11 +56,7 @@ pub(super) async fn poser(
     };
 
     let plan = mc_mods::resolve(&registry, &requests, &manifest.minecraft, "neoforge").await?;
-    let added = plan
-        .mods
-        .iter()
-        .filter(|m| m.reason != mc_mods::Reason::Explicit)
-        .count();
+    let added = ajoutes_par_dependance(plan.mods.iter().map(|m| &m.reason));
     tracing::info!(
         total = plan.mods.len(),
         ajoutes = added,
@@ -85,3 +81,19 @@ pub(super) async fn poser(
     }
     deploiement::deployer(plan, options, manifest, java, neoforge_version, dl, log).await
 }
+
+/// Combien de mods le pack a gagnés sans que le manifeste les demande.
+///
+/// C'est le chiffre qui explique qu'un manifeste de trente lignes installe
+/// cent mods : le reste vient des dépendances. Compter les autres — ceux que
+/// le manifeste nomme — annoncerait le contraire, et ferait croire à une
+/// résolution qui n'a rien trouvé.
+fn ajoutes_par_dependance<'a>(raisons: impl Iterator<Item = &'a mc_mods::Reason>) -> usize {
+    raisons
+        .filter(|reason| **reason != mc_mods::Reason::Explicit)
+        .count()
+}
+
+#[cfg(test)]
+#[path = "mods.test.rs"]
+mod tests;
