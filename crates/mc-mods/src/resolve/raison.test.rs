@@ -1,5 +1,28 @@
 use super::{Reason, Request, autorite, impasse_implicite};
 
+/// Ces phrases sont la seule explication qu'un joueur reçoive quand un mod
+/// qu'il n'a pas demandé apparaît dans son pack, ou qu'un build en remplace un
+/// autre. Elles doivent nommer qui a réclamé quoi : une chaîne vide, et le
+/// rapport ne dit plus rien.
+#[test]
+fn chaque_raison_dit_qui_a_reclame_le_mod() {
+    assert_eq!(Reason::Explicit.describe(), "demandé par le manifeste");
+
+    let declaree = Reason::Declared {
+        by: "create".to_string(),
+    };
+    assert_eq!(declaree.describe(), "dépendance déclarée de create");
+
+    let implicite = Reason::Implicit {
+        by: "create".to_string(),
+        mod_id: "flywheel".to_string(),
+    };
+    assert_eq!(
+        implicite.describe(),
+        "dépendance implicite : create exige « flywheel »"
+    );
+}
+
 /// Le scénario qui faisait mourir la résolution sur `MAX_PASSES` : un
 /// demandeur autoritaire impose un build qui ne fournit pas le `modId`
 /// qu'un jar exige, et l'exigence rejouait sa demande perdue à chaque tour.

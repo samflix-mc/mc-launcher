@@ -46,3 +46,26 @@ fn le_cote_couvre_toujours_les_deux_usages() {
         assert_eq!(cote, Side::Both, "même build : {meme_build}");
     }
 }
+
+/// À autorité égale, le premier arrivé reste celui qui répond du mod. Céder la
+/// place à égalité ferait dépendre le nom inscrit dans le verrou de l'ordre où
+/// les branches ont été explorées — deux résolutions du même manifeste
+/// donneraient deux verrous différents.
+#[test]
+fn a_autorite_egale_le_demandeur_en_place_le_reste() {
+    assert_eq!(
+        arbitrer(2, 2, false, Side::Client, Side::Client),
+        Arbitrage::Conserver {
+            cote: Side::Client,
+            reprendre: false
+        }
+    );
+    // Un cran au-dessus, en revanche, la reprise est due.
+    assert_eq!(
+        arbitrer(3, 2, true, Side::Client, Side::Client),
+        Arbitrage::Conserver {
+            cote: Side::Client,
+            reprendre: true
+        }
+    );
+}
