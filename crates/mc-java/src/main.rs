@@ -79,6 +79,14 @@ async fn run() -> Result<ExitCode> {
         dir,
     } = analyser(std::env::args().skip(1))?;
 
+    executer(major, check_only, dir).await
+}
+
+/// Ce que les réglages déclenchent, séparé de leur lecture.
+///
+/// `--check` est le seul chemin qui ne touche à rien : il dit si ce poste a
+/// déjà un Java utilisable, et c'est celui qu'une CI appelle.
+async fn executer(major: u32, check_only: bool, dir: Option<PathBuf>) -> Result<ExitCode> {
     let runtime_dir = dir.unwrap_or_else(mc_java::default_runtime_dir);
 
     if let Some(java) = mc_java::detect(major, &runtime_dir).await {

@@ -41,6 +41,31 @@ impl Guard {
         }
     }
 
+    /// Un garde qui ne tient rien.
+    ///
+    /// C'est l'état d'une exécution dont le répertoire de journal n'était pas
+    /// inscriptible : le programme tourne, mais [`log_path`] ne désigne rien.
+    /// Exposé parce que les binaires reçoivent un `&Guard` en argument et que
+    /// ce cas-là — celui où l'on ne doit surtout pas renvoyer l'utilisateur
+    /// vers un fichier absent — ne peut être éprouvé autrement.
+    ///
+    /// [`log_path`]: Guard::log_path
+    pub fn sans_journal() -> Self {
+        Self::new(None, None, None)
+    }
+
+    /// Un garde qui désigne un journal sans rien tenir ouvert.
+    ///
+    /// Complément du précédent : il permet d'éprouver les deux branches de ce
+    /// que [`log_path`] rend, sans poser de souscripteur global — ce que
+    /// [`crate::init`] ne peut faire qu'une fois par processus.
+    ///
+    /// [`log_path`]: Guard::log_path
+    #[doc(hidden)]
+    pub fn new_pour_essais(dir: PathBuf, component: &str) -> Self {
+        Self::new(None, None, Some((dir, component.to_string())))
+    }
+
     /// Chemin du journal, à citer quand quelque chose échoue.
     ///
     /// Recalculé à chaque appel, jamais figé au démarrage : `rolling::daily`

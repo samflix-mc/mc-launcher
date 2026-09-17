@@ -49,3 +49,7 @@ pub fn conclure(command: &str, result: &Result<ExitCode>, debut: Instant, log: &
         }
     }
 }
+
+#[cfg(test)]
+#[path = "journal.test.rs"]
+mod tests;

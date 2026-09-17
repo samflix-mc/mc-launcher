@@ -51,3 +51,7 @@ async fn en_ligne() -> Result<Session> {
         &session.minecraft_token,
     ))
 }
+
+#[cfg(test)]
+#[path = "identite.test.rs"]
+mod tests;

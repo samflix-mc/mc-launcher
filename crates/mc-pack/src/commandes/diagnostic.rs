@@ -70,3 +70,7 @@ pub fn diagnostic(log: &mc_log::Guard, incident_test: bool) -> Result<ExitCode> 
     }
     Ok(ExitCode::SUCCESS)
 }
+
+#[cfg(test)]
+#[path = "diagnostic.test.rs"]
+mod tests;

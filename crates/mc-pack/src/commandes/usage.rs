@@ -15,3 +15,7 @@ pub fn usage() {
         source::url_par_defaut()
     );
 }
+
+#[cfg(test)]
+#[path = "usage.test.rs"]
+mod tests;

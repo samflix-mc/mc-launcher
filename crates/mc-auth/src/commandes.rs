@@ -68,3 +68,7 @@ fn afficher(session: &mc_auth::Session) {
     println!("  pseudo : {}", session.profile.name);
     println!("  uuid   : {}", session.profile.id);
 }
+
+#[cfg(test)]
+#[path = "commandes.test.rs"]
+mod tests;

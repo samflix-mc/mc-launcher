@@ -57,3 +57,7 @@ pub(super) async fn jouer(partie: &Partie) -> Result<()> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "partie.test.rs"]
+mod tests;
