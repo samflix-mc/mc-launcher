@@ -23,3 +23,53 @@ fn chaque_niveau_traverse_la_couche_sans_incident() {
         tracing::trace!("le dernier recours");
     });
 }
+
+/// Donne les événements Sentry produits par ce que la fermeture journalise.
+fn incidents_de(travail: impl FnOnce()) -> Vec<sentry::protocol::Event<'static>> {
+    use tracing_subscriber::layer::SubscriberExt;
+
+    sentry::test::with_captured_events(|| {
+        let souscripteur = tracing_subscriber::registry().with(couche());
+        tracing::subscriber::with_default(souscripteur, travail);
+    })
+}
+
+/// `error!` est la seule porte d'entrée d'un incident : c'est par elle que ce
+/// qui casse chez un joueur nous parvient. Un filtre qui ne l'ouvre plus ne
+/// casse rien de visible — il rend seulement le tableau de bord muet.
+#[test]
+fn une_erreur_ouvre_un_incident() {
+    let incidents = incidents_de(|| tracing::error!("le pack ne s'installe pas"));
+
+    assert_eq!(incidents.len(), 1, "{incidents:?}");
+    let message = incidents[0].message.clone().unwrap_or_default();
+    assert!(message.contains("le pack ne s'installe pas"), "{message}");
+}
+
+/// Un avertissement n'ouvre pas d'incident : il laisse un fil d'Ariane, que
+/// l'incident suivant emporte avec lui. C'est ce qui permet de lire ce que le
+/// launcher faisait juste avant de tomber — sans lui, il reste l'erreur seule,
+/// sans son contexte.
+#[test]
+fn un_avertissement_laisse_un_fil_d_ariane_dans_l_incident_suivant() {
+    let incidents = incidents_de(|| {
+        tracing::warn!("réessai du téléchargement");
+        tracing::info!("installation du pack");
+        tracing::error!("plus de place sur le disque");
+    });
+
+    assert_eq!(incidents.len(), 1, "un seul incident : l'erreur");
+    let fils: Vec<String> = incidents[0]
+        .breadcrumbs
+        .iter()
+        .map(|fil| fil.message.clone().unwrap_or_default())
+        .collect();
+    assert!(
+        fils.iter().any(|m| m.contains("réessai du téléchargement")),
+        "{fils:?}"
+    );
+    assert!(
+        fils.iter().any(|m| m.contains("installation du pack")),
+        "{fils:?}"
+    );
+}

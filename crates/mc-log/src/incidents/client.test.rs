@@ -131,3 +131,25 @@ fn un_journal_structure_est_censure_et_perd_le_nom_de_la_machine() {
     // Les nombres restent intacts : ils servent au tri et ne portent rien.
     assert_eq!(sorti.attributes.get("essais").unwrap().0, 3);
 }
+
+/// Le client ne s'ouvre que si la télémétrie est active — mais alors il doit
+/// s'ouvrir pour de bon. Rendre `None` ici couperait la remontée sans rien
+/// dire : le launcher continuerait, les journaux seraient écrits, et pas un
+/// incident n'arriverait jamais.
+#[test]
+fn un_dsn_declare_ouvre_un_client() {
+    let vars = crate::essais::variables();
+    vars.retirer("SAMFLIX_TELEMETRY");
+    // Un DSN syntaxiquement valable qui ne mène nulle part : le client
+    // s'ouvre, et ce qu'il tente d'envoyer n'ira pas plus loin que le réseau.
+    vars.poser("SENTRY_DSN", "https://cle@exemple.invalid/7");
+
+    let garde = super::init_sentry("mc-essai");
+    assert!(garde.is_some(), "aucun client ouvert pour un DSN déclaré");
+
+    // Et rien ne s'ouvre quand l'opt-out est posé : les deux moitiés de la
+    // décision se vérifient ensemble, sinon l'une couvre l'autre.
+    drop(garde);
+    vars.poser("SAMFLIX_TELEMETRY", "0");
+    assert!(super::init_sentry("mc-essai").is_none());
+}

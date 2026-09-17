@@ -82,3 +82,62 @@ fn un_repertoire_impossible_ne_coupe_pas_le_programme() {
 
     std::fs::remove_file(&bloquant).ok();
 }
+
+/// `file_layer` ne fait qu'une chose de plus que `file_layer_in` : choisir le
+/// répertoire. C'est peu, et c'est tout ce qui range le journal là où le
+/// diagnostic ira le chercher — rendre trois `None` priverait silencieusement
+/// le launcher de son fichier, celui-là même qu'on demande à un joueur de
+/// joindre.
+#[test]
+fn la_couche_fichier_s_installe_dans_le_repertoire_des_journaux() {
+    let vars = crate::essais::variables();
+    let racine = dossier("couche-defaut");
+    std::fs::create_dir_all(&racine).unwrap();
+    vars.poser("XDG_DATA_HOME", racine.to_str().unwrap());
+
+    let (couche, garde, chemin) = super::file_layer("essai");
+
+    assert!(couche.is_some(), "aucune couche fichier");
+    assert!(garde.is_some(), "aucun garde d'écriture");
+    let chemin = chemin.expect("le répertoire des journaux est rendu");
+    assert!(
+        chemin.starts_with(&racine),
+        "journal hors du répertoire déclaré : {chemin:?}"
+    );
+    assert_eq!(chemin, crate::guard::log_dir());
+
+    drop(garde);
+    std::fs::remove_dir_all(&racine).ok();
+}
+
+/// Un `flush` qui ne descend pas jusqu'au fichier laisse la dernière ligne
+/// dans un tampon — et c'est justement celle qui dit pourquoi le launcher
+/// s'est arrêté.
+#[test]
+fn le_vidage_traverse_jusqu_a_l_ecrivain_enveloppe() {
+    use std::io::Write;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Clone, Default)]
+    struct Temoin(Arc<Mutex<usize>>);
+
+    impl Write for Temoin {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            *self.0.lock().unwrap() += 1;
+            Ok(())
+        }
+    }
+
+    let temoin = Temoin::default();
+    let mut ecrivain = RedactingWriter {
+        inner: temoin.clone(),
+    };
+    ecrivain.write_all(b"une ligne\n").unwrap();
+    assert_eq!(*temoin.0.lock().unwrap(), 0, "rien n'a encore été demandé");
+
+    ecrivain.flush().unwrap();
+    assert_eq!(*temoin.0.lock().unwrap(), 1, "le vidage n'est pas descendu");
+}

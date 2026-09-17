@@ -117,3 +117,27 @@ fn l_horloge_ne_repart_pas_de_zero_a_chaque_ligne() {
         "l'horloge est repartie de zéro : {sorti}"
     );
 }
+
+/// Un message peut arriver au visiteur comme chaîne plutôt que par son
+/// `Debug` : c'est le cas dès qu'on le passe en champ nommé, ce que fait
+/// `tracing::error!(message = %erreur)` un peu partout dans le launcher. Les
+/// deux chemins doivent rendre la même ligne — sinon la console reste muette
+/// précisément là où l'on regarde, et sans guillemets d'un côté, avec de
+/// l'autre.
+#[test]
+fn un_message_passe_en_champ_nomme_s_affiche_comme_les_autres() {
+    let sorti = console(|| {
+        tracing::info!(message = "le pack est à jour");
+    });
+
+    assert!(
+        sorti.contains("le pack est à jour"),
+        "message absent : {sorti}"
+    );
+    // Rendu comme une chaîne, et non par son `Debug` : celui-ci l'entourerait
+    // de guillemets.
+    assert!(
+        !sorti.contains("\"le pack est à jour\""),
+        "message échappé : {sorti}"
+    );
+}

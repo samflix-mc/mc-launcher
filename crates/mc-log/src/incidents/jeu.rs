@@ -21,10 +21,14 @@ pub fn capture_game_crash(
     excerpt: &str,
     context: &std::collections::BTreeMap<String, String>,
 ) -> sentry::types::Uuid {
-    use sentry::protocol::{Event, Exception, Level, Value};
+    use sentry::protocol::{Event, Exception, Value};
 
+    // Le niveau n'est pas écrit : `Event::default()` vaut déjà `Error`, et le
+    // répéter créerait une ligne que rien ne peut distinguer de son absence —
+    // un mutant immortel, qu'aucun test ne saurait départager. C'est la suite
+    // qui tient la propriété : elle exige `Level::Error` sur l'événement rendu,
+    // et tombera le jour où le SDK changera son défaut.
     let mut event = Event {
-        level: Level::Error,
         // `logger` distingue d'emblée un plantage du jeu d'une erreur du
         // launcher, qui n'appellent pas le même travail.
         logger: Some("minecraft".into()),

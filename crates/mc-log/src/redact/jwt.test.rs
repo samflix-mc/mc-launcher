@@ -22,3 +22,14 @@ fn un_identifiant_court_commencant_par_ey_survit() {
     let texte = "build épinglé eyZ2YBGT introuvable";
     assert_eq!(redact(texte), texte);
 }
+
+/// C'est la **longueur** du mot qui décide, et non l'endroit où il tombe dans
+/// la ligne. Un identifiant court qui commence par « eyJ » — le préfixe exact
+/// d'un JWT — doit survivre aussi loin soit-il du début : dans le cas
+/// contraire, la censure dépendrait de ce qui a été écrit avant, et un même
+/// message serait masqué ou non selon la longueur de son préambule.
+#[test]
+fn un_court_eyj_ne_se_masque_pas_parce_qu_il_arrive_tard() {
+    let texte = "configuration lue depuis eyJcfg42";
+    assert_eq!(redact(texte), texte);
+}

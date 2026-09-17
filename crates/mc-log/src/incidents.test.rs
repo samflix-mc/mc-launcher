@@ -54,3 +54,31 @@ fn un_dsn_pose_remplace_celui_du_projet() {
 fn sans_client_la_file_n_est_pas_dite_videe() {
     assert!(!flush_incidents(std::time::Duration::from_millis(1)));
 }
+
+/// Et avec un client, la file part et le dit. Les deux appelants qui attendent
+/// ce `true` annoncent un identifiant au joueur : « consigné » ne se dit pas
+/// comme « transmis », et chercher dans le tableau de bord un identifiant qui
+/// n'y est jamais arrivé coûte plus cher que l'attente qu'on s'épargnait.
+#[test]
+fn avec_un_client_la_file_part_et_le_dit() {
+    sentry::test::with_captured_events(|| {
+        assert!(
+            flush_incidents(std::time::Duration::from_secs(1)),
+            "un client est lié : la file part"
+        );
+    });
+}
+
+/// Sans opt-out ni DSN de remplacement, c'est le projet du launcher qui reçoit
+/// — et la remontée est donc active. Répondre `false` couperait en silence la
+/// seule voie par laquelle un plantage chez un joueur nous parvient.
+#[test]
+fn sans_rien_declarer_la_remontee_est_active() {
+    let vars = crate::essais::variables();
+    vars.retirer("SAMFLIX_TELEMETRY");
+    vars.retirer("SENTRY_DSN");
+
+    assert!(telemetry_enabled());
+    assert!(telemetry_active());
+    assert!(dsn().is_some());
+}
