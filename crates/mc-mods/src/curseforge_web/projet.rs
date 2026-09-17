@@ -34,9 +34,7 @@ impl CurseForgeWeb {
     /// jamais vu, d'où la seconde tentative.
     pub(super) async fn project_id(&self, slug: &str) -> Result<Option<(u32, String)>> {
         for attempt in 0..2 {
-            if attempt > 0 {
-                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-            }
+            tokio::time::sleep(attente_du_cache(attempt)).await;
             let response = self
                 .dl
                 .client()
@@ -70,6 +68,17 @@ impl CurseForgeWeb {
             Err(_) => self.project_id(id_or_slug).await,
         }
     }
+}
+
+/// Temps laissé à cfwidget pour constituer son cache avant la tentative
+/// `attempt`, la première étant la zéro.
+///
+/// Il répond 202 pour un projet qu'il n'a jamais vu, et le constitue en
+/// arrière-plan. Trois secondes suffisent en pratique ; la première tentative
+/// n'attend pas, ce que dit ici un produit par zéro plutôt qu'une condition —
+/// une durée nulle se vérifie, une branche sautée ne se voit pas.
+fn attente_du_cache(attempt: u32) -> std::time::Duration {
+    std::time::Duration::from_secs(3) * attempt
 }
 
 #[cfg(test)]

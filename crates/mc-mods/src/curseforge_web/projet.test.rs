@@ -1,5 +1,15 @@
 use super::super::CurseForgeWeb;
+use super::attente_du_cache;
 use std::sync::Arc;
+
+/// La seconde tentative n'a de sens que si elle laisse à cfwidget le temps de
+/// constituer son cache : repartir aussitôt redemanderait un 202, et le projet
+/// serait déclaré introuvable alors qu'il existe.
+#[test]
+fn la_seconde_tentative_laisse_au_cache_le_temps_de_se_faire() {
+    assert_eq!(attente_du_cache(0), std::time::Duration::ZERO);
+    assert_eq!(attente_du_cache(1), std::time::Duration::from_secs(3));
+}
 
 fn client(serveur: &mc_essais::Serveur) -> CurseForgeWeb {
     let dl = Arc::new(mc_dl::Downloader::new(mc_dl::USER_AGENT).unwrap());
