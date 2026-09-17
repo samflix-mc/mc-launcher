@@ -63,21 +63,22 @@ fn seuls_les_environnements_publies_sont_dits_deployes() {
 fn le_diagnostic_dit_d_ou_vient_l_environnement() {
     use super::{COMPILED, current, origin};
 
-    let garde = crate::essais::environnement("staging");
+    let garde = crate::essais::variables();
+    garde.poser("SAMFLIX_ENV", "staging");
     assert_eq!(current(), Environment::Preproduction);
     assert_eq!(origin(), "variable SAMFLIX_ENV au lancement");
 
     // Une valeur illisible ne doit pas être annoncée comme une déclaration :
     // c'est précisément le cas où l'on cherche pourquoi l'environnement n'est
     // pas celui qu'on croyait.
-    garde.poser("prodction");
+    garde.poser("SAMFLIX_ENV", "prodction");
     assert_ne!(origin(), "variable SAMFLIX_ENV au lancement");
 
     // Sans déclaration au lancement, il ne reste que ce que la compilation a
     // pu figer : rien sur un poste, « development » sur la CI, qui compile
     // avec la variable posée. Ce test dit l'accord des deux réponses ; il ne
     // peut pas dire laquelle, sans quoi il mesurerait le runner.
-    garde.retirer();
+    garde.retirer("SAMFLIX_ENV");
     match COMPILED.and_then(Environment::parse) {
         Some(compile) => {
             assert_eq!(current(), compile);
