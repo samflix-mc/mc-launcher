@@ -3,7 +3,7 @@
 <p align="center">
   Le launcher du réseau <strong>samflix-mc</strong> : il installe le pack,<br>
   vérifie l'installation, et lance le jeu avec les mêmes mods que les serveurs.<br>
-  <em>En développement — l'interface reste à faire.</em>
+  <em>Une fenêtre, et la ligne de commande qui la précède.</em>
 </p>
 
 <p align="center">
@@ -34,6 +34,8 @@ jeu avec ce que le pack déclare.
 
 ## Démarrer
 
+La fenêtre fait tout cela ; la ligne de commande aussi, avec le même code.
+
 ```bash
 mc-pack install                        # installe le pack publié
 mc-pack verify [source] [--deep]       # l'installation est-elle conforme au verrou ?
@@ -58,7 +60,7 @@ sait de quel environnement il vient, et c'est cela qui choisit le pack — voir
   instances/<nom>/server/mods/ les mods du côté serveur
   runtime/temurin-21/
   cache/mods/
-~/.config/samflix-mc/session.json      la session Microsoft, en 0600
+~/.config/samflix-mc/session.json      la session, si la machine n'a pas de trousseau
 ```
 
 Bibliothèques et assets pèsent près d'un gigaoctet et ne dépendent que de la
@@ -70,15 +72,14 @@ version du jeu : ils sont partagés entre instances. `shared/` a la forme d'un
 | | |
 |---|---|
 | [`mc-pack`](crates/mc-pack) | manifeste, installation, vérification, lancement — **le binaire qu'on lance** |
-| [`mc-mods`](crates/mc-mods) | résolution des mods : Modrinth, CurseForge, dépendances lues dans les jars |
+| [`mc-mods`](crates/mc-mods) | résolution des mods : Modrinth, CurseForge sans clé, dépendances lues dans les jars |
 | [`mc-instance`](crates/mc-instance) | Minecraft et NeoForge : installation, ligne de commande JVM, plantages |
 | [`mc-auth`](crates/mc-auth) | authentification Microsoft, et profil hors-ligne |
 | [`mc-java`](crates/mc-java) | détecte un Java 21, en installe un au besoin |
 | [`mc-log`](crates/mc-log) | journaux console et fichier, incidents Sentry, censure des jetons |
 | [`mc-dl`](crates/mc-dl) | téléchargements : reprise, empreintes, écriture atomique |
+| [`mc-app`](crates/mc-app) | l'application Tauri : la fenêtre, et rien d'autre — voir [interface.md](docs/interface.md) |
 | [`mc-essais`](crates/mc-essais) | serveur HTTP d'essai, pour éprouver ce qui parle au réseau |
-
-L'interface reste à faire ; tout le reste est écrit.
 
 ## Qualité
 
@@ -98,7 +99,7 @@ survivant**. Le détail est dans [qualite.md](docs/qualite.md).
 | | |
 |---|---|
 | [packs.md](docs/packs.md) | d'où vient le pack, le manifeste, le verrou |
-| [mods.md](docs/mods.md) | les trois sources, CurseForge sans clé, les dépendances cachées |
+| [mods.md](docs/mods.md) | les deux sources, CurseForge sans clé, les dépendances cachées |
 | [lancement.md](docs/lancement.md) | ce qui décide qu'un jeu démarre, le runtime Java |
 | [authentification.md](docs/authentification.md) | Microsoft, mode hors-ligne, et ce que ce launcher présente |
 | [interface.md](docs/interface.md) | la fenêtre : Tauri, Angular, le trousseau, le build |

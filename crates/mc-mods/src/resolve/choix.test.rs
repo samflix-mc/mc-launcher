@@ -9,7 +9,6 @@ fn le_build_retenu_est_rendu_tel_quel() {
         &Request::new("jade"),
         "1.21.1",
         "neoforge",
-        true,
     )
     .expect("un build retenu");
     assert_eq!(retenu.version_number, "15.10.6");
@@ -24,7 +23,6 @@ fn version_demandee_absente_le_dit_plutot_que_introuvable() {
         &request,
         "1.21.1",
         "neoforge",
-        true,
     )
     .expect_err("version absente");
     let texte = erreur.to_string();
@@ -38,7 +36,6 @@ fn canal_trop_strict_nomme_le_canal() {
     candidats[0].channel = Channel::Beta;
     let mut request = Request::new("jade");
     request.channel = Some(Channel::Release);
-    let erreur =
-        trancher(candidats, &request, "1.21.1", "neoforge", true).expect_err("aucune release");
+    let erreur = trancher(candidats, &request, "1.21.1", "neoforge").expect_err("aucune release");
     assert!(erreur.to_string().contains("au canal release"), "{erreur}");
 }

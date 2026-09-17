@@ -13,10 +13,13 @@
 //! 3. **ce que le jar exige** — `META-INF/neoforge.mods.toml`, la seule source
 //!    que le jeu lise réellement.
 //!
-//! Les mods sont cherchés dans trois sources, de la plus sûre à la moins
-//! contractuelle : [`modrinth`], puis [`curseforge`] si une clé d'API est
-//! configurée, puis [`curseforge_web`] — l'API du site, sans clé, avec les
-//! limites que son module détaille.
+//! Les mods sont cherchés dans deux sources, de la plus sûre à la moins
+//! contractuelle : [`modrinth`], puis [`curseforge_web`] — l'API publique du
+//! site de CurseForge, sans clé, avec les limites que son module détaille.
+//!
+//! La Core API de CurseForge, celle qui demande une clé d'inscription, a été
+//! retirée : le launcher n'en dépend plus, et personne n'a de clé à poser pour
+//! installer un pack.
 //!
 //! Le troisième point est celui qui décide : après téléchargement, chaque jar
 //! est ouvert, ses `modId` obligatoires comparés à ceux que le pack fournit, et
@@ -27,7 +30,6 @@ mod canal;
 mod candidat;
 mod origine;
 
-pub mod curseforge;
 pub mod curseforge_web;
 pub mod jar;
 pub mod modrinth;

@@ -51,8 +51,9 @@ impl CurseForgeWeb {
         if found.is_empty() && total > rendered {
             anyhow::bail!(
                 "{slug} : aucune version {mc}/{loader} parmi les {rendered} fichiers les plus \
-                 récents, mais le projet en compte {total}. Sans clé d'API, CurseForge ne montre \
-                 pas au-delà. Épingler le build avec « file », ou configurer CURSEFORGE_API_KEY."
+                 récents, mais le projet en compte {total}. CurseForge ne montre pas au-delà. \
+                 Épingler le build voulu avec « file » dans le manifeste — son identifiant se lit \
+                 dans l'adresse de la page du fichier."
             );
         }
 

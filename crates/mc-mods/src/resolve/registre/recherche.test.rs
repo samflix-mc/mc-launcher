@@ -7,42 +7,33 @@ const MC: &str = "1.21.1";
 const LOADER: &str = "neoforge";
 
 fn registre(atelier: &Atelier, serveur: &mc_essais::Serveur) -> Registry {
-    Registry::pour_essais(
-        atelier.racine.join("cache"),
-        &serveur.base(),
-        Some("$2a$10$cle"),
-    )
-    .unwrap()
+    Registry::pour_essais(atelier.racine.join("cache"), &serveur.base()).unwrap()
 }
 
-/// Un projet CurseForge, servi par la Core API avec son fichier.
+/// Un projet CurseForge, servi par l'API publique du site.
+///
+/// Trois routes : cfwidget pour retrouver l'identifiant depuis un slug, la
+/// liste des fichiers, et le fichier isolé par lequel passe un build épinglé.
 fn publier_core(serveur: &mc_essais::Serveur, id: u32, slug: &str) {
     serveur.json(
-        "/mods/search",
-        &format!(
-            r#"{{"data":[{{"id":{id},"name":"{slug}","slug":"{slug}",
-                 "links":{{"websiteUrl":"https://exemple.invalid/{slug}"}},
-                 "allowModDistribution":true}}]}}"#
-        ),
+        &format!("/widget/{slug}"),
+        &format!(r#"{{"id":{id},"title":"{slug}"}}"#),
     );
     serveur.json(
-        &format!("/mods/{id}/files"),
+        &format!("/web/mods/{id}/files"),
         &format!(
-            r#"{{"data":[{{"id":7,"modId":{id},"displayName":"1.0","fileName":"{slug}-core.jar",
-                 "releaseType":1,"fileDate":"2026-01-01T00:00:00Z",
-                 "downloadUrl":"https://exemple.invalid/{slug}.jar","fileLength":1,
-                 "gameVersions":["1.21.1","NeoForge"],"hashes":[],"dependencies":[]}}],
-                 "pagination":{{"totalCount":1}}}}"#
+            r#"{{"data":[{{"id":7,"fileName":"{slug}-core.jar","displayName":"1.0",
+                 "fileLength":1,"releaseType":1,"dateCreated":"2026-01-01T00:00:00Z",
+                 "gameVersions":["1.21.1","NeoForge"]}}],"pagination":{{"totalCount":1}}}}"#
         ),
     );
-    serveur.json(&format!("/mods/{id}"), &format!(r#"{{"data":{{"id":{id},"name":"{slug}","slug":"{slug}","links":{{"websiteUrl":"https://exemple.invalid/{slug}"}},"allowModDistribution":true}}}}"#));
+    serveur.json(&format!("/web/mods/{id}/dependencies"), r#"{"data":[]}"#);
     serveur.json(
-        &format!("/mods/{id}/files/7"),
+        &format!("/web/mods/{id}/files/7"),
         &format!(
-            r#"{{"data":{{"id":7,"modId":{id},"displayName":"1.0","fileName":"{slug}-core.jar",
-             "releaseType":1,"fileDate":"2026-01-01T00:00:00Z",
-             "downloadUrl":"https://exemple.invalid/{slug}.jar","fileLength":1,
-             "gameVersions":["1.21.1","NeoForge"],"hashes":[],"dependencies":[]}}}}"#
+            r#"{{"data":{{"id":7,"fileName":"{slug}-core.jar","displayName":"1.0",
+             "fileLength":1,"releaseType":1,"dateCreated":"2026-01-01T00:00:00Z",
+             "gameVersions":["1.21.1","NeoForge"]}}}}"#
         ),
     );
 }
@@ -89,7 +80,7 @@ async fn une_source_nommee_n_est_pas_doublee_par_l_autre() {
         trouves.is_empty(),
         "CurseForge a répondu pour une demande adressée à Modrinth : {trouves:?}"
     );
-    assert_eq!(serveur.appels("/mods/search"), 0);
+    assert_eq!(serveur.appels("/widget/jei"), 0);
 }
 
 /// Sans source nommée, Modrinth passe d'abord ; si elle ne trouve rien, c'est
@@ -116,7 +107,7 @@ async fn sans_source_nommee_modrinth_passe_avant_curseforge() {
         .unwrap();
 
     assert_eq!(trouves[0].origin, Origin::Modrinth);
-    assert_eq!(serveur.appels("/mods/search"), 0);
+    assert_eq!(serveur.appels("/widget/jei"), 0);
 }
 
 /// Un build épinglé par un identifiant numérique s'adresse à CurseForge sans

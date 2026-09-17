@@ -21,7 +21,7 @@ pub(super) async fn choisir_build(
     let found = registry
         .candidates(&request.slug, request.source, mc, loader)
         .await?;
-    trancher(found, request, mc, loader, registry.has_curseforge())
+    trancher(found, request, mc, loader)
 }
 
 /// Ce qu'on retient d'une liste de candidats, ou pourquoi on ne retient rien.
@@ -35,7 +35,6 @@ pub(super) fn trancher(
     request: &Request,
     mc: &str,
     loader: &str,
-    has_curseforge: bool,
 ) -> Result<Candidate> {
     let had_candidates = !found.is_empty();
 
@@ -52,17 +51,15 @@ pub(super) fn trancher(
                 _ => " au canal release".to_string(),
             }
         ),
-        None => {
-            let hint = if has_curseforge {
-                ""
-            } else {
-                " (aucune clé CurseForge configurée : seul Modrinth a été consulté)"
-            };
-            bail!(
-                "{} : introuvable pour Minecraft {mc} / {loader}{hint}",
-                request.slug
-            );
-        }
+        // Les deux sources ont répondu et aucune ne connaît ce projet. Sans
+        // clé, la recherche par mot-clé de CurseForge est fermée : un slug qui
+        // ne correspond pas à celui du site n'y est pas trouvable, et c'est la
+        // cause la plus fréquente de ce message.
+        None => bail!(
+            "{} : introuvable pour Minecraft {mc} / {loader}. \
+             Vérifier le slug tel qu'il apparaît dans l'adresse de la page du mod.",
+            request.slug
+        ),
     };
 
     if !candidate.redistributable || candidate.url.is_empty() {

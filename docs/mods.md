@@ -2,57 +2,65 @@
 
 [← README](../README.md)
 
-Trois sources, essayées dans cet ordre :
+Deux sources, essayées dans cet ordre :
 
 | ordre | source | clé | empreinte | remarque |
 |---|---|---|---|---|
 | 1 | Modrinth | non | SHA-1 + SHA-512 | donne aussi la répartition client/serveur |
-| 2 | CurseForge Core API | oui | SHA-1 | expose `allowModDistribution` |
-| 3 | CurseForge sans clé | non | aucune | dernier recours, voir plus bas |
+| 2 | CurseForge, API publique du site | non | aucune | voir plus bas |
 
 Modrinth passe en premier parce que son API est ouverte — rien à distribuer
-avec le binaire — et qu'elle publie les empreintes. La clé CurseForge est
-nominative : un launcher ne peut pas l'embarquer, elle serait extraite du
-binaire et révoquée.
+avec le binaire — et qu'elle publie les empreintes.
 
 ```bash
-export CURSEFORGE_API_KEY=…            # ou ~/.config/samflix-mc/curseforge.key
 cargo run -p mc-mods --example resoudre -- --detail jei jade
-cargo run -p mc-mods --example resoudre -- --curseforge jade   # force la source 2 ou 3
+cargo run -p mc-mods --example resoudre -- --curseforge jade   # force la source 2
 ```
 
-Une clé refusée ne bloque pas : elle est signalée une fois, puis le troisième
-chemin prend le relais. Une clé de la Core API commence par `$2a$10$` et se
-génère sur console.curseforge.com — ce n'est pas un UUID.
+## Pourquoi plus de clé CurseForge
 
-## CurseForge sans clé
+La Core API de CurseForge demande une clé d'inscription, nominative : un
+launcher ne peut pas l'embarquer — elle serait extraite du binaire et révoquée
+— et l'exiger de chaque joueur revient à lui demander de créer un compte
+développeur pour installer un modpack. Le launcher ne l'interroge plus.
 
-Le site web sert ses propres pages avec une API qui ne demande pas de clé.
-`www.curseforge.com/api/v1/mods/{id}/files` donne la liste des fichiers avec
-leur version et leur chargeur, `/files/{fid}/download` sert le jar, et
-`api.cfwidget.com` fournit la seule chose que ces routes refusent : la
-correspondance entre un slug et un identifiant de projet. Le téléchargement
-passe par la route du site, jamais par une URL de CDN reconstruite — c'est
-cette reconstruction qui contournerait le refus d'un auteur d'être redistribué.
-
-Vérifié : un jar récupéré par ce chemin est bit-pour-bit identique à celui que
-publie Modrinth pour la même version.
-
-Ce que ce mode ne sait pas faire, et pourquoi il vient en dernier :
+Ce que ce choix coûte, et il faut le savoir :
 
 - **pas d'empreinte publiée.** Le SHA-1 est calculé au premier téléchargement
   et figé dans le verrou ; les installations suivantes sont vérifiées
   normalement, seule la toute première ne l'est pas. En attendant, la taille
   annoncée sert de garde-fou ;
-- **pas de `allowModDistribution`.** Ce drapeau, par lequel un auteur refuse
-  d'être téléchargé automatiquement par un launcher tiers, est absent de ces
-  routes. Le mode avec clé l'honore ; celui-ci ne le peut pas ;
+- **plus de `allowModDistribution`.** Ce drapeau, par lequel un auteur refuse
+  d'être téléchargé automatiquement par un launcher tiers, n'est servi que par
+  la Core API. Il n'est donc plus lisible. Le téléchargement continue de passer
+  par la route du site et **jamais** par une URL de CDN reconstruite — c'est
+  cette reconstruction qui contournerait activement un refus — mais le refus
+  lui-même n'est plus connu. Un auteur qui nous le signalerait doit être retiré
+  du pack à la main ;
+- **recherche par mot-clé fermée.** Seul un slug exact, tel qu'il apparaît dans
+  l'adresse de la page du mod, permet de retrouver un projet. C'est la cause la
+  plus fréquente d'un « introuvable » ;
 - **cinquante fichiers visibles.** La pagination est ignorée par le serveur.
   Un mod ayant publié plus de cinquante fichiers depuis sa dernière version
   compatible sort de la fenêtre — le cas est détecté et signalé, avec la
   marche à suivre, plutôt que rendu comme « introuvable » ;
 - **rien n'est contractuel.** Ces routes servent le site, ne sont pas
   documentées, et cfwidget est un service tiers bénévole.
+
+## Ce que sert l'API publique du site
+
+`www.curseforge.com/api/v1/mods/{id}/files` donne la liste des fichiers avec
+leur version et leur chargeur, `/files/{fid}/download` sert le jar, et
+`api.cfwidget.com` fournit la seule chose que ces routes refusent : la
+correspondance entre un slug et un identifiant de projet.
+
+Vérifié : un jar récupéré par ce chemin est bit-pour-bit identique à celui que
+publie Modrinth pour la même version.
+
+**Toutes ces routes enveloppent leur réponse dans `data`**, l'objet isolé comme
+la liste. Lire un objet sans son enveloppe donne une désérialisation qui
+échoue — et, si l'échec est avalé, un build épinglé bien présent qu'on déclare
+introuvable. C'est arrivé.
 
 ## Les dépendances qu'aucune API ne déclare
 

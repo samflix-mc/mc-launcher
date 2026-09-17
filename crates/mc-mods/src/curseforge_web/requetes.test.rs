@@ -104,7 +104,8 @@ async fn une_version_hors_de_la_fenetre_visible_est_signalee() {
 
     let texte = format!("{erreur:#}");
     assert!(texte.contains("400"), "{texte}");
-    assert!(texte.contains("CURSEFORGE_API_KEY"), "{texte}");
+    // La marche à suivre, et non une configuration qui n'existe plus.
+    assert!(texte.contains("file"), "{texte}");
 }
 
 /// Rien trouvé et rien de plus à voir : c'est une absence ordinaire, pas une

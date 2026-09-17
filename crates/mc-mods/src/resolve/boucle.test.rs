@@ -12,7 +12,7 @@ const LOADER: &str = "neoforge";
 
 /// Un registre dont Modrinth est le serveur de test, et un cache neuf.
 fn registre(atelier: &Atelier, serveur: &mc_essais::Serveur) -> Registry {
-    Registry::pour_essais(atelier.racine.join("cache"), &serveur.base(), None)
+    Registry::pour_essais(atelier.racine.join("cache"), &serveur.base())
         .expect("le registre se construit")
 }
 
@@ -326,9 +326,10 @@ async fn un_mod_du_manifeste_introuvable_arrete_tout() {
 
     let texte = format!("{erreur:#}");
     assert!(texte.contains("mod-qui-n-existe-pas"), "{texte}");
-    // Sans clé, seule Modrinth a été consultée : le dire évite de chercher
-    // pourquoi un mod publié sur CurseForge reste introuvable.
-    assert!(texte.contains("aucune clé CurseForge"), "{texte}");
+    // La recherche par mot-clé de CurseForge est fermée : un slug qui ne
+    // correspond pas à celui du site n'y est pas trouvable, et c'est la cause
+    // la plus fréquente. Le message envoie donc vérifier le slug.
+    assert!(texte.contains("slug"), "{texte}");
 }
 
 /// Le canal par défaut est `release` ; une beta ne doit pas s'inviter dans un
