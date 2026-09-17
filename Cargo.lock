@@ -1132,6 +1132,7 @@ dependencies = [
  "mc-java",
  "mc-log",
  "mc-mods",
+ "mutants",
  "sentry",
  "serde",
  "serde_json",

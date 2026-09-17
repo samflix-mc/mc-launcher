@@ -8,6 +8,7 @@ description = "Installe un pack décrit par un manifeste JSON : Java, jeu, charg
 [dependencies]
 anyhow.workspace = true
 tracing.workspace = true
+mutants.workspace = true
 mc-log = { path = "../mc-log" }
 mc-auth = { path = "../mc-auth" }
 sentry.workspace = true

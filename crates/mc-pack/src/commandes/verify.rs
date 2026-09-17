@@ -37,20 +37,38 @@ pub fn verify(source: &Source, options: &mc_pack::Options, deep: bool) -> Result
 
 /// Une dépendance introuvable n'empêche pas d'installer, mais empêchera le jeu
 /// de démarrer : elle est signalée là où on la verra.
+///
+/// Hors de portée des tests de mutation : cette fonction n'écrit que sur la
+/// sortie d'erreur. Ce qu'elle dit se vérifie — c'est [`lignes_non_resolues`].
+#[mutants::skip]
 pub(super) fn report_unresolved(lock: &Lockfile) {
-    if lock.unresolved.is_empty() {
-        return;
+    for ligne in lignes_non_resolues(lock) {
+        eprintln!("{ligne}");
     }
-    eprintln!("\nDépendances introuvables :");
-    for missing in &lock.unresolved {
-        eprintln!(
+}
+
+/// Le signalement des dépendances introuvables, séparé de son affichage.
+///
+/// Vide quand il n'y a rien à dire : un titre sans liste ferait chercher une
+/// panne là où il n'y en a pas. Sinon, chaque manque est nommé avec qui
+/// l'exigeait — c'est le premier endroit à regarder quand le jeu refuse de
+/// démarrer.
+pub(super) fn lignes_non_resolues(lock: &Lockfile) -> Vec<String> {
+    if lock.unresolved.is_empty() {
+        return Vec::new();
+    }
+    let mut lignes = vec!["\nDépendances introuvables :".to_string()];
+    lignes.extend(lock.unresolved.iter().map(|missing| {
+        format!(
             "  {} — exigé par {} ({})",
             missing.mod_id, missing.required_by, missing.side
-        );
-    }
-    eprintln!(
+        )
+    }));
+    lignes.push(
         "  Ces mods manquent sur Modrinth comme sur CurseForge : le jeu refusera de démarrer."
+            .to_string(),
     );
+    lignes
 }
 
 #[cfg(test)]

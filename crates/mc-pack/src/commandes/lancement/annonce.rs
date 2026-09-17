@@ -4,13 +4,27 @@ use mc_pack::manifest::Manifest;
 
 use super::preparation::Partie;
 
+/// Hors de portée des tests de mutation : cette fonction n'a d'autre effet que
+/// d'écrire sur la sortie standard, et Rust n'offre pas de moyen stable de la
+/// relire depuis le processus qui l'émet. Ce qu'elle affiche, en revanche, se
+/// vérifie ligne à ligne — c'est [`lignes`], juste en dessous.
+#[mutants::skip]
 pub(super) fn annoncer(partie: &Partie) {
+    for ligne in lignes(partie) {
+        println!("{ligne}");
+    }
+    println!();
+}
+
+/// Les lignes du récapitulatif, séparées de leur affichage.
+///
+/// C'est la dernière chose qu'un joueur lit avant que le jeu ne prenne la
+/// main, et la première qu'il recopie quand il demande de l'aide. Chacune
+/// répond à une question posée en vrai : quelle instance, quelle version, sous
+/// quel nom, où sont les mods, et quel serveur — s'il y en a un.
+pub(super) fn lignes(partie: &Partie) -> Vec<String> {
     let instance = &partie.instance;
     let session = &partie.session;
-    println!("Instance « {} »", instance.name);
-    println!("  version : {}", partie.version_id);
-    println!("  joueur  : {} ({})", session.name, session.uuid);
-    println!("  mods    : {}", instance.mods_dir().display());
 
     // La provenance est dite, pas seulement l'adresse : « mc.exemple.fr
     // (production) » laissait croire que l'hôte venait du pack, alors qu'un
@@ -21,16 +35,27 @@ pub(super) fn annoncer(partie: &Partie) {
     // binaire : en « local » c'est l'entrée « development » qui sert, et
     // afficher « local » enverrait chercher dans le manifeste une clé absente.
     let clef = Manifest::environnement_serveur(partie.environnement);
-    match (&partie.cible, partie.demande_explicite) {
-        (Some(hote), true) => println!("  serveur : {hote} — demandé en ligne de commande"),
-        (Some(hote), false) => println!(
+    let serveur = match (&partie.cible, partie.demande_explicite) {
+        (Some(hote), true) => format!("  serveur : {hote} — demandé en ligne de commande"),
+        (Some(hote), false) => format!(
             "  serveur : {hote} — déclaré par le pack pour « {} »",
             clef.as_str()
         ),
-        (None, _) => println!(
+        (None, _) => format!(
             "  serveur : aucun pour « {} » — le jeu s'ouvrira sur le menu",
             clef.as_str()
         ),
-    }
-    println!();
+    };
+
+    vec![
+        format!("Instance « {} »", instance.name),
+        format!("  version : {}", partie.version_id),
+        format!("  joueur  : {} ({})", session.name, session.uuid),
+        format!("  mods    : {}", instance.mods_dir().display()),
+        serveur,
+    ]
 }
+
+#[cfg(test)]
+#[path = "annonce.test.rs"]
+mod tests;
