@@ -101,7 +101,13 @@ fn ecrire_protege(chemin: &std::path::Path, contenu: &[u8]) -> std::io::Result<(
 
 /// Windows n'a pas de bit de permission équivalent : le fichier hérite des
 /// droits du répertoire, qui est déjà sous le profil de l'utilisateur.
+///
+/// Hors de portée des tests de mutation tant que la CI tourne sur Linux : ce
+/// corps-ci n'y est jamais compilé, donc aucune suite ne peut l'exercer. Le
+/// jour où un runner Windows s'ajoute, cet attribut doit tomber — c'est la
+/// couverture qui manque, pas le mutant qui est faux.
 #[cfg(not(unix))]
+#[mutants::skip]
 fn ecrire_protege(chemin: &std::path::Path, contenu: &[u8]) -> std::io::Result<()> {
     std::fs::write(chemin, contenu)
 }

@@ -51,6 +51,13 @@ impl Auth {
     /// Le rafraîchissement étant paresseux, l'état d'après un appel n'est pas
     /// celui d'avant : ne pas le réécrire ferait repartir du jeton périmé au
     /// lancement suivant, et redemander un code pour rien.
+    ///
+    /// Hors de portée des tests de mutation : il faut un `JavaAuthManager`
+    /// pour appeler ceci, et `from_json` n'en construit un qu'à partir d'un
+    /// état réel — qu'on ne peut obtenir qu'en ouvrant une vraie session
+    /// Microsoft. Le format est interne à la bibliothèque ; le contrefaire
+    /// reviendrait à vérifier notre imitation plutôt que son comportement.
+    #[mutants::skip]
     pub async fn etat(&self) -> Result<serde_json::Value> {
         self.manager
             .to_json()
@@ -77,6 +84,12 @@ impl Auth {
     }
 
     /// Le compte possède-t-il le jeu ? Un inventaire vide vaut « non ».
+    ///
+    /// Hors de portée des tests de mutation, pour la même raison que
+    /// [`Auth::etat`] : l'appel part chez Minecraft Services par une adresse
+    /// écrite dans `minecraft-auth`, que rien ne permet de rediriger vers un
+    /// serveur d'essai. La vérifier demanderait de forker la bibliothèque.
+    #[mutants::skip]
     pub async fn owns_game(&self) -> Result<bool> {
         let ents = self
             .manager

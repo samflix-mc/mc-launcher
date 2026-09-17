@@ -2,9 +2,32 @@ use super::{Auth, client};
 
 /// Le client n'a qu'un rôle : identifier le launcher et fixer la pile TLS.
 /// `minecraft-auth` pose ses propres délais d'expiration par requête.
-#[test]
-fn le_client_d_authentification_se_construit() {
-    assert!(client().is_ok());
+///
+/// L'identification n'est pas une politesse. C'est à ce nom que Microsoft et
+/// Mojang reconnaissent ce qui frappe à leur porte, et un client anonyme se
+/// fait limiter avant d'être refusé — une panne qui n'arrive qu'en production,
+/// et seulement quand il y a du monde.
+#[tokio::test]
+async fn le_client_d_authentification_se_nomme() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    serveur.json("/qui-es-tu", "{}");
+
+    let client = client().expect("le client se construit");
+    client
+        .get(serveur.url("/qui-es-tu"))
+        .send()
+        .await
+        .expect("le serveur d'essai répond");
+
+    let recues = serveur.recues();
+    let demande = recues.first().expect("une requête est arrivée");
+    let nom = demande
+        .entete("user-agent")
+        .expect("aucun user-agent : le launcher frappe anonymement");
+    assert!(
+        nom.starts_with("samflix-mc-launcher/"),
+        "identité inattendue : {nom}"
+    );
 }
 
 /// Une session illisible ne doit pas faire paniquer le lancement : elle vaut

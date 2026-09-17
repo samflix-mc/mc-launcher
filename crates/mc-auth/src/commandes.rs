@@ -5,6 +5,14 @@ use anyhow::{Context, Result};
 use mc_auth::{Auth, offline_session};
 
 /// Ouvre une session et l'enregistre.
+///
+/// Hors de portée des tests de mutation : tout ce que fait cette commande est
+/// de parler à Microsoft, par un code d'appareil et une attente de validation
+/// humaine. Les adresses sont celles de `minecraft-auth`, qu'on ne peut pas
+/// détourner vers un serveur d'essai. Ce qui s'en vérifie — la lecture des
+/// arguments, l'aiguillage, l'affichage d'un profil — l'est par la suite qui
+/// lance le binaire ; ce qui reste ici exige un vrai compte.
+#[mutants::skip]
 pub async fn login() -> Result<()> {
     let auth = Auth::login(|code| {
         println!("\n  Ouvre {}", code.verification_uri_directe);
