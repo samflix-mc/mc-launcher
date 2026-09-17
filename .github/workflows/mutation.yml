@@ -33,13 +33,19 @@ env:
   # code que la CI construit.
   SAMFLIX_ENV: development
 
-  # Au-delà, la part est confiée à un runner de plus. Un mutant coûte une
-  # recompilation du crate qu'il touche, soit quelques secondes : cent
-  # cinquante tiennent en une dizaine de minutes, ce qu'on peut attendre
-  # pendant une revue. Le découpage est calculé à chaque exécution, et non
-  # figé : une PR de trois fichiers ne réserve pas huit machines, et une
-  # refonte qui déplace tout le dépôt ne fait pas attendre une heure.
-  MUTANTS_PAR_PART: 150
+  # Au-delà, la part est confiée à un runner de plus. Le découpage est calculé
+  # à chaque exécution, et non figé : une PR de trois fichiers ne réserve pas
+  # onze machines, et une refonte qui déplace tout le dépôt ne fait pas
+  # attendre une heure.
+  #
+  # Cent, parce qu'une part coûte huit secondes de mise en place, soixante-dix
+  # secondes de suite non mutée, puis cinq secondes par mutant et par tâche.
+  # Avec quatre tâches, cent mutants tiennent sous les cinq minutes — le temps
+  # qu'on accepte d'attendre sans quitter la revue des yeux. Les deux premiers
+  # termes sont incompressibles : la suite non mutée doit tourner dans chaque
+  # part, et la sortir mettrait un build complet sur le chemin critique du
+  # découpage, que les parts attendent.
+  MUTANTS_PAR_PART: 100
 
   # Garde-fou. Une matrice se compte en machines réellement démarrées ; passé
   # ce nombre, les parts grossissent plutôt que de se multiplier.
@@ -187,19 +193,28 @@ jobs:
           else
             cible=()
           fi
-          # Deux tâches par machine : chacune travaille sur sa propre copie du
-          # dépôt *et* de son répertoire de compilation, et le disque d'un
-          # runner ne tient pas quatre arbres de plusieurs gigaoctets. Un mutant
+
+          # Gardé au journal : le jour où une part se met à déclarer des
+          # mutants « incompilables » en série, c'est la première chose à
+          # regarder — quatre copies du répertoire de compilation tiennent
+          # large, mais rien ne le dit une fois le runner rendu.
+          df -h / | tail -1
+          # Quatre tâches, soit un cœur chacune. Chacune travaille sur sa propre
+          # copie du dépôt et de son répertoire de compilation : celui-ci pèse
+          # sept cents mégaoctets, quatre copies en font moins de trois
+          # gigaoctets, et un runner en offre quatorze. La prudence d'un temps —
+          # deux tâches — venait d'un répertoire local de huit gigaoctets, gonflé
+          # par des mois de profils accumulés ; elle laissait deux cœurs oisifs.
+          # Il reste qu'on ne monte pas plus haut sans y regarder : un mutant
           # déclaré « incompilable » faute de place ressemble à s'y méprendre à
-          # un mutant tué. C'est le nombre de parts qui apporte le parallélisme,
-          # pas le nombre de tâches par part.
+          # un mutant tué.
           #
           # « round-robin » plutôt que des tranches consécutives : les mutants
           # sont listés fichier par fichier, et découper en tranches donnerait
           # à une part les huit crates légers et à une autre mc-pack en entier.
           # Le temps d'attente est celui de la part la plus lente ; les
           # distribuer un sur n les égalise.
-          cargo mutants --colors never --no-shuffle -j 2 \
+          cargo mutants --colors never --no-shuffle -j 4 \
             --shard ${{ matrix.part }}/${{ needs.decoupage.outputs.nombre }} \
             --sharding round-robin \
             "${cible[@]}"
