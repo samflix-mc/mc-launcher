@@ -27,17 +27,44 @@ impl Reason {
 
 /// Ce qui départage deux branches qui réclament le même projet.
 ///
-/// Le manifeste prime sur ce qu'une API déclare, qui prime sur ce qu'un jar
-/// exige ; et à origine égale, une demande épinglée prime sur une demande
-/// ouverte. Sans cet ordre, le premier arrivé gardait la place — donc le hasard
-/// du parcours décidait de la version installée.
+/// Deux critères, et **l'épinglage passe avant l'origine** :
+///
+/// | | épinglée | ouverte |
+/// |---|---|---|
+/// | manifeste | 12 | 4 |
+/// | dépendance déclarée | 10 | 2 |
+/// | exigence lue dans un jar | 8 | 0 |
+///
+/// Sans cet ordre, le premier arrivé gardait la place — donc le hasard du
+/// parcours décidait de la version installée.
+///
+/// ## Pourquoi l'épinglage l'emporte sur l'origine
+///
+/// Le manifeste a longtemps primé en toutes circonstances, y compris sans
+/// version. C'était un angle mort : **une demande sans version n'exprime aucune
+/// préférence de version**. Écrire « sodium » dit « je veux ce mod », pas « je
+/// veux sa dernière version quoi qu'il en coûte ».
+///
+/// Le cas qui l'a montré : un pack demandait « sodium » sans version, Iris
+/// déclarait une dépendance vers un build précis de Sodium — ses mixins de
+/// compatibilité visent des classes qui changent de nom d'une version à
+/// l'autre. L'ancienne règle donnait la dernière version à Sodium, les mixins
+/// d'Iris s'appliquaient dans le vide, et Minecraft tombait à la première
+/// connexion sur une classe disparue.
+///
+/// Le manifeste reste souverain **dès qu'il dit quelque chose** : une demande
+/// qu'il épingle bat tout le reste. C'est la même règle que cargo ou npm — une
+/// contrainte stricte l'emporte sur « n'importe quelle version ».
 pub(super) fn autorite(reason: &Reason, request: &Request) -> u8 {
     let origine = match reason {
         Reason::Explicit => 4,
         Reason::Declared { .. } => 2,
         Reason::Implicit { .. } => 0,
     };
-    origine + u8::from(request.file.is_some() || request.version.is_some())
+    // Huit : plus que l'écart maximal entre deux origines, donc aucune origine
+    // ne rattrape un épinglage.
+    let epinglee = request.file.is_some() || request.version.is_some();
+    origine + if epinglee { 8 } else { 0 }
 }
 
 /// Une exigence lue dans un jar vient-elle de perdre définitivement sa place ?

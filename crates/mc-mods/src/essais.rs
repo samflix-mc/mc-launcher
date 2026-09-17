@@ -86,7 +86,7 @@ pub(crate) struct Version {
     pub(crate) url: String,
     pub(crate) sha1: String,
     pub(crate) taille: u64,
-    pub(crate) declare: Vec<String>,
+    pub(crate) declare: Vec<(String, Option<String>)>,
     pub(crate) publie: String,
 }
 
@@ -149,9 +149,20 @@ impl Version {
     }
 
     /// Dépendance obligatoire annoncée par l'API — par opposition à celle que
-    /// seul le jar déclare.
+    /// seul le jar déclare. Sans version : n'importe laquelle fera l'affaire.
     pub(crate) fn declare(mut self, projet: &str) -> Version {
-        self.declare.push(format!("{projet}-id"));
+        self.declare.push((format!("{projet}-id"), None));
+        self
+    }
+
+    /// Dépendance obligatoire vers un **build précis**.
+    ///
+    /// C'est ce que fait Iris pour Sodium : ses mixins de compatibilité visent
+    /// des classes qui changent de nom d'une version à l'autre, donc une plage
+    /// ne suffirait pas.
+    pub(crate) fn declare_build(mut self, projet: &str, version: &str) -> Version {
+        self.declare
+            .push((format!("{projet}-id"), Some(format!("{projet}-{version}"))));
         self
     }
 
@@ -159,8 +170,14 @@ impl Version {
         let deps: Vec<String> = self
             .declare
             .iter()
-            .map(|id| {
-                format!(r#"{{"project_id":"{id}","version_id":null,"dependency_type":"required"}}"#)
+            .map(|(id, build)| {
+                let build = match build {
+                    Some(build) => format!("\"{build}\""),
+                    None => "null".to_string(),
+                };
+                format!(
+                    r#"{{"project_id":"{id}","version_id":{build},"dependency_type":"required"}}"#
+                )
             })
             .collect();
         format!(

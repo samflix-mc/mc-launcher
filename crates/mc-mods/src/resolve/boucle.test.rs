@@ -584,3 +584,128 @@ async fn deux_bibliotheques_partagees_ne_font_pas_davantage_un_doublon() {
         "un mod a disparu"
     );
 }
+
+/// Le scénario Iris/Sodium, de bout en bout.
+///
+/// Le manifeste demande « sodium » sans version — il n'a pas d'opinion sur
+/// laquelle — et « iris », qui déclare une dépendance vers un build **précis**
+/// de Sodium. L'ancienne règle donnait la dernière version à Sodium parce que
+/// le manifeste primait en toutes circonstances ; les mixins d'Iris
+/// s'appliquaient alors sur des classes disparues, et Minecraft tombait à la
+/// première connexion.
+///
+/// La demande qui précise l'emporte désormais sur celle qui ne dit rien.
+#[cfg(unix)]
+#[tokio::test]
+async fn une_dependance_epinglee_impose_sa_version_a_une_demande_sans_version() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("epinglage-dependance");
+
+    let vieux = jar("sodium", &[]);
+    let recent = jar("sodium", &[]);
+    serveur.octets("/sodium-0.6.jar", &vieux);
+    serveur.octets("/sodium-0.8.jar", &recent);
+    publier(
+        &serveur,
+        &Projet::nouveau("sodium")
+            .version(
+                Version::nouvelle("0.6", &serveur.url("/sodium-0.6.jar"), &vieux)
+                    .publie("2025-04-04T00:00:00Z"),
+            )
+            .version(
+                Version::nouvelle("0.8", &serveur.url("/sodium-0.8.jar"), &recent)
+                    .publie("2026-08-28T00:00:00Z"),
+            ),
+    );
+
+    let iris = jar("iris", &[]);
+    serveur.octets("/iris.jar", &iris);
+    publier(
+        &serveur,
+        &Projet::nouveau("iris").version(
+            Version::nouvelle("1.8.12", &serveur.url("/iris.jar"), &iris)
+                .declare_build("sodium", "0.6"),
+        ),
+    );
+
+    let plan = resolve(
+        &registre(&atelier, &serveur),
+        &[Request::new("sodium"), Request::new("iris")],
+        MC,
+        LOADER,
+    )
+    .await
+    .expect("les deux mods se résolvent");
+
+    let sodium = plan
+        .mods
+        .iter()
+        .find(|m| m.candidate.slug == "sodium")
+        .expect("sodium est dans le pack");
+
+    assert_eq!(
+        sodium.candidate.version_number, "0.6",
+        "la dépendance épinglée d'Iris devait l'emporter sur une demande sans version"
+    );
+}
+
+/// Et l'inverse : quand le manifeste épingle lui aussi, c'est lui qui tranche.
+/// Il reste souverain dès qu'il dit quelque chose.
+#[cfg(unix)]
+#[tokio::test]
+async fn un_manifeste_qui_epingle_garde_le_dernier_mot() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("epinglage-manifeste");
+
+    let vieux = jar("sodium", &[]);
+    let recent = jar("sodium", &[]);
+    serveur.octets("/sodium-0.6.jar", &vieux);
+    serveur.octets("/sodium-0.8.jar", &recent);
+    publier(
+        &serveur,
+        &Projet::nouveau("sodium")
+            .version(Version::nouvelle(
+                "0.6",
+                &serveur.url("/sodium-0.6.jar"),
+                &vieux,
+            ))
+            .version(Version::nouvelle(
+                "0.8",
+                &serveur.url("/sodium-0.8.jar"),
+                &recent,
+            )),
+    );
+
+    let iris = jar("iris", &[]);
+    serveur.octets("/iris.jar", &iris);
+    publier(
+        &serveur,
+        &Projet::nouveau("iris").version(
+            Version::nouvelle("1.8.12", &serveur.url("/iris.jar"), &iris)
+                .declare_build("sodium", "0.6"),
+        ),
+    );
+
+    let mut impose = Request::new("sodium");
+    impose.file = Some("sodium-0.8".into());
+
+    let plan = resolve(
+        &registre(&atelier, &serveur),
+        &[impose, Request::new("iris")],
+        MC,
+        LOADER,
+    )
+    .await
+    .expect("les deux mods se résolvent");
+
+    let sodium = plan
+        .mods
+        .iter()
+        .find(|m| m.candidate.slug == "sodium")
+        .expect("sodium est dans le pack");
+
+    assert_eq!(
+        sodium.candidate.version_number, "0.8",
+        "le manifeste qui épingle doit garder le dernier mot"
+    );
+}

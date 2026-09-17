@@ -62,6 +62,36 @@ la liste. Lire un objet sans son enveloppe donne une désérialisation qui
 échoue — et, si l'échec est avalé, un build épinglé bien présent qu'on déclare
 introuvable. C'est arrivé.
 
+## Qui l'emporte quand deux branches réclament le même mod
+
+Deux critères, et **l'épinglage passe avant l'origine** :
+
+| | épinglée | ouverte |
+|---|---|---|
+| manifeste | 12 | 4 |
+| dépendance déclarée | 10 | 2 |
+| exigence lue dans un jar | 8 | 0 |
+
+Le manifeste a longtemps primé en toutes circonstances. C'était un angle mort :
+**une demande sans version n'exprime aucune préférence de version**. Écrire
+`{"slug": "sodium"}` dit « je veux ce mod », pas « je veux sa dernière version
+quoi qu'il en coûte ».
+
+Le cas qui l'a montré : un pack demandait `sodium` sans version, Iris déclarait
+une dépendance vers un build précis de Sodium — ses mixins de compatibilité
+visent des classes qui changent de nom d'une version à l'autre. L'ancienne
+règle donnait la dernière version à Sodium, les mixins s'appliquaient dans le
+vide, et Minecraft tombait à la première connexion sur
+`ClassNotFoundException: SodiumGameOptions$PerformanceSettings`.
+
+Le manifeste reste souverain **dès qu'il dit quelque chose** : une demande qu'il
+épingle bat tout le reste. C'est la règle de cargo et de npm — une contrainte
+stricte l'emporte sur « n'importe quelle version ».
+
+En contrepartie, un mod qui épingle une vieille bibliothèque partagée peut
+figer le pack dessus. La parade est la même : épingler dans le manifeste ce
+qu'on veut imposer.
+
 ## Les dépendances qu'aucune API ne déclare
 
 Un manifeste nomme cinq mods, le dossier `mods` en contient sept. L'écart, ce

@@ -65,15 +65,49 @@ fn seules_les_exigences_implicites_font_impasse() {
     assert!(!impasse_implicite(&Reason::Explicit, 1, 3, false));
 }
 
+/// Le manifeste reste souverain **dès qu'il dit quelque chose** : une demande
+/// qu'il épingle bat une dépendance épinglée.
 #[test]
-fn le_manifeste_fait_autorite_sur_une_dependance_meme_epinglee() {
-    let mut epinglee = Request::new("jade");
-    epinglee.file = Some("abc".into());
+fn le_manifeste_fait_autorite_quand_il_epingle_lui_aussi() {
+    let mut du_manifeste = Request::new("sodium");
+    du_manifeste.file = Some("choix-du-pack".into());
+    let mut de_la_dependance = Request::new("sodium");
+    de_la_dependance.file = Some("choix-d-iris".into());
 
     assert!(
-        autorite(&Reason::Explicit, &Request::new("jade"))
-            > autorite(&Reason::Declared { by: "x".into() }, &epinglee)
+        autorite(&Reason::Explicit, &du_manifeste)
+            > autorite(&Reason::Declared { by: "iris".into() }, &de_la_dependance)
     );
+}
+
+/// L'inverse de ce que faisait l'ancienne règle, et la raison du changement :
+/// une demande sans version n'exprime aucune préférence de version. Écrire
+/// « sodium » dit « je veux ce mod », pas « je veux sa dernière version quoi
+/// qu'il en coûte » — et la laisser écraser l'exigence précise d'Iris faisait
+/// tomber Minecraft à la première connexion.
+#[test]
+fn une_dependance_epinglee_fait_autorite_sur_une_demande_sans_version() {
+    let mut de_la_dependance = Request::new("sodium");
+    de_la_dependance.file = Some("Pb3OXVqC".into());
+
+    assert!(
+        autorite(&Reason::Declared { by: "iris".into() }, &de_la_dependance)
+            > autorite(&Reason::Explicit, &Request::new("sodium"))
+    );
+}
+
+/// Y compris une exigence lue dans un jar, que rien n'annonçait : elle en sait
+/// plus sur la version qu'il lui faut qu'une demande qui n'en dit rien.
+#[test]
+fn toute_demande_epinglee_passe_avant_une_demande_ouverte() {
+    let mut epinglee = Request::new("lib");
+    epinglee.file = Some("abc".into());
+    let implicite = Reason::Implicit {
+        by: "create".into(),
+        mod_id: "flywheel".into(),
+    };
+
+    assert!(autorite(&implicite, &epinglee) > autorite(&Reason::Explicit, &Request::new("lib")));
 }
 
 #[test]
