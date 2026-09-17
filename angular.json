@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "front": {
+    "launcher": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -59,10 +59,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "front:build:production"
+              "buildTarget": "launcher:build:production"
             },
             "development": {
-              "buildTarget": "front:build:development"
+              "buildTarget": "launcher:build:development"
             }
           },
           "defaultConfiguration": "development"

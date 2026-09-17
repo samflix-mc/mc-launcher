@@ -101,6 +101,7 @@ survivant**. Le détail est dans [qualite.md](docs/qualite.md).
 | [mods.md](docs/mods.md) | les trois sources, CurseForge sans clé, les dépendances cachées |
 | [lancement.md](docs/lancement.md) | ce qui décide qu'un jeu démarre, le runtime Java |
 | [authentification.md](docs/authentification.md) | Microsoft, mode hors-ligne, et ce que ce launcher présente |
+| [interface.md](docs/interface.md) | la fenêtre : Tauri, Angular, le trousseau, le build |
 | [qualite.md](docs/qualite.md) | les quatre workflows, couverture et mutation |
 
 Le « pourquoi » de chaque décision est en tête du module concerné : c'est là

@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "mc.samflix.launcher",
   "build": {
-    "frontendDist": "../front/dist/front/browser",
+    "frontendDist": "../dist/launcher/browser",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "pnpm --dir front start",
-    "beforeBuildCommand": "pnpm --dir front build"
+    "beforeDevCommand": "pnpm start",
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "windows": [

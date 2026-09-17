@@ -6,3 +6,8 @@
 
 # Rapport de couverture produit par cargo-llvm-cov.
 /lcov.info
+
+# Le front : dépendances, sortie de build, cache du compilateur Angular.
+/node_modules
+/dist
+/.angular
