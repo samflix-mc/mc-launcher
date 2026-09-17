@@ -1,0 +1,164 @@
+name: Mutation
+
+# La couverture dit quelles lignes ont été exécutées, jamais si quelqu'un a
+# regardé le résultat. Un test qui appelle une fonction sans rien vérifier
+# couvre ses lignes à 100 % et ne tombera pas le jour où elle rendra le
+# contraire. Les tests de mutation posent l'autre question : si l'on change ce
+# code — une comparaison inversée, une addition en soustraction, un retour
+# remplacé par une valeur par défaut — la suite s'en aperçoit-elle ?
+#
+# Un mutant « survivant » désigne donc une ligne exécutée mais non vérifiée.
+# C'est la mesure qui manquait à côté des 80 % de SonarQube Cloud.
+#
+# UNIQUEMENT SUR LES PULL REQUESTS, ET UNIQUEMENT SUR LEUR DIFF. Le dépôt
+# entier compte plus de mille mutants : quinze minutes sur une machine à seize
+# cœurs, bien davantage sur un runner à deux. Le diff d'une PR ordinaire en
+# compte quelques dizaines — la réponse arrive pendant la revue, ce qui est la
+# seule façon qu'elle serve à quelque chose. Pour passer tout le dépôt au
+# crible, il reste le déclenchement manuel ci-dessous.
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tout:
+        description: "Passer tout le dépôt au crible, et non le seul diff"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  # Le même environnement que les contrôles et la couverture : plusieurs tests
+  # lisent SAMFLIX_ENV, et un mutant jugé sous un autre régime ne dit rien du
+  # code que la CI construit.
+  SAMFLIX_ENV: development
+
+  # Le cliquet, comme pour la couverture — et pour la même raison. Le dépôt
+  # laisse aujourd'hui survivre des mutants ; ce budget interdit d'en ajouter,
+  # et se rabaisse à mesure qu'on écrit les vérifications manquantes. Jamais
+  # l'inverse : le relever demande de dire, dans la PR qui le fait, quel code
+  # on a décidé de ne plus vérifier.
+  #
+  # Il porte sur le code touché par la PR, pas sur le dépôt : sur une PR
+  # ordinaire, 0 est la valeur normale, et ce budget ne sert qu'aux refontes
+  # qui déplacent du code déjà écrit sans vérifications.
+  #
+  # 111, parce que c'est ce que le dépôt entier laisse survivre aujourd'hui —
+  # 748 mutants tués sur 868 testés, soit 86 %. La PR qui installe ce job ayant
+  # déplacé tous les fichiers, son diff les porte tous ; les suivantes
+  # n'auront pas cette excuse, et ce nombre doit descendre.
+  #
+  # Ce qui reste n'est pas homogène. Une part est **équivalente** et le
+  # restera : `^` et `|` après un masquage qui met le bit à zéro, une branche
+  # `match` qui retombe sur le défaut qu'elle donnait déjà, un `<` en `<=` sur
+  # un index de fin de boucle. Le reste est du code réseau — les six sources
+  # d'API — qu'on ne peut vérifier qu'en leur donnant un serveur, ce que fait
+  # déjà mc-essais pour quatre crates sur huit.
+  MUTANTS_TOLERES: 111
+
+jobs:
+  mutation:
+    name: Mutants sur le code nouveau
+    # x86 et non ARM comme les contrôles : taiki-e/install-action ne publie pas
+    # de binaire aarch64 pour cargo-mutants, et le faire compiler à chaque
+    # exécution coûterait plus cher que le job lui-même.
+    runs-on: ubuntu-24.04
+    # Large, et pour une raison qui ne tient qu'à la première exécution : la
+    # PR qui installe ce job a déplacé tout le dépôt, son diff porte donc sur
+    # mille mutants au lieu de quelques dizaines. Une PR ordinaire tient en
+    # quelques minutes.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Le diff se calcule contre la base de la PR : sans l'historique, il
+          # n'y a rien à quoi se comparer, et cargo-mutants passerait le dépôt
+          # entier.
+          fetch-depth: 0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+
+      # Trois points et non deux : le diff porte sur ce que la branche ajoute
+      # depuis leur ancêtre commun, et non sur tout ce qui a changé dans main
+      # entre-temps. Sans cela, une PR héritait des mutants d'un voisin.
+      - name: Établir le diff de la pull request
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff "${{ github.event.pull_request.base.sha }}...HEAD" -- '*.rs' > pr.diff
+          echo "Diff de $(grep -c '^+++ ' pr.diff || echo 0) fichier(s) Rust."
+
+      # Le code de sortie ne suffit pas à décider : il vaut 1 aussi bien pour
+      # « des mutants ont survécu » que pour « la compilation est cassée », et
+      # les deux n'appellent pas la même conclusion. On lit donc ce que
+      # cargo-mutants écrit, après s'être assuré qu'il a bien tourné.
+      - name: Chercher les mutants survivants
+        id: mutants
+        run: |
+          set +e
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cible=(--in-diff pr.diff)
+          else
+            cible=()
+          fi
+          # Deux tâches et pas davantage : chacune travaille sur sa propre
+          # copie du dépôt *et* de son répertoire de compilation, et le disque
+          # d'un runner ne tient pas quatre arbres de plusieurs gigaoctets.
+          # Un mutant déclaré « incompilable » faute de place ressemble à s'y
+          # méprendre à un mutant tué.
+          cargo mutants --colors never --no-shuffle -j 2 "${cible[@]}"
+          code=$?
+          set -e
+
+          if [ ! -f mutants.out/outcomes.json ]; then
+            echo "::error title=Tests de mutation::cargo-mutants n'a produit" \
+                 "aucun résultat (code $code) — compilation ou suite de base" \
+                 "en échec, voir le journal ci-dessus."
+            exit 1
+          fi
+
+          # La suite non mutée doit passer, sans quoi tout ce qui suit ne
+          # mesure rien : chaque mutant serait « tué » par un test déjà rouge.
+          if ! jq -e '[.outcomes[]
+                       | select(.scenario == "Baseline")
+                       | select(.summary == "Success")] | length == 1' \
+                 mutants.out/outcomes.json > /dev/null; then
+            echo "::error title=Tests de mutation::la suite non mutée ne passe" \
+                 "pas — aucun mutant n'a de sens tant que c'est le cas."
+            exit 1
+          fi
+
+          # Un diff sans une ligne de Rust ne produit aucun fichier : zéro
+          # mutant est alors la bonne réponse, et non une erreur.
+          survivants=0
+          [ -f mutants.out/missed.txt ] && survivants=$(wc -l < mutants.out/missed.txt)
+          echo "survivants=$survivants" >> "$GITHUB_OUTPUT"
+
+      # Le rapport est conservé même — surtout — quand le budget est dépassé :
+      # c'est là qu'on veut savoir quelle ligne personne ne vérifie.
+      - name: Conserver le rapport
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants
+          path: mutants.out
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Appliquer le budget
+        run: |
+          survivants=${{ steps.mutants.outputs.survivants }}
+          if [ "$survivants" -gt "$MUTANTS_TOLERES" ]; then
+            echo "::error title=Tests de mutation::$survivants mutant(s)" \
+                 "survivant(s) pour $MUTANTS_TOLERES toléré(s). Ce code" \
+                 "s'exécute sans que rien ne vérifie ce qu'il rend ; la liste" \
+                 "est dans mutants.out/missed.txt, en artefact de ce job."
+            cat mutants.out/missed.txt
+            exit 1
+          fi
+          echo "::notice title=Tests de mutation::$survivants survivant(s)," \
+               "budget $MUTANTS_TOLERES."

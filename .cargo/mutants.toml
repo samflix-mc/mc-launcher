@@ -1,0 +1,27 @@
+# Réglages des tests de mutation (voir .github/workflows/mutation.yml).
+#
+# Ce que cargo-mutants ne doit pas muter — et la raison, qui est la seule
+# chose qui vaille dans un fichier d'exclusions.
+
+exclude_globs = [
+    # mc-essais est l'outillage des suites : un serveur HTTP local, de faux
+    # runtimes, des archives fabriquées. Le muter reviendrait à demander
+    # qu'un test vérifie le harnais d'un autre test — et le résultat serait
+    # un survivant par méthode, indéfiniment, sur du code que `publish =
+    # false` interdit d'embarquer dans un binaire. Ce qui compte pour ce
+    # crate, c'est que les suites qui s'en servent tombent quand il ment ;
+    # c'est déjà ce qu'elles font.
+    "crates/mc-essais/**",
+]
+
+# Les suites vivent dans des fichiers « <module>.test.rs » compilés sous
+# #[cfg(test)] : cargo-mutants les ignore déjà de lui-même, rien à déclarer.
+
+# Le temps par mutant se déduit de la suite non mutée. Le multiplicateur par
+# défaut (le double) est trop serré ici : plusieurs tests écrivent un
+# exécutable puis le lancent, et mc-java sérialise ces essais derrière un
+# verrou. Un plancher d'une minute empêche par ailleurs qu'une suite très
+# rapide ne donne un délai que la charge d'un runner suffirait à dépasser —
+# un mutant déclaré « en dépassement » n'est pas un mutant tué.
+timeout_multiplier = 6.0
+minimum_test_timeout = 60
