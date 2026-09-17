@@ -96,3 +96,7 @@ async fn fetch_pair(
         .with_context(|| format!("{lock_url} ne contient pas un verrou lisible"))?;
     Ok((manifest, lock))
 }
+
+#[cfg(test)]
+#[path = "recuperation.test.rs"]
+mod tests;

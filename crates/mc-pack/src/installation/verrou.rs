@@ -47,3 +47,7 @@ pub(super) fn retenir(
     };
     Ok(lock)
 }
+
+#[cfg(test)]
+#[path = "verrou.test.rs"]
+mod tests;

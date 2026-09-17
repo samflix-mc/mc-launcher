@@ -32,3 +32,7 @@ pub(super) fn ouvrir(
     coherence::verifier(&lock, &instance)?;
     Ok((manifest, lock, instance))
 }
+
+#[cfg(test)]
+#[path = "instance.test.rs"]
+mod tests;

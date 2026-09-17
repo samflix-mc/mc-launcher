@@ -50,3 +50,7 @@ pub(super) async fn poser(
     tracing::info!(version, "Chargeur NeoForge {version} en place");
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "chargeur.test.rs"]
+mod tests;

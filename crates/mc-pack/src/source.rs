@@ -47,6 +47,7 @@ pub enum Source {
 }
 
 /// Un pack lu, quelle qu'en soit la provenance.
+#[derive(Debug)]
 pub struct Pack {
     pub manifest: Manifest,
     /// Verrou déjà connu : celui du dépôt, ou celui qui vient d'être

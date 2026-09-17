@@ -62,3 +62,7 @@ impl Source {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "lecture.test.rs"]
+mod tests;

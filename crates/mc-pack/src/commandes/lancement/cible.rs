@@ -24,3 +24,7 @@ pub(super) fn choisir(
     });
     (cible, demande_explicite, environnement)
 }
+
+#[cfg(test)]
+#[path = "cible.test.rs"]
+mod tests;

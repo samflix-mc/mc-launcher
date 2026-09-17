@@ -82,3 +82,7 @@ pub(super) fn report_game_error(
 
     mc_log::capture_game_crash(&crash.exception, &crash.message, &crash.excerpt, &contexte)
 }
+
+#[cfg(test)]
+#[path = "incident.test.rs"]
+mod tests;

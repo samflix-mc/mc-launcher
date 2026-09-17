@@ -88,3 +88,7 @@ impl Lockfile {
 #[cfg(test)]
 #[path = "lecture.test.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "lecture.suite.test.rs"]
+mod suite;

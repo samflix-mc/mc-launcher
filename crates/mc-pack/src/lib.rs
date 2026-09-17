@@ -62,3 +62,6 @@ pub struct Options {
 
 /// Journal des étapes, pour que l'appelant décide de l'affichage.
 pub type Progress<'a> = &'a (dyn Fn(&str) + Sync);
+
+#[cfg(test)]
+mod essais;

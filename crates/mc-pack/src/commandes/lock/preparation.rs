@@ -36,3 +36,7 @@ pub(super) fn manifeste_a_verrouiller(source: &Source) -> Result<(PathBuf, Manif
 
     Ok((manifest_path.to_path_buf(), manifest))
 }
+
+#[cfg(test)]
+#[path = "preparation.test.rs"]
+mod tests;

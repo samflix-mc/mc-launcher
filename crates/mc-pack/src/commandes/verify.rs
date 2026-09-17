@@ -52,3 +52,7 @@ pub(super) fn report_unresolved(lock: &Lockfile) {
         "  Ces mods manquent sur Modrinth comme sur CurseForge : le jeu refusera de démarrer."
     );
 }
+
+#[cfg(test)]
+#[path = "verify.test.rs"]
+mod tests;

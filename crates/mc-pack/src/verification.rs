@@ -77,3 +77,7 @@ pub fn verify(source: &Source, options: &Options, deep: bool) -> Result<Vec<Stri
 
     Ok(problems)
 }
+
+#[cfg(test)]
+#[path = "verification.test.rs"]
+mod tests;

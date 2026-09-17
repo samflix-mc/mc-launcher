@@ -56,3 +56,7 @@ impl Source {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "local.test.rs"]
+mod tests;

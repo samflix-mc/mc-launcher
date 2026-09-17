@@ -30,3 +30,7 @@ pub(super) fn annoncer(lock: &Lockfile, lock_path: &Path, previous: Option<&Lock
     println!("\nVerrou écrit dans {}", lock_path.display());
     report_unresolved(lock);
 }
+
+#[cfg(test)]
+#[path = "rapport.test.rs"]
+mod tests;

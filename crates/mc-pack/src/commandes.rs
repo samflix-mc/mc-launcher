@@ -2,6 +2,9 @@
 
 pub mod arguments;
 
+#[cfg(test)]
+mod essais;
+
 pub mod diagnostic;
 pub mod incident;
 pub mod install;
@@ -50,3 +53,7 @@ pub async fn executer(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "commandes.test.rs"]
+mod tests;

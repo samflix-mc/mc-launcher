@@ -27,3 +27,7 @@ pub(super) fn verifier(lock: &Lockfile, instance: &mc_instance::Instance) -> Res
         manquants.join("\n  ")
     )
 }
+
+#[cfg(test)]
+#[path = "coherence.test.rs"]
+mod tests;

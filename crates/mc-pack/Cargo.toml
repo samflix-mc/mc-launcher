@@ -22,3 +22,6 @@ mc-instance = { path = "../mc-instance" }
 [[bin]]
 name = "mc-pack"
 path = "src/main.rs"
+
+[dev-dependencies]
+mc-essais = { path = "../mc-essais" }
