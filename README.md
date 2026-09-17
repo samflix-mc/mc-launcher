@@ -458,12 +458,12 @@ l'édition de liens.
 
 ## Contrôles automatiques
 
-Trois workflows, qui se répondent sans se recouvrir.
+Quatre workflows, qui se répondent sans se recouvrir.
 
 **Contrôles** (`ci.yml`) — format, `clippy -D warnings`, tests, compilation en
-release, et un appel réel à Microsoft qui doit répondre `AADSTS700038` : la
-chaîne HTTP est vérifiée de bout en bout sans qu'aucun secret n'entre dans la
-CI.
+release, et un appel réel à Microsoft : `mc-auth login` doit obtenir un code
+d'appareil. La chaîne HTTP est ainsi vérifiée de bout en bout sans qu'aucun
+secret n'entre dans la CI, et sans compte.
 
 **Vulnérabilités** (`audit.yml`) — `cargo audit` sur les versions du verrou, à
 chaque changement et tous les lundis. Le rendez-vous hebdomadaire est le plus
@@ -477,13 +477,13 @@ analyse SonarQube Cloud. Deux seuils, qui ne disent pas la même chose :
 
 | | Portée | Valeur | Où |
 |---|---|---|---|
-| Cliquet | tout le dépôt | 42 % des lignes | `SEUIL_LIGNES` dans `qualite.yml` |
+| Cliquet | tout le dépôt | 90 % des lignes | `SEUIL_LIGNES` dans `qualite.yml` |
 | Porte de qualité | code nouveau d'une PR | 80 % | Sonar, `sonar.qualitygate.wait` |
 
 Le premier interdit de redescendre, le second exige 80 % de ce qu'on écrit
-désormais. Un seuil global à 80 % aujourd'hui rendrait `main` rouge sans rien
-apprendre : la dette se résorbe en la traversant. Il se remonte à la main, à
-mesure que le chiffre monte.
+désormais. Le cliquet se remonte à la main, à mesure que le chiffre monte, et
+reste quelques points sous le réel : il est là pour arrêter une chute, pas pour
+rougir sur une variation d'un test.
 
 Reproduire la mesure :
 
@@ -496,3 +496,56 @@ et un secret `SONAR_TOKEN` dans les secrets Actions ; la marche à suivre exacte
 est en tête de `sonar-project.properties`. Tant que le secret manque, le
 workflow mesure la couverture, applique le cliquet et passe l'analyse — une CI
 rouge faute de compte n'apprendrait rien à personne.
+
+**Mutation** (`mutation.yml`) — la question que la couverture ne pose pas.
+
+Une ligne couverte a été *exécutée* ; rien ne dit que quelqu'un a regardé ce
+qu'elle rendait. Un test qui appelle une fonction sans rien vérifier la couvre
+à 100 % et ne tombera pas le jour où elle rendra le contraire. `cargo-mutants`
+change le code — une comparaison inversée, un retour remplacé par une valeur
+par défaut, une branche supprimée — et regarde si la suite s'en aperçoit. Un
+mutant qui **survit** désigne une ligne exécutée mais non vérifiée.
+
+Les deux mesures se lisent ensemble, et aucune ne remplace l'autre :
+
+| | Ce qu'elle mesure | Aujourd'hui |
+|---|---|---|
+| Couverture | lignes exécutées par la suite | **94,4 %** (Sonar ; 93,9 % pour `llvm-cov`, qui ne compte pas tout à fait les mêmes lignes) |
+| Mutants éprouvés | mutants soumis à la suite, sur ceux que le code produit | **96,4 %** (1012 sur 1050) |
+| Score de mutation | mutants détectés, sur ceux qui compilent | **100 %** (0 survivant) |
+
+Le second chiffre est celui qui demande une explication. Sur les 1050 mutants
+que produit le code de l'application — le harnais de test de `mc-essais` n'en
+fait pas partie, muter un décor n'apprend rien —, 38 sont écartés d'avance :
+
+- **31 par un `#[mutants::skip]`** posé sur la fonction, avec la raison en
+  regard. Trois familles, et rien d'autre : ce qui parle à Microsoft à travers
+  `minecraft-auth`, dont les adresses ne se détournent pas vers un serveur
+  d'essai ; ce qui télécharge chez Mojang, NeoForge ou Adoptium par des
+  adresses écrites en dur ; et ce qui n'écrit que sur la sortie standard, que
+  Rust ne sait pas relire depuis le processus qui l'émet. Dans ce dernier cas,
+  le texte est calculé par une fonction à part, elle vérifiée — seule
+  l'impression est écartée ;
+- **7 par `.cargo/mutants.toml`**, parce qu'ils ne changent rien : un « ou
+  exclusif » entre deux drapeaux distincts, une garde qui n'est qu'un
+  raccourci, un tour de boucle qui n'écrit rien. Aucun test ne peut les tuer,
+  il n'y a rien à distinguer.
+
+Des 1012 restants, 152 ne compilent pas — cargo-mutants les dit *non viables*,
+et ils ne comptent nulle part — et 9 font boucler la suite sans fin, ce qui est
+une façon d'être détectés. **Aucun ne survit.**
+
+Le job tourne sur les pull requests, et sur leur diff seul : le dépôt entier
+demande une douzaine de minutes réparties sur dix machines, une PR ordinaire
+quelques minutes. Le découpage est calculé à chaque exécution, et chaque part
+dit où elle en est pendant qu'elle travaille. Le budget est à **zéro** : un
+survivant qui paraît dans une PR n'est pas de la dette héritée, c'est du code
+que cette PR vient d'écrire et que rien ne vérifie.
+
+Reproduire la mesure, ou passer tout le dépôt au crible :
+
+```bash
+cargo install cargo-mutants --locked
+cargo mutants                      # tout, une quinzaine de minutes
+cargo mutants -f crates/mc-log/**  # un crate
+```

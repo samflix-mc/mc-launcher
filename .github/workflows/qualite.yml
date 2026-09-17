@@ -15,23 +15,20 @@ env:
   # et une couverture mesurée ailleurs ne couvre pas le même code.
   SAMFLIX_ENV: ${{ github.ref == 'refs/heads/main' && 'preproduction' || 'development' }}
 
-  # Le cliquet, et non l'objectif. Le dépôt couvre aujourd'hui 42 % de ses
-  # lignes : ce seuil interdit de redescendre, et se remonte à mesure qu'on
-  # monte — jamais l'inverse.
+  # Le cliquet, et non l'objectif. Il interdit de redescendre, et se remonte à
+  # mesure qu'on monte — jamais l'inverse.
+  #
+  # Quatre-vingt-dix pour un dépôt qui en couvre 94 : quelques points de marge,
+  # parce que ce seuil est là pour arrêter une chute, pas pour rougir le jour
+  # où un test se déplace. Les trois plus gros manques d'alors — le main de
+  # mc-pack, les deux clients d'API — ont été couverts en écrivant les tests
+  # que les mutants réclamaient.
   #
   # L'exigence des 80 % est ailleurs, et porte sur le code NOUVEAU : c'est la
   # porte de qualité de SonarQube Cloud, déclarée dans sonar-project.properties.
-  # C'est la seule façon de l'exiger sans rendre la CI rouge le jour où on
-  # l'installe, et c'est ce que le « Clean as You Code » de Sonar décrit : la
-  # dette existante se résorbe en la traversant, pas en bloquant tout le monde
-  # devant. Le jour où le dépôt entier passe 80 %, ce seuil vaut 80 et les deux
-  # phrases disent la même chose.
-  #
-  # Les trois plus gros manques, pour qui veut faire monter le chiffre :
-  # mc-pack/src/main.rs (0 %, l'analyse des arguments et l'affichage),
-  # mc-mods/src/curseforge.rs (9 %) et mc-mods/src/modrinth.rs (19 %) — les deux
-  # clients d'API, qui demandent un serveur de test pour être couverts.
-  SEUIL_LIGNES: 42
+  # Les deux ne font plus double emploi qu'en apparence : celle-ci suit ce
+  # qu'une PR écrit, celui-là ce que le dépôt a déjà.
+  SEUIL_LIGNES: 90
 
 jobs:
   couverture:
