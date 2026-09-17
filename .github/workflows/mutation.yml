@@ -11,11 +11,10 @@ name: Mutation
 # C'est la mesure qui manquait à côté des 80 % de SonarQube Cloud.
 #
 # UNIQUEMENT SUR LES PULL REQUESTS, ET UNIQUEMENT SUR LEUR DIFF. Le dépôt
-# entier compte plus de mille mutants : quinze minutes sur une machine à seize
-# cœurs, bien davantage sur un runner à deux. Le diff d'une PR ordinaire en
-# compte quelques dizaines — la réponse arrive pendant la revue, ce qui est la
-# seule façon qu'elle serve à quelque chose. Pour passer tout le dépôt au
-# crible, il reste le déclenchement manuel ci-dessous.
+# entier compte plus de mille mutants, et chacun coûte une recompilation : le
+# diff d'une PR ordinaire en compte quelques dizaines, et la réponse arrive
+# pendant la revue — la seule façon qu'elle serve à quelque chose. Pour passer
+# tout le dépôt au crible, il reste le déclenchement manuel ci-dessous.
 on:
   pull_request:
   workflow_dispatch:
@@ -34,6 +33,18 @@ env:
   # code que la CI construit.
   SAMFLIX_ENV: development
 
+  # Au-delà, la part est confiée à un runner de plus. Un mutant coûte une
+  # recompilation du crate qu'il touche, soit quelques secondes : cent
+  # cinquante tiennent en une dizaine de minutes, ce qu'on peut attendre
+  # pendant une revue. Le découpage est calculé à chaque exécution, et non
+  # figé : une PR de trois fichiers ne réserve pas huit machines, et une
+  # refonte qui déplace tout le dépôt ne fait pas attendre une heure.
+  MUTANTS_PAR_PART: 150
+
+  # Garde-fou. Une matrice se compte en machines réellement démarrées ; passé
+  # ce nombre, les parts grossissent plutôt que de se multiplier.
+  PARTS_MAX: 20
+
   # Le cliquet, comme pour la couverture — et pour la même raison. Le dépôt
   # laisse aujourd'hui survivre des mutants ; ce budget interdit d'en ajouter,
   # et se rabaisse à mesure qu'on écrit les vérifications manquantes. Jamais
@@ -46,7 +57,7 @@ env:
   #
   # 111, parce que c'est ce que le dépôt entier laisse survivre aujourd'hui —
   # 748 mutants tués sur 868 testés, soit 86 %. La PR qui installe ce job ayant
-  # déplacé tous les fichiers, son diff les porte tous ; les suivantes
+  # déplacé tous les fichiers, son diff les porte presque tous ; les suivantes
   # n'auront pas cette excuse, et ce nombre doit descendre.
   #
   # Ce qui reste n'est pas homogène. Une part est **équivalente** et le
@@ -58,17 +69,17 @@ env:
   MUTANTS_TOLERES: 111
 
 jobs:
-  mutation:
-    name: Mutants sur le code nouveau
-    # x86 et non ARM comme les contrôles : taiki-e/install-action ne publie pas
-    # de binaire aarch64 pour cargo-mutants, et le faire compiler à chaque
-    # exécution coûterait plus cher que le job lui-même.
+  # Compter avant de distribuer : « --list » n'exécute rien, il n'analyse que
+  # la syntaxe, et rend en quelques secondes le nombre exact de mutants que le
+  # diff met en jeu. C'est ce nombre qui décide combien de machines suivent.
+  decoupage:
+    name: Compter les mutants à tester
     runs-on: ubuntu-24.04
-    # Large, et pour une raison qui ne tient qu'à la première exécution : la
-    # PR qui installe ce job a déplacé tout le dépôt, son diff porte donc sur
-    # mille mutants au lieu de quelques dizaines. Une PR ordinaire tient en
-    # quelques minutes.
-    timeout-minutes: 90
+    timeout-minutes: 15
+    outputs:
+      parts: ${{ steps.calcul.outputs.parts }}
+      nombre: ${{ steps.calcul.outputs.nombre }}
+      total: ${{ steps.calcul.outputs.total }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -76,8 +87,6 @@ jobs:
           # n'y a rien à quoi se comparer, et cargo-mutants passerait le dépôt
           # entier.
           fetch-depth: 0
-
-      - uses: Swatinem/rust-cache@v2
 
       - uses: taiki-e/install-action@v2
         with:
@@ -92,12 +101,85 @@ jobs:
           git diff "${{ github.event.pull_request.base.sha }}...HEAD" -- '*.rs' > pr.diff
           echo "Diff de $(grep -c '^+++ ' pr.diff || echo 0) fichier(s) Rust."
 
+      - name: Conserver le diff pour les parts
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: diff-de-la-pr
+          path: pr.diff
+          retention-days: 1
+
+      - name: Combien de parts
+        id: calcul
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cible=(--in-diff pr.diff)
+          else
+            cible=()
+          fi
+
+          total=$(cargo mutants --list --colors never "${cible[@]}" | wc -l)
+
+          # Division entière arrondie au-dessus : 150 mutants font une part,
+          # 151 en font deux.
+          nombre=$(( (total + MUTANTS_PAR_PART - 1) / MUTANTS_PAR_PART ))
+          [ "$nombre" -gt "$PARTS_MAX" ] && nombre=$PARTS_MAX
+
+          # Un diff sans une ligne de Rust ne met aucun mutant en jeu : la
+          # matrice reste vide, et les parts ne démarrent pas.
+          if [ "$total" -eq 0 ]; then
+            parts='[]'
+            nombre=0
+          else
+            parts=$(seq 0 $((nombre - 1)) | jq -c --slurp .)
+          fi
+
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "nombre=$nombre" >> "$GITHUB_OUTPUT"
+          echo "parts=$parts" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Tests de mutation::$total mutant(s) dans ce" \
+               "diff, répartis en $nombre part(s) d'au plus $MUTANTS_PAR_PART."
+
+  parts:
+    name: Mutants, part ${{ matrix.part }}
+    needs: decoupage
+    if: needs.decoupage.outputs.nombre != '0'
+    # x86 et non ARM comme les contrôles : taiki-e/install-action ne publie pas
+    # de binaire aarch64 pour cargo-mutants, et le faire compiler à chaque
+    # exécution coûterait plus cher que le job lui-même.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      # Une part qui tombe ne doit pas emporter les autres : c'est le total des
+      # survivants qui décide, et il faut donc les avoir tous.
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(needs.decoupage.outputs.parts) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+
+      # Le même diff que celui qui a servi à compter, et non un diff recalculé :
+      # deux listes qui ne coïncideraient pas feraient des parts qui se
+      # recouvrent ou qui laissent un mutant de côté.
+      - name: Reprendre le diff
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v7
+        with:
+          name: diff-de-la-pr
+
       # Le code de sortie ne suffit pas à décider : il vaut 1 aussi bien pour
       # « des mutants ont survécu » que pour « la compilation est cassée », et
       # les deux n'appellent pas la même conclusion. On lit donc ce que
       # cargo-mutants écrit, après s'être assuré qu'il a bien tourné.
       - name: Chercher les mutants survivants
-        id: mutants
         run: |
           set +e
           if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -105,12 +187,22 @@ jobs:
           else
             cible=()
           fi
-          # Deux tâches et pas davantage : chacune travaille sur sa propre
-          # copie du dépôt *et* de son répertoire de compilation, et le disque
-          # d'un runner ne tient pas quatre arbres de plusieurs gigaoctets.
-          # Un mutant déclaré « incompilable » faute de place ressemble à s'y
-          # méprendre à un mutant tué.
-          cargo mutants --colors never --no-shuffle -j 2 "${cible[@]}"
+          # Deux tâches par machine : chacune travaille sur sa propre copie du
+          # dépôt *et* de son répertoire de compilation, et le disque d'un
+          # runner ne tient pas quatre arbres de plusieurs gigaoctets. Un mutant
+          # déclaré « incompilable » faute de place ressemble à s'y méprendre à
+          # un mutant tué. C'est le nombre de parts qui apporte le parallélisme,
+          # pas le nombre de tâches par part.
+          #
+          # « round-robin » plutôt que des tranches consécutives : les mutants
+          # sont listés fichier par fichier, et découper en tranches donnerait
+          # à une part les huit crates légers et à une autre mc-pack en entier.
+          # Le temps d'attente est celui de la part la plus lente ; les
+          # distribuer un sur n les égalise.
+          cargo mutants --colors never --no-shuffle -j 2 \
+            --shard ${{ matrix.part }}/${{ needs.decoupage.outputs.nombre }} \
+            --sharding round-robin \
+            "${cible[@]}"
           code=$?
           set -e
 
@@ -132,33 +224,64 @@ jobs:
             exit 1
           fi
 
-          # Un diff sans une ligne de Rust ne produit aucun fichier : zéro
-          # mutant est alors la bonne réponse, et non une erreur.
-          survivants=0
-          [ -f mutants.out/missed.txt ] && survivants=$(wc -l < mutants.out/missed.txt)
-          echo "survivants=$survivants" >> "$GITHUB_OUTPUT"
-
-      # Le rapport est conservé même — surtout — quand le budget est dépassé :
-      # c'est là qu'on veut savoir quelle ligne personne ne vérifie.
-      - name: Conserver le rapport
+      # Le rapport est conservé même — surtout — quand des mutants ont survécu :
+      # c'est là qu'on veut savoir quelle ligne personne ne vérifie. C'est aussi
+      # ce que la part suivante additionne.
+      - name: Conserver le rapport de la part
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: mutants
+          name: mutants-part-${{ matrix.part }}
           path: mutants.out
           retention-days: 14
           if-no-files-found: warn
 
+  # Le budget se juge sur le total, et ne peut donc pas l'être dans une part :
+  # chacune n'a vu qu'un mutant sur n.
+  budget:
+    name: Mutants sur le code nouveau
+    needs: [decoupage, parts]
+    if: always() && needs.decoupage.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Une part qui échoue n'a pas mesuré ce qu'on lui demandait : son rapport
+      # est incomplet, et un total tiré des autres serait plus bas que la
+      # réalité — le budget passerait pour une raison fausse.
+      - name: Toutes les parts ont-elles abouti ?
+        if: needs.parts.result != 'success' && needs.parts.result != 'skipped'
+        run: |
+          echo "::error title=Tests de mutation::une part au moins n'a pas" \
+               "abouti (${{ needs.parts.result }}) : le total des survivants" \
+               "serait incomplet."
+          exit 1
+
+      - name: Reprendre les rapports des parts
+        if: needs.decoupage.outputs.nombre != '0'
+        uses: actions/download-artifact@v7
+        with:
+          pattern: mutants-part-*
+          path: parts
+
       - name: Appliquer le budget
         run: |
-          survivants=${{ steps.mutants.outputs.survivants }}
+          survivants=0
+          if [ -d parts ]; then
+            # Une part sans survivant n'écrit pas toujours le fichier : ne
+            # compter que ceux qui existent, et additionner leurs lignes.
+            survivants=$(cat parts/*/missed.txt 2>/dev/null | wc -l)
+          fi
+
           if [ "$survivants" -gt "$MUTANTS_TOLERES" ]; then
             echo "::error title=Tests de mutation::$survivants mutant(s)" \
                  "survivant(s) pour $MUTANTS_TOLERES toléré(s). Ce code" \
                  "s'exécute sans que rien ne vérifie ce qu'il rend ; la liste" \
-                 "est dans mutants.out/missed.txt, en artefact de ce job."
-            cat mutants.out/missed.txt
+                 "est ci-dessous, et les rapports complets en artefacts."
+            cat parts/*/missed.txt 2>/dev/null
             exit 1
           fi
-          echo "::notice title=Tests de mutation::$survivants survivant(s)," \
+
+          echo "::notice title=Tests de mutation::$survivants survivant(s) sur" \
+               "${{ needs.decoupage.outputs.total }} mutant(s) testés en" \
+               "${{ needs.decoupage.outputs.nombre }} part(s)," \
                "budget $MUTANTS_TOLERES."
