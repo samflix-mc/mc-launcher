@@ -22,7 +22,24 @@ pub struct Registry {
 
 impl Registry {
     pub fn new(cache: PathBuf) -> Result<Self> {
-        let dl = Arc::new(mc_dl::Downloader::new(mc_dl::USER_AGENT)?);
+        Self::monter(cache, None)
+    }
+
+    /// Le même registre, qui dit où en sont ses téléchargements.
+    ///
+    /// L'observateur se pose à la construction et non après coup : le client
+    /// HTTP est partagé par les trois sources derrière un `Arc`, et il n'est
+    /// donc plus modifiable une fois le registre monté.
+    pub fn observee(cache: PathBuf, observateur: mc_dl::Observateur) -> Result<Self> {
+        Self::monter(cache, Some(observateur))
+    }
+
+    fn monter(cache: PathBuf, observateur: Option<mc_dl::Observateur>) -> Result<Self> {
+        let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
+        let dl = Arc::new(match observateur {
+            Some(observateur) => dl.observe(observateur),
+            None => dl,
+        });
         Ok(Self {
             modrinth: crate::modrinth::Modrinth::new(dl.clone()),
             curseforge: crate::curseforge::CurseForge::from_env(dl.clone()),

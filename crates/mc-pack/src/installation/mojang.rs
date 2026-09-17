@@ -4,15 +4,15 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::Progress;
+use crate::progression::Rapport;
 
 pub(super) async fn poser(
     minecraft: &str,
     shared: &Path,
     dl: &mc_dl::Downloader,
-    log: Progress<'_>,
+    rapport: &dyn Rapport,
 ) -> Result<mc_instance::vanilla::Vanilla> {
-    log("Fichiers du jeu…");
+    rapport.note("Fichiers du jeu…");
     let game = mc_instance::vanilla::install(minecraft, shared, dl)
         .await
         .with_context(|| format!("installation de Minecraft {minecraft}"))?;
@@ -24,7 +24,7 @@ pub(super) async fn poser(
         game.libraries.len(),
         game.assets_downloaded
     );
-    log(&format!(
+    rapport.note(&format!(
         "  {} bibliothèques, {} assets téléchargés",
         game.libraries.len(),
         game.assets_downloaded

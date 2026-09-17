@@ -1,9 +1,30 @@
 //! Installer le pack, puis dire ce qui a été posé.
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use mc_pack::source::Source;
 
 use super::verify::report_unresolved;
+
+/// Le rapport d'un terminal : des lignes, dans l'ordre où elles arrivent.
+///
+/// Les étapes ne sont pas imprimées — les notes les annoncent déjà, en
+/// français et avec leurs chiffres. Elles servent à une fenêtre, qui doit
+/// savoir *laquelle* travaille pour dessiner un chemin ; un terminal, lui,
+/// empile.
+///
+/// Les téléchargements non plus : un débit qui change dix fois par seconde
+/// défile plus vite qu'il ne se lit, et noierait le compte rendu.
+struct Terminal;
+
+impl mc_pack::Rapport for Terminal {
+    fn etape(&self, _etape: mc_pack::Etape) {}
+
+    fn note(&self, texte: &str) {
+        println!("{texte}");
+    }
+}
 
 /// Hors de portée des tests de mutation : cette fonction installe le pack pour
 /// de bon — elle télécharge Minecraft, NeoForge et cent mods — puis affiche le
@@ -11,7 +32,7 @@ use super::verify::report_unresolved;
 /// par la suite de `mc_pack::install`, qui a un serveur d'essai.
 #[mutants::skip]
 pub async fn install(source: &Source, options: &mc_pack::Options) -> Result<()> {
-    let outcome = mc_pack::install(source, options, &|line| println!("{line}")).await?;
+    let outcome = mc_pack::install(source, options, Arc::new(Terminal)).await?;
 
     for ligne in lignes(&outcome) {
         println!("{ligne}");

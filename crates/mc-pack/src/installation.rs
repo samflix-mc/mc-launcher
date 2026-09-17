@@ -7,18 +7,31 @@ mod mods;
 mod mojang;
 mod verrou;
 
+use std::sync::Arc;
+
 use anyhow::Result;
 
+use crate::progression::{Etape, Rapport};
 use crate::source::{Pack, Source};
-use crate::{Options, Outcome, Progress};
+use crate::{Options, Outcome};
 
 #[tracing::instrument(
     name = "installation",
-    skip(options, log),
+    skip(options, rapport),
     fields(pack, minecraft, source = %source.describe(), rejeu, serveur = options.with_server)
 )]
-pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> Result<Outcome> {
-    let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
+pub async fn install(
+    source: &Source,
+    options: &Options,
+    rapport: Arc<dyn Rapport>,
+) -> Result<Outcome> {
+    // Le client HTTP porte l'observateur : tout ce qui descend ensuite — le
+    // pack, les fichiers du jeu, l'installateur NeoForge — passe par lui et
+    // se raconte sans que chaque étape ait à s'en occuper.
+    let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?.observe(observateur(&rapport));
+
+    // --- 1. Le pack ----------------------------------------------------------
+    rapport.etape(Etape::Pack);
     let Pack {
         manifest,
         lock: previous_lock,
@@ -36,36 +49,42 @@ pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> R
     tracing::Span::current().record("rejeu", replay);
 
     if from_cache {
-        log("Hors-ligne : pack repris de la dernière copie connue.");
+        rapport.note("Hors-ligne : pack repris de la dernière copie connue.");
     }
 
     let layout = &options.layout;
     let shared = layout.shared();
 
+    // --- 2. Le chargeur ------------------------------------------------------
+    rapport.etape(Etape::Chargeur);
     let neoforge_version =
         chargeur::version(&manifest, previous_lock.as_ref(), &lock_path, replay, &dl).await?;
-    log(&format!(
+    rapport.note(&format!(
         "Minecraft {} — NeoForge {neoforge_version}",
         manifest.minecraft
     ));
 
-    // --- 2. Fichiers de Mojang ----------------------------------------------
-    let game = mojang::poser(&manifest.minecraft, &shared, &dl, log).await?;
+    // --- 3. Fichiers de Mojang ----------------------------------------------
+    rapport.etape(Etape::Minecraft);
+    let game = mojang::poser(&manifest.minecraft, &shared, &dl, rapport.as_ref()).await?;
 
-    // --- 3. Java -------------------------------------------------------------
+    // --- 4. Java -------------------------------------------------------------
+    rapport.etape(Etape::Java);
     let java_major = manifest.java_major(game.java_major);
     let java = java::runtime(java_major, layout).await?;
-    log(&format!(
+    rapport.note(&format!(
         "Java {} — {}",
         java.version.full,
         java.path.display()
     ));
 
-    // --- 4. NeoForge ---------------------------------------------------------
-    log("Chargeur NeoForge…");
+    // --- 5. NeoForge ---------------------------------------------------------
+    rapport.etape(Etape::NeoForge);
+    rapport.note("Chargeur NeoForge…");
     chargeur::poser(&neoforge_version, &shared, layout, &java.path, &dl).await?;
 
-    // --- 5. Mods -------------------------------------------------------------
+    // --- 6. Mods -------------------------------------------------------------
+    rapport.etape(Etape::Mods);
     let pose = mods::poser(
         &manifest,
         previous_lock.as_ref(),
@@ -74,10 +93,12 @@ pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> R
         &java.path,
         &neoforge_version,
         &dl,
-        log,
+        &rapport,
     )
     .await?;
 
+    // --- 7. Le verrou --------------------------------------------------------
+    rapport.etape(Etape::Verrou);
     let lock = verrou::retenir(
         &manifest,
         &neoforge_version,
@@ -99,6 +120,15 @@ pub async fn install(source: &Source, options: &Options, log: Progress<'_>) -> R
         neoforge_version,
         from_cache,
     ))
+}
+
+/// Le fil qui relie les téléchargements au rapport.
+///
+/// `mc-dl` ne connaît que des closures, `mc-pack` ne connaît qu'un rapport :
+/// ceci est la soudure, et le seul endroit du crate où les deux se voient.
+pub(crate) fn observateur(rapport: &Arc<dyn Rapport>) -> mc_dl::Observateur {
+    let rapport = Arc::clone(rapport);
+    Arc::new(move |avancement| rapport.telechargement(avancement))
 }
 
 /// Faut-il rejouer le verrou plutôt que de résoudre à nouveau ?

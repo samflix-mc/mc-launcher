@@ -17,20 +17,28 @@ pub(super) fn side_for(request: &Request, candidate: &Candidate) -> Side {
     request.side.unwrap_or(candidate.project_side)
 }
 
+/// Un jar à descendre, extrait du plan avant que la boucle ne commence.
+///
+/// Hors de la fonction pour que [`poids`] puisse s'en saisir, et se vérifier.
+struct Job {
+    key: (Origin, String),
+    url: String,
+    file_name: String,
+    sum: Option<mc_dl::Checksum>,
+    size: u64,
+}
+
+/// Ce que pèse le lot, avant d'en avoir descendu le premier octet.
+fn poids(todo: &[Job]) -> u64 {
+    todo.iter().map(|job| job.size).sum()
+}
+
 /// Télécharge ce qui n'a pas encore de chemin, en parallèle borné.
 pub(super) async fn download_all(
     registry: &Registry,
     chosen: &mut BTreeMap<(Origin, String), Installed>,
 ) -> Result<()> {
     use futures_util::stream::{self, StreamExt};
-
-    struct Job {
-        key: (Origin, String),
-        url: String,
-        file_name: String,
-        sum: Option<mc_dl::Checksum>,
-        size: u64,
-    }
 
     let todo: Vec<Job> = chosen
         .iter()
@@ -43,6 +51,14 @@ pub(super) async fn download_all(
             size: m.candidate.size,
         })
         .collect();
+
+    // Les tailles viennent des métadonnées du projet. CurseForge sans clé n'en
+    // publie pas et compte alors pour zéro : le total est un plancher, pas une
+    // promesse — mieux vaut une barre qui accélère à la fin qu'aucune barre.
+    registry.dl.signaler(mc_dl::Avancement::Lot {
+        fichiers: todo.len(),
+        octets: poids(&todo),
+    });
 
     let results: Vec<Result<((Origin, String), PathBuf)>> = stream::iter(todo)
         .map(|job| {
@@ -87,3 +103,7 @@ pub(super) async fn download_all(
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "telechargement.test.rs"]
+mod tests;

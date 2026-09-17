@@ -5,8 +5,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use mc_mods::Side;
 
+use crate::Options;
 use crate::manifest::Manifest;
-use crate::{Options, Progress};
+use crate::progression::Rapport;
 
 use super::Pose;
 
@@ -18,7 +19,7 @@ pub(super) async fn deployer(
     java: &Path,
     neoforge_version: &str,
     dl: &mc_dl::Downloader,
-    log: Progress<'_>,
+    rapport: &dyn Rapport,
 ) -> Result<Pose> {
     let layout = &options.layout;
     let instance = layout.instance(options.instance_name.as_deref().unwrap_or(&manifest.name));
@@ -39,7 +40,7 @@ pub(super) async fn deployer(
     );
 
     if options.with_server {
-        log("Serveur NeoForge…");
+        rapport.note("Serveur NeoForge…");
         mc_instance::neoforge::install_server(
             neoforge_version,
             &server_dir,

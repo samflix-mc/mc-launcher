@@ -13,11 +13,21 @@ use crate::{Check, Checksum, Downloader, Fetched};
 /// fichier le temps de l'appel et ne peut pas être conservé.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Trace {
-    Lot { fichiers: usize, octets: u64 },
-    Debut { fichier: String, octets: Option<u64> },
+    Lot {
+        fichiers: usize,
+        octets: u64,
+    },
+    Debut {
+        fichier: String,
+        octets: Option<u64>,
+    },
     Recus(u64),
     Perdus(u64),
-    Fini { fichier: String, etat: Fetched, octets: u64 },
+    Fini {
+        fichier: String,
+        etat: Fetched,
+        octets: u64,
+    },
 }
 
 #[derive(Default)]
@@ -194,7 +204,11 @@ async fn un_fichier_deja_present_pese_sans_rien_telecharger() {
         .observe(journal.observateur());
 
     let etat = dl
-        .to_file(&serveur.url("/present.jar"), &dest, Check::Full(&sha1(corps)))
+        .to_file(
+            &serveur.url("/present.jar"),
+            &dest,
+            Check::Full(&sha1(corps)),
+        )
         .await
         .unwrap();
 

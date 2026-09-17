@@ -6,9 +6,12 @@ use std::path::Path;
 
 use anyhow::Result;
 
+use std::sync::Arc;
+
+use crate::Options;
 use crate::lockfile::Lockfile;
 use crate::manifest::Manifest;
-use crate::{Options, Progress};
+use crate::progression::Rapport;
 
 /// Ce que l'étape « mods » laisse derrière elle.
 pub(super) struct Pose {
@@ -29,10 +32,14 @@ pub(super) async fn poser(
     java: &Path,
     neoforge_version: &str,
     dl: &mc_dl::Downloader,
-    log: Progress<'_>,
+    rapport: &Arc<dyn Rapport>,
 ) -> Result<Pose> {
     let layout = &options.layout;
-    let registry = mc_mods::Registry::new(layout.cache().join("mods"))?;
+    // Le registre monte son propre client HTTP : sans cet observateur-là, les
+    // mods seraient la seule étape à descendre en silence, et c'est la plus
+    // longue après les assets.
+    let registry =
+        mc_mods::Registry::observee(layout.cache().join("mods"), super::observateur(rapport))?;
     let requests = if replay {
         let lock = previous.expect("vérifié plus haut");
         tracing::info!(
@@ -40,7 +47,7 @@ pub(super) async fn poser(
             "Rejeu du verrou : {} builds épinglés",
             lock.mods.len()
         );
-        log(&format!(
+        rapport.note(&format!(
             "Mods : {} builds rejoués depuis le verrou",
             lock.mods.len()
         ));
@@ -51,7 +58,7 @@ pub(super) async fn poser(
             "Résolution de {} mods demandés",
             manifest.mods.len()
         );
-        log("Résolution des mods…");
+        rapport.note("Résolution des mods…");
         manifest.requests()?
     };
 
@@ -64,7 +71,7 @@ pub(super) async fn poser(
         "{} mods résolus, dont {added} ajoutés par dépendance",
         plan.mods.len()
     );
-    log(&format!(
+    rapport.note(&format!(
         "  {} mods, dont {added} ajoutés par résolution des dépendances",
         plan.mods.len()
     ));
@@ -73,13 +80,22 @@ pub(super) async fn poser(
         .iter()
         .filter(|m| matches!(m.reason, mc_mods::Reason::Implicit { .. }))
     {
-        log(&format!(
+        rapport.note(&format!(
             "  · {} — {}",
             entry.candidate.slug,
             entry.reason.describe()
         ));
     }
-    deploiement::deployer(plan, options, manifest, java, neoforge_version, dl, log).await
+    deploiement::deployer(
+        plan,
+        options,
+        manifest,
+        java,
+        neoforge_version,
+        dl,
+        rapport.as_ref(),
+    )
+    .await
 }
 
 /// Combien de mods le pack a gagnés sans que le manifeste les demande.

@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use mc_dl::{Check, Checksum, Downloader};
 use std::path::Path;
 
-use super::descripteur::{AssetIndex, AssetIndexRef};
+use super::descripteur::{AssetIndex, AssetIndexRef, AssetObject};
 use super::{PARALLEL, RESOURCES};
 
 #[tracing::instrument(name = "assets", skip_all, fields(index = %index.id))]
@@ -36,7 +36,17 @@ pub(super) async fn install_assets(
         .context("index des assets illisible")?;
     let objects = shared.join("assets").join("objects");
 
-    let results: Vec<Result<mc_dl::Fetched>> = stream::iter(parsed.objects.into_values())
+    // L'index est lu avant de commencer : c'est le seul moment où l'on sait ce
+    // que pèse l'étape la plus longue de l'installation. Sans cette annonce,
+    // aucun temps restant n'est calculable — les octets arriveraient sans
+    // qu'on sache jamais combien il en manque.
+    let attendus: Vec<_> = parsed.objects.into_values().collect();
+    dl.signaler(mc_dl::Avancement::Lot {
+        fichiers: attendus.len(),
+        octets: poids(&attendus),
+    });
+
+    let results: Vec<Result<mc_dl::Fetched>> = stream::iter(attendus)
         .map(|object| {
             // Les objets sont adressés par leur empreinte : deux versions du
             // jeu partagent tout ce qui n'a pas changé.
@@ -73,6 +83,14 @@ pub(super) async fn install_assets(
         total - downloaded
     );
     Ok(downloaded)
+}
+
+/// Ce que pèse le lot, avant d'en avoir descendu le premier octet.
+///
+/// Séparée de la boucle pour être vérifiable : une somme fausse ne se voit
+/// nulle part ailleurs qu'en regardant une barre de progression se tromper.
+fn poids(objets: &[AssetObject]) -> u64 {
+    objets.iter().map(|objet| objet.size).sum()
 }
 
 /// Combien d'objets ont été réellement téléchargés, sur ceux qu'on a demandés.

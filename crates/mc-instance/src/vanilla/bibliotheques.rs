@@ -45,6 +45,14 @@ pub(super) async fn install_libraries(
         })
         .collect();
 
+    // Le descripteur publie la taille de chaque bibliothèque : le lot est donc
+    // connu avant d'en demander la première. C'est ce qui permet d'afficher un
+    // temps restant plutôt qu'une animation qui tourne dans le vide.
+    dl.signaler(mc_dl::Avancement::Lot {
+        fichiers: wanted.len(),
+        octets: poids(&wanted),
+    });
+
     let results: Vec<Result<PathBuf>> = stream::iter(wanted)
         .map(|(path, artifact)| {
             let dest = root.join(&path);
@@ -65,3 +73,15 @@ pub(super) async fn install_libraries(
 
     results.into_iter().collect()
 }
+
+/// Ce que pèse le lot, avant d'en avoir descendu le premier octet.
+///
+/// Séparée de la boucle pour être vérifiable : une somme fausse ne se voit
+/// nulle part ailleurs qu'en regardant une barre de progression se tromper.
+fn poids(retenues: &[(String, Artifact)]) -> u64 {
+    retenues.iter().map(|(_, artefact)| artefact.size).sum()
+}
+
+#[cfg(test)]
+#[path = "bibliotheques.test.rs"]
+mod tests;

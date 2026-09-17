@@ -19,10 +19,12 @@ mod verification;
 
 pub mod lockfile;
 pub mod manifest;
+pub mod progression;
 pub mod source;
 
 pub use coherence::mods_client_absents;
 pub use installation::install;
+pub use progression::{Etape, Muet, Rapport};
 pub use verification::verify;
 
 use lockfile::Lockfile;
@@ -59,9 +61,6 @@ pub struct Options {
     pub instance_name: Option<String>,
     pub layout: mc_instance::Layout,
 }
-
-/// Journal des étapes, pour que l'appelant décide de l'affichage.
-pub type Progress<'a> = &'a (dyn Fn(&str) + Sync);
 
 #[cfg(test)]
 mod essais;
