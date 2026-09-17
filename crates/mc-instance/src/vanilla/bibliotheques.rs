@@ -10,6 +10,11 @@ use super::plateforme::{maven_path, mojang_arch, mojang_os};
 use super::regles::allowed;
 
 #[tracing::instrument(name = "bibliothèques", skip_all)]
+/// Hors de portée des tests de mutation : cette fonction descend les
+/// bibliothèques que le descripteur de version énumère, depuis les serveurs de
+/// Mojang. Le choix de celles qui s'appliquent à cette plateforme est vérifié
+/// par `regles`, et le téléchargement par mc-dl.
+#[mutants::skip]
 pub(super) async fn install_libraries(
     version: &VersionJson,
     shared: &Path,

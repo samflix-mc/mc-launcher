@@ -21,6 +21,11 @@ fn installer_url(version: &str) -> String {
 /// Le `.sha1` publié à côté de l'artefact est l'empreinte de référence du
 /// dépôt. L'installateur est exécuté juste après : le vérifier n'est pas une
 /// formalité.
+/// Hors de portée des tests de mutation : cette fonction ne fait que
+/// télécharger un jar depuis maven.neoforged.net, par une adresse écrite dans
+/// ce module. Le téléchargement lui-même — reprise, empreinte, écriture
+/// atomique — est vérifié chez mc-dl, qui a un serveur d'essai.
+#[mutants::skip]
 async fn fetch_installer(version: &str, cache: &Path, dl: &Downloader) -> Result<PathBuf> {
     let url = installer_url(version);
     let dest = cache.join(format!("neoforge-{version}-installer.jar"));

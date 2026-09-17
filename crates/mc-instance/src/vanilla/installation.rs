@@ -28,10 +28,7 @@ pub struct Vanilla {
 pub async fn install(mc: &str, shared: &Path, dl: &Downloader) -> Result<Vanilla> {
     let manifest: Manifest = serde_json::from_slice(&dl.bytes(MANIFEST).await?)
         .context("manifeste des versions illisible")?;
-    let entry = manifest
-        .versions
-        .into_iter()
-        .find(|v| v.id == mc)
+    let entry = entree_de_version(manifest.versions, mc)
         .with_context(|| format!("Minecraft {mc} ne figure pas au manifeste de Mojang"))?;
 
     // Le descripteur est vérifié comme le reste : son SHA-1 figure dans le
@@ -85,3 +82,20 @@ pub async fn install(mc: &str, shared: &Path, dl: &Downloader) -> Result<Vanilla
         assets_downloaded,
     })
 }
+
+/// L'entrée du manifeste Mojang qui décrit exactement cette version du jeu.
+///
+/// Le manifeste en énumère plusieurs centaines, des instantanés compris. Se
+/// tromper d'entrée installerait un autre jeu que celui demandé, avec ses
+/// bibliothèques et ses assets — et le pack ne démarrerait pas, pour une
+/// raison qui ne se lirait nulle part.
+fn entree_de_version(
+    versions: Vec<super::descripteur::ManifestVersion>,
+    mc: &str,
+) -> Option<super::descripteur::ManifestVersion> {
+    versions.into_iter().find(|v| v.id == mc)
+}
+
+#[cfg(test)]
+#[path = "installation.test.rs"]
+mod tests;

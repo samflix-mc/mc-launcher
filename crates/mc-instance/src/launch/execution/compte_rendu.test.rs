@@ -64,3 +64,14 @@ fn un_code_hors_de_la_plage_des_signaux_reste_une_erreur() {
         Outcome::Failed { code: 128 }
     );
 }
+
+/// Un arrêt dont le système ne rend aucun code ne peut venir d'aucun
+/// programme : le repli le dit par une valeur qu'aucun processus ne produit.
+/// Rendre 1 à sa place ferait passer un arrêt inexpliqué pour une erreur
+/// ordinaire du jeu, et le rapport d'incident chercherait une exception qui
+/// n'existe pas.
+#[test]
+fn un_arret_sans_code_ne_se_confond_pas_avec_une_erreur_du_jeu() {
+    assert_eq!(Outcome::echec(None), Outcome::Failed { code: -1 });
+    assert_eq!(Outcome::echec(Some(1)), Outcome::Failed { code: 1 });
+}

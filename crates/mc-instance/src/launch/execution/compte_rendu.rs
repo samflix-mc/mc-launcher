@@ -48,8 +48,20 @@ impl Outcome {
             }
         }
 
+        Outcome::echec(status.code())
+    }
+
+    /// L'échec, avec le code que le système a rendu — ou, à défaut, un code
+    /// qui ne peut venir d'aucun programme.
+    ///
+    /// Le repli n'est pas atteignable sur Unix : un code absent signifie un
+    /// signal, traité plus haut. Il existe pour les plateformes qui n'en ont
+    /// pas, et se vérifie ici plutôt que par un statut qu'on ne sait pas
+    /// fabriquer. Rendre 1 à sa place ferait passer un arrêt inexpliqué pour
+    /// une erreur ordinaire du jeu.
+    fn echec(code: Option<i32>) -> Outcome {
         Outcome::Failed {
-            code: status.code().unwrap_or(-1),
+            code: code.unwrap_or(-1),
         }
     }
 

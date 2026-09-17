@@ -8,6 +8,11 @@ use super::descripteur::{AssetIndex, AssetIndexRef};
 use super::{PARALLEL, RESOURCES};
 
 #[tracing::instrument(name = "assets", skip_all, fields(index = %index.id))]
+/// Hors de portée des tests de mutation : cette fonction descend les milliers
+/// d'objets que Mojang publie, par une adresse écrite dans ce module. Ce
+/// qu'elle en compte se vérifie — voir [`compter_les_telechargements`] —, et
+/// le téléchargement lui-même est vérifié chez mc-dl.
+#[mutants::skip]
 pub(super) async fn install_assets(
     index: &AssetIndexRef,
     shared: &Path,
@@ -56,13 +61,8 @@ pub(super) async fn install_assets(
         .collect()
         .await;
 
-    let mut downloaded = 0;
     let total = results.len();
-    for result in results {
-        if result? == mc_dl::Fetched::Downloaded {
-            downloaded += 1;
-        }
-    }
+    let downloaded = compter_les_telechargements(results)?;
     // L'étape la plus longue d'une première installation, et la plus muette
     // d'une seconde : dire combien d'objets ont été passés explique pourquoi.
     tracing::info!(
@@ -74,3 +74,24 @@ pub(super) async fn install_assets(
     );
     Ok(downloaded)
 }
+
+/// Combien d'objets ont été réellement téléchargés, sur ceux qu'on a demandés.
+///
+/// La première erreur rencontrée arrête tout : un asset manquant fait une
+/// texture absente, pas un jeu qui refuse de démarrer, et l'on préfère le
+/// savoir tout de suite. Le compte, lui, sépare une première installation —
+/// des milliers d'objets — d'une seconde, où tout est déjà là : c'est la seule
+/// explication qu'on ait de l'attente.
+fn compter_les_telechargements(resultats: Vec<Result<mc_dl::Fetched>>) -> Result<usize> {
+    let mut telecharges = 0;
+    for resultat in resultats {
+        if resultat? == mc_dl::Fetched::Downloaded {
+            telecharges += 1;
+        }
+    }
+    Ok(telecharges)
+}
+
+#[cfg(test)]
+#[path = "assets.test.rs"]
+mod tests;

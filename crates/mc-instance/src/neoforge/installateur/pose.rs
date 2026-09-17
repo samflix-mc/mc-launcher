@@ -8,6 +8,12 @@ use super::execution::run_installer;
 use super::{fetch_installer, version_id};
 
 #[tracing::instrument(name = "neoforge client", skip(shared, cache, java, dl))]
+/// Hors de portée des tests de mutation : cette fonction télécharge
+/// l'installateur officiel de NeoForge et l'exécute dans une JVM, pendant une
+/// minute. Ce qu'elle vérifie ensuite — que le profil attendu a bien été
+/// produit — ne se distingue qu'en faisant tourner cet installateur-là ; le
+/// contrefaire reviendrait à vérifier notre imitation.
+#[mutants::skip]
 pub async fn install_client(
     version: &str,
     shared: &Path,
@@ -54,6 +60,9 @@ pub async fn install_client(
 
 /// Installe un serveur NeoForge complet dans son propre répertoire.
 #[tracing::instrument(name = "neoforge serveur", skip(dir, cache, java, dl))]
+/// Hors de portée des tests de mutation, pour la même raison que
+/// [`install_client`] : c'est l'installateur de NeoForge qui travaille.
+#[mutants::skip]
 pub async fn install_server(
     version: &str,
     dir: &Path,
