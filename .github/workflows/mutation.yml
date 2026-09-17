@@ -47,9 +47,17 @@ env:
   # découpage, que les parts attendent.
   MUTANTS_PAR_PART: 100
 
-  # Garde-fou. Une matrice se compte en machines réellement démarrées ; passé
-  # ce nombre, les parts grossissent plutôt que de se multiplier.
-  PARTS_MAX: 20
+  # Garde-fou, et il a servi. Une matrice se compte en machines réellement
+  # démarrées, or un compte n'en obtient qu'un nombre limité à la fois : à
+  # onze parts, l'une d'elles a attendu cinquante-cinq minutes qu'un runner se
+  # libère, puis s'est fait couper par son propre délai. Les dix autres avaient
+  # fini en dix minutes.
+  #
+  # Dix parts tiennent dans ce que GitHub accorde, en laissant la place aux
+  # trois autres workflows qui démarrent en même temps. Au-delà, les parts
+  # grossissent plutôt que de se multiplier : mieux vaut une part de deux cents
+  # mutants qui tourne qu'une part de cent qui attend.
+  PARTS_MAX: 10
 
   # Zéro, et c'est tenu : les mille douze mutants du dépôt sont tués, sauf
   # ceux qu'aucun test ne pourrait atteindre — et ceux-là sont nommés un par un
