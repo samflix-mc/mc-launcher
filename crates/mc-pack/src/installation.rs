@@ -115,22 +115,48 @@ pub async fn install(
     // a tranché autrement : l'installation se termine « bien », et l'écart
     // n'apparaît qu'à la connexion, sous la forme d'une éjection qui ne nomme
     // pas sa cause.
-    let ecarts = if replay {
-        let ecarts = conformite::ecarts(
-            &lock,
-            pose.plan
-                .mods
-                .iter()
-                .map(|m| (m.candidate.slug.as_str(), m.candidate.version_id.as_str())),
-        );
-        for ecart in &ecarts {
-            tracing::warn!(ecart, "l'installation s'écarte du verrou publié");
-            rapport.note(&format!("  ⚠ {ecart}"));
-        }
-        ecarts
-    } else {
-        Vec::new()
-    };
+    let poses: Vec<conformite::Pose<'_>> = pose
+        .plan
+        .mods
+        .iter()
+        .map(|m| {
+            (
+                m.candidate.origin,
+                m.candidate.project_id.as_str(),
+                m.candidate.version_id.as_str(),
+            )
+        })
+        .collect();
+
+    let mut ecarts = Vec::new();
+
+    if replay {
+        ecarts.extend(conformite::ecarts(&lock, poses.iter().copied()));
+    }
+
+    // Un auteur peut exiger un build précis d'un autre mod — les mixins de
+    // compatibilité d'Iris visent une version exacte de Sodium. Une demande
+    // explicite du manifeste l'emporte sur cette exigence, et c'est voulu ;
+    // n'en rien dire ne l'est pas, parce que le jeu tombe alors à la première
+    // connexion sur une erreur qui ne nomme jamais le pack.
+    ecarts.extend(conformite::dependances_insatisfaites(
+        &poses,
+        pose.plan.mods.iter().flat_map(|m| {
+            m.candidate.declared_deps.iter().filter_map(move |dep| {
+                Some(conformite::Exigence {
+                    par: m.candidate.slug.as_str(),
+                    origin: m.candidate.origin,
+                    projet: dep.project_id.as_str(),
+                    build: dep.version_id.as_deref()?,
+                })
+            })
+        }),
+    ));
+
+    for ecart in &ecarts {
+        tracing::warn!(ecart, "l'installation s'écarte de ce qui est attendu");
+        rapport.note(&format!("  ⚠ {ecart}"));
+    }
 
     Ok(compte_rendu::assembler(
         source,
