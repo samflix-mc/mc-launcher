@@ -40,6 +40,17 @@ impl Drop for Atelier {
     }
 }
 
+/// Une version majeure qu'aucun système ne publie.
+///
+/// `candidates` ne se limite pas au répertoire qu'on lui donne : elle sonde
+/// aussi `JAVA_HOME`, le `PATH` et `/usr/lib/jvm`. Sur un poste de
+/// développement — ou sur un runner de CI, qui livre un JDK récent — un test
+/// qui exige « rien n'a été retenu » porterait alors sur le Java du poste et
+/// non sur ce que le test a posé. Demander une version que personne ne fournit
+/// est la seule façon d'écarter ces candidats sans toucher au code qu'on
+/// vérifie.
+pub(crate) const MAJEUR_INTROUVABLE: u32 = 999;
+
 pub(crate) struct Arbre {
     pub(crate) racine: PathBuf,
 }

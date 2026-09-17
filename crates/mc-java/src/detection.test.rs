@@ -1,5 +1,5 @@
 use super::detect;
-use crate::essais::{Arbre, faux_java, java_muet};
+use crate::essais::{Arbre, MAJEUR_INTROUVABLE, faux_java, java_muet};
 use crate::version::Origin;
 
 /// Le runtime géré passe en premier : s'il est là, c'est le launcher qui l'a
@@ -29,11 +29,15 @@ async fn un_runtime_trop_vieux_n_est_pas_retenu() {
     let _atelier = crate::essais::atelier();
     let arbre = Arbre::neuf("detect-vieux");
     faux_java(
-        &arbre.racine.join("temurin-21").join("bin").join("java"),
+        &arbre
+            .racine
+            .join(format!("temurin-{MAJEUR_INTROUVABLE}"))
+            .join("bin")
+            .join("java"),
         "17.0.9",
     );
 
-    assert!(detect(21, &arbre.racine).await.is_none());
+    assert!(detect(MAJEUR_INTROUVABLE, &arbre.racine).await.is_none());
 }
 
 /// Un runtime plus récent que demandé convient : c'est la borne basse qui
@@ -59,18 +63,22 @@ async fn un_runtime_plus_recent_convient() {
 async fn un_binaire_casse_est_passe_sans_arreter_la_recherche() {
     let _atelier = crate::essais::atelier();
     let arbre = Arbre::neuf("detect-casse");
-    java_muet(&arbre.racine.join("temurin-21").join("bin").join("java"));
+    java_muet(
+        &arbre
+            .racine
+            .join(format!("temurin-{MAJEUR_INTROUVABLE}"))
+            .join("bin")
+            .join("java"),
+    );
 
     // Il ne répond rien d'exploitable : la détection continue, et ne trouve
-    // rien d'autre dans ce répertoire.
-    assert!(detect(21, &arbre.racine).await.is_none());
+    // rien d'autre à opposer.
+    assert!(detect(MAJEUR_INTROUVABLE, &arbre.racine).await.is_none());
 }
 
 #[tokio::test]
 async fn un_repertoire_vide_ne_donne_rien() {
     let _atelier = crate::essais::atelier();
     let arbre = Arbre::neuf("detect-vide");
-    // Une version majeure qu'aucun système ne fournira, pour que le PATH et
-    // les emplacements usuels du poste ne viennent pas troubler le résultat.
-    assert!(detect(999, &arbre.racine).await.is_none());
+    assert!(detect(MAJEUR_INTROUVABLE, &arbre.racine).await.is_none());
 }
