@@ -51,28 +51,17 @@ env:
   # ce nombre, les parts grossissent plutôt que de se multiplier.
   PARTS_MAX: 20
 
-  # Le cliquet, comme pour la couverture — et pour la même raison. Le dépôt
-  # laisse aujourd'hui survivre des mutants ; ce budget interdit d'en ajouter,
-  # et se rabaisse à mesure qu'on écrit les vérifications manquantes. Jamais
-  # l'inverse : le relever demande de dire, dans la PR qui le fait, quel code
-  # on a décidé de ne plus vérifier.
+  # Zéro, et c'est tenu : les mille douze mutants du dépôt sont tués, sauf
+  # ceux qu'aucun test ne pourrait atteindre — et ceux-là sont nommés un par un
+  # dans le code, par un `#[mutants::skip]` qui dit pourquoi. Ce qui parle à
+  # Microsoft par une bibliothèque tierce, ce qui télécharge chez Mojang ou
+  # NeoForge, ce qui n'écrit que sur la sortie standard : trois familles, et
+  # rien d'autre.
   #
-  # Il porte sur le code touché par la PR, pas sur le dépôt : sur une PR
-  # ordinaire, 0 est la valeur normale, et ce budget ne sert qu'aux refontes
-  # qui déplacent du code déjà écrit sans vérifications.
-  #
-  # 111, parce que c'est ce que le dépôt entier laisse survivre aujourd'hui —
-  # 748 mutants tués sur 868 testés, soit 86 %. La PR qui installe ce job ayant
-  # déplacé tous les fichiers, son diff les porte presque tous ; les suivantes
-  # n'auront pas cette excuse, et ce nombre doit descendre.
-  #
-  # Ce qui reste n'est pas homogène. Une part est **équivalente** et le
-  # restera : `^` et `|` après un masquage qui met le bit à zéro, une branche
-  # `match` qui retombe sur le défaut qu'elle donnait déjà, un `<` en `<=` sur
-  # un index de fin de boucle. Le reste est du code réseau — les six sources
-  # d'API — qu'on ne peut vérifier qu'en leur donnant un serveur, ce que fait
-  # déjà mc-essais pour quatre crates sur huit.
-  MUTANTS_TOLERES: 111
+  # Un survivant qui paraît ici est donc un vrai trou, pas de la dette : du
+  # code qu'une PR vient d'écrire et que rien ne vérifie. Le relever demande de
+  # dire, dans la PR qui le fait, quel code on a décidé de ne plus vérifier.
+  MUTANTS_TOLERES: 0
 
 jobs:
   # Compter avant de distribuer : « --list » n'exécute rien, il n'analyse que
