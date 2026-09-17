@@ -137,3 +137,90 @@ async fn une_reponse_illisible_nomme_le_type_d_image_demande() {
 
     assert!(format!("{erreur:#}").contains("jre 21"), "{erreur:#}");
 }
+
+/// Adoptium renvoie parfois autre chose que ce qu'on a demandé. L'entrée est
+/// alors écartée, et la recherche continue sur l'image suivante : la retenir
+/// installerait un paquet dont on ne sait pas ce qu'il contient, sous un nom
+/// qui prétend le contraire.
+#[cfg(unix)]
+#[tokio::test]
+async fn une_image_d_un_autre_type_que_celui_demande_est_ecartee() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let _atelier = crate::essais::atelier();
+    let arbre = Arbre::neuf("install-mauvais-type");
+
+    // Une seule réponse, deux entrées. La première ne porte pas le type
+    // demandé et livrerait un Java 17 ; c'est la seconde qu'il faut retenir.
+    // (Le serveur d'essai ignore la chaîne de requête : les deux images
+    // partagent le même chemin, ce qui est précisément la situation où seul
+    // `image_type` permet de les distinguer.)
+    let intrus = archive_temurin("17.0.9");
+    serveur.octets("/intrus.tar.gz", &intrus);
+    let attendu = archive_temurin("21.0.5+11");
+    serveur.octets("/temurin.tar.gz", &attendu);
+
+    let deux_entrees = format!(
+        "[{},{}]",
+        une_entree(
+            "jdk",
+            &serveur.url("/intrus.tar.gz"),
+            "intrus.tar.gz",
+            &sha256(&intrus)
+        ),
+        une_entree(
+            "jre",
+            &serveur.url("/temurin.tar.gz"),
+            "temurin.tar.gz",
+            &sha256(&attendu)
+        ),
+    );
+    serveur.json(&chemin(21, "jre"), &deux_entrees);
+
+    let java = install_depuis(&serveur.base(), 21, &arbre.racine)
+        .await
+        .expect("l'entrée du bon type est retenue");
+    assert_eq!(java.version.major, 21);
+}
+
+/// Une entrée de la réponse Adoptium, sans les crochets : pour en composer
+/// plusieurs dans une même réponse.
+fn une_entree(image: &str, lien: &str, nom: &str, sha256: &str) -> String {
+    let seule = reponse_adoptium(image, lien, nom, sha256);
+    seule
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_string()
+}
+
+/// Le dernier contrôle, et le seul qui prouve quelque chose : le binaire
+/// installé démarre et annonce la version exigée. Adoptium peut publier sous
+/// un nom ce qu'il livre sous un autre, et un Java trop vieux arrête le jeu sur
+/// `UnsupportedClassVersionError` avant même d'afficher une fenêtre.
+#[cfg(unix)]
+#[tokio::test]
+async fn un_temurin_qui_annonce_une_version_trop_basse_est_refuse() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let _atelier = crate::essais::atelier();
+    let arbre = Arbre::neuf("install-trop-vieux");
+
+    let archive = archive_temurin("17.0.9");
+    serveur.octets("/temurin.tar.gz", &archive);
+    serveur.json(&chemin(21, "jre"), "[]");
+    serveur.json(
+        &chemin(21, "jdk"),
+        &reponse_adoptium(
+            "jdk",
+            &serveur.url("/temurin.tar.gz"),
+            "temurin.tar.gz",
+            &sha256(&archive),
+        ),
+    );
+
+    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine)
+        .await
+        .expect_err("un Java 17 ne répond pas d'une demande de Java 21");
+    let texte = format!("{erreur:#}");
+    assert!(texte.contains("17"), "{texte}");
+    assert!(texte.contains("21"), "{texte}");
+}
