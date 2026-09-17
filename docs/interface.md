@@ -37,6 +37,57 @@ crates/                                       tout le reste — la logique du la
 `src-tauri` est un membre du workspace Cargo comme les autres crates : un seul
 `cargo test`, un seul verrou, une seule mesure de couverture.
 
+## La cinématique
+
+Onze phases, dessinées **en entier dès l'ouverture**, chacune portant son état :
+faite, en cours, à venir. C'est ce qui distingue « on en est à la moitié » de
+« il se passe quelque chose ».
+
+| | |
+|---|---|
+| Compte Microsoft | session reprise du trousseau, ou ouverte par code d'appareil |
+| Licence Minecraft | `Auth::owns_game` |
+| Pack | manifeste et verrou |
+| Version de NeoForge | `latest` résolu tout de suite, pour que le verrou porte un numéro |
+| Fichiers du jeu | client, bibliothèques, assets |
+| Java | détecté, ou Temurin installé |
+| Chargeur NeoForge | l'installateur officiel, dans le Java ci-dessus |
+| Mods | résolus, téléchargés, répartis client/serveur |
+| Verrou | écrit en dernier : il décrit ce qui a réellement été fait |
+| Prêt à jouer | le bouton s'allume |
+| Jeu lancé | |
+
+L'ordre des sept du milieu est celui de `mc_pack::install`, et il n'est pas
+arbitraire : chaque étape dépend de la précédente. Voir [packs.md](packs.md).
+
+**Un seul écart avec la ligne de commande, délibéré** : la licence est vérifiée
+*avant* d'installer. `mc-pack` ne la regarde jamais, et faire attendre huit
+cents mégaoctets à un joueur pour lui apprendre ensuite que son compte n'a pas
+le jeu serait une faute.
+
+**Installer et jouer restent deux gestes**, comme [lancement.md](lancement.md)
+le pose : le bouton « Jouer » ne réinstalle rien.
+
+### Le débit et le temps restant
+
+`mc-dl` lit chaque corps morceau par morceau et annonce ce qui arrive — des
+dizaines de milliers d'événements par minute. Les passer tels quels au pont
+noierait la fenêtre : ils sont accumulés dans des compteurs atomiques, et
+l'état complet part cinq fois par seconde. Ce qui s'affiche est une photo, pas
+un flux.
+
+Le total vient des lots que les crates annoncent avant de commencer : l'index
+des assets publie la taille de chaque objet, le descripteur de version celle de
+chaque bibliothèque, les métadonnées de projet celle de chaque jar. Il est donc
+exact chez Mojang, et **un plancher** pour les mods de CurseForge sans clé, qui
+n'en publient pas — la barre accélère alors à la fin, et le temps restant
+disparaît plutôt que d'afficher zéro.
+
+Deux sources font avancer la barre sans jamais se compter deux fois : les
+octets descendus du réseau, et le poids des fichiers déjà conformes sur le
+disque. Sans les seconds, une réinstallation resterait à zéro de bout en bout
+alors que tout est déjà là.
+
 ## Ce que l'application fait, et ce qu'elle ne fait pas
 
 Elle n'ajoute **aucune** logique de launcher. L'authentification est celle de
@@ -44,6 +95,10 @@ Elle n'ajoute **aucune** logique de launcher. L'authentification est celle de
 `mc-instance`, la journalisation celle de `mc-log`. `src-tauri` est un pont :
 des types sérialisables, des commandes, un coffre pour le jeton, et de quoi
 montrer où en sont les crates pendant qu'elles travaillent.
+
+C'est délibéré : la ligne de commande fait la même chose avec le même code, et
+deux orchestrations parallèles finiraient par diverger — l'une installerait ce
+que l'autre ne lancerait pas.
 
 `mc-log` plutôt que `tauri-plugin-log`, d'ailleurs : le second écrirait les
 jetons tels quels. Une fenêtre graphique avale sa sortie standard, donc le
