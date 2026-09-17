@@ -186,3 +186,197 @@ async fn un_build_epingle_bascule_aussi_sur_le_site() {
 
     assert_eq!(trouve.file_name, "jei-web.jar");
 }
+
+/// Une clé qui marche peut ne rien trouver : le projet n'est pas dans la Core
+/// API, ou son auteur en a retiré la redistribution. Une réponse vide n'est pas
+/// une réponse — il reste le site, qui connaît d'autres projets. La rendre
+/// telle quelle laisserait le mod introuvable alors qu'il est publié.
+#[tokio::test]
+async fn une_reponse_vide_de_la_core_api_fait_consulter_le_site() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-vide");
+    serveur.json("/mods/search", r#"{"data":[]}"#);
+    publier_web(&serveur, 42, "jei");
+
+    let trouves = registre(&atelier, &serveur, Some("$2a$10$cle"))
+        .curseforge_any("jei", MC, LOADER)
+        .await
+        .unwrap();
+
+    assert_eq!(trouves.len(), 1, "{trouves:?}");
+    assert_eq!(trouves[0].file_name, "jei-web.jar");
+    // La Core API a bien été interrogée : c'est sa réponse vide qu'on écarte,
+    // pas la clé qu'on ignore.
+    assert_eq!(serveur.appels("/mods/search"), 1);
+}
+
+/// Même règle pour la recherche par `modId`, sur les deux sources. Modrinth
+/// répond d'abord ; si elle ne connaît pas le mod, c'est la Core API, puis le
+/// site. Chaque réponse vide passe la main à la suivante.
+#[tokio::test]
+async fn une_reponse_vide_passe_la_main_a_la_source_suivante() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-modid-vide");
+
+    // Modrinth ne connaît pas ce modId.
+    serveur.json("/v2/search", r#"{"hits":[]}"#);
+    // La Core API non plus.
+    serveur.json("/mods/search", r#"{"data":[]}"#);
+    // Le site, si.
+    serveur.json("/widget/bookshelf", r#"{"id":42,"title":"Bookshelf"}"#);
+    publier_web(&serveur, 42, "bookshelf");
+
+    let trouves = registre(&atelier, &serveur, Some("$2a$10$cle"))
+        .find_by_mod_id("bookshelf", MC, LOADER)
+        .await
+        .unwrap();
+
+    assert_eq!(trouves.len(), 1, "{trouves:?}");
+    assert_eq!(trouves[0].file_name, "bookshelf-web.jar");
+}
+
+/// Ce que Modrinth trouve l'emporte, et la Core API n'est même pas consultée —
+/// pas seulement parce qu'elle est plus lente, mais parce que Modrinth publie
+/// les empreintes et la répartition client/serveur qu'on ne veut pas perdre.
+#[tokio::test]
+async fn ce_que_modrinth_trouve_n_est_pas_ecrase_par_curseforge() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-modrinth-prime");
+    let contenu = jar("bookshelf", &[]);
+    serveur.octets("/bookshelf.jar", &contenu);
+    publier(
+        &serveur,
+        &Projet::nouveau("bookshelf").version(Version::nouvelle(
+            "20.2.0",
+            &serveur.url("/bookshelf.jar"),
+            &contenu,
+        )),
+    );
+    // CurseForge propose autre chose pour le même modId : si la réponse de
+    // Modrinth était écartée, c'est ce fichier-ci qui ressortirait.
+    publier_core(&serveur, 42, "bookshelf");
+    publier_web(&serveur, 42, "bookshelf");
+
+    let trouves = registre(&atelier, &serveur, Some("$2a$10$cle"))
+        .find_by_mod_id("bookshelf", MC, LOADER)
+        .await
+        .unwrap();
+
+    assert_eq!(trouves[0].origin, crate::Origin::Modrinth);
+    assert_ne!(trouves[0].file_name, "bookshelf-web.jar");
+    assert_eq!(serveur.appels("/mods/search"), 0);
+}
+
+/// Un refus de clé sur la recherche par `modId` bascule sur le site, et se
+/// retient : la clé ne redeviendra pas valable au milieu d'une résolution, et
+/// la retenter pour chacun des cent mods d'un pack ajouterait cent
+/// allers-retours perdus.
+#[tokio::test]
+async fn un_refus_de_cle_sur_un_modid_bascule_et_se_retient() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-modid-refus");
+    serveur.json("/v2/search", r#"{"hits":[]}"#);
+    serveur.code("/mods/search", 403);
+    serveur.json("/widget/bookshelf", r#"{"id":42,"title":"Bookshelf"}"#);
+    publier_web(&serveur, 42, "bookshelf");
+
+    let registre = registre(&atelier, &serveur, Some("$2a$10$revoquee"));
+    let trouves = registre
+        .find_by_mod_id("bookshelf", MC, LOADER)
+        .await
+        .expect("le site prend le relais");
+    assert_eq!(trouves[0].file_name, "bookshelf-web.jar");
+
+    let avant = serveur.appels("/mods/search");
+    registre.find_by_mod_id("bookshelf", MC, LOADER).await.ok();
+    assert_eq!(
+        serveur.appels("/mods/search"),
+        avant,
+        "la clé refusée est retentée"
+    );
+}
+
+/// Une panne ordinaire n'est pas un refus de clé, ici non plus : elle remonte.
+/// Basculer en silence sur le site ferait perdre les empreintes que seule la
+/// Core API publie, pour une indisponibilité de quelques minutes.
+#[tokio::test]
+async fn une_panne_sur_un_modid_remonte_au_lieu_de_basculer() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-modid-panne");
+    serveur.json("/v2/search", r#"{"hits":[]}"#);
+    serveur.code("/mods/search", 500);
+
+    let erreur = registre(&atelier, &serveur, Some("$2a$10$cle"))
+        .find_by_mod_id("bookshelf", MC, LOADER)
+        .await
+        .expect_err("la panne doit remonter");
+    assert!(format!("{erreur:#}").contains("500"), "{erreur:#}");
+}
+
+/// Mêmes deux règles pour un build épinglé : le refus de clé se retient, la
+/// panne remonte.
+#[tokio::test]
+async fn un_refus_de_cle_sur_un_build_epingle_se_retient() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-epingle-refus");
+    serveur.code("/mods/files", 403);
+    serveur.json("/widget/jei", r#"{"id":42,"title":"JEI"}"#);
+    serveur.json(
+        "/web/mods/42/files/2",
+        r#"{"id":2,"fileName":"jei-web.jar","displayName":"1.0","fileLength":1,
+            "releaseType":1,"dateCreated":"2026-01-01T00:00:00Z",
+            "gameVersions":["1.21.1","NeoForge"]}"#,
+    );
+
+    let registre = registre(&atelier, &serveur, Some("$2a$10$revoquee"));
+    registre
+        .curseforge_file("jei", "2")
+        .await
+        .unwrap()
+        .expect("le site répond");
+
+    let avant = serveur.appels("/mods/files");
+    registre.curseforge_file("jei", "2").await.ok();
+    assert_eq!(
+        serveur.appels("/mods/files"),
+        avant,
+        "la clé refusée est retentée"
+    );
+}
+
+/// Quand Modrinth ne connaît pas le mod mais que la Core API le trouve, c'est
+/// elle qui répond — et non le site. Les deux publient le même projet, mais
+/// seule la Core API donne l'empreinte du fichier ; s'en passer ferait
+/// télécharger un jar qu'on ne peut plus vérifier.
+#[tokio::test]
+async fn ce_que_la_core_api_trouve_n_est_pas_ecrase_par_le_site() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-modid-core");
+    serveur.json("/v2/search", r#"{"hits":[]}"#);
+    publier_core(&serveur, 42, "bookshelf");
+    publier_web(&serveur, 42, "bookshelf");
+
+    let trouves = registre(&atelier, &serveur, Some("$2a$10$cle"))
+        .find_by_mod_id("bookshelf", MC, LOADER)
+        .await
+        .unwrap();
+
+    assert_eq!(trouves.len(), 1, "{trouves:?}");
+    assert_eq!(
+        trouves[0].file_name, "bookshelf.jar",
+        "c'est la réponse du site qui est remontée"
+    );
+}
+
+#[tokio::test]
+async fn une_panne_sur_un_build_epingle_remonte_au_lieu_de_basculer() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let atelier = Atelier::neuf("registre-epingle-panne");
+    serveur.code("/mods/files", 500);
+
+    let erreur = registre(&atelier, &serveur, Some("$2a$10$cle"))
+        .curseforge_file("jei", "2")
+        .await
+        .expect_err("la panne doit remonter");
+    assert!(format!("{erreur:#}").contains("500"), "{erreur:#}");
+}
