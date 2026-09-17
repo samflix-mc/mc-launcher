@@ -13,3 +13,11 @@ tracing-appender.workspace = true
 time.workspace = true
 sentry.workspace = true
 sentry-tracing.workspace = true
+
+[dev-dependencies]
+# Le transport de test du SDK : il retient les événements au lieu de les
+# envoyer. Sans lui, ce qui part chez Sentry ne se vérifie qu'en le lisant dans
+# le tableau de bord, une fois l'incident survenu chez un joueur — et le
+# regroupement des plantages du jeu tient à trois champs qu'une refonte peut
+# perdre sans que rien ne tombe.
+sentry = { workspace = true, features = ["test"] }

@@ -1,15 +1,31 @@
 //! Le vocabulaire de Mojang pour désigner un système, et ses chemins Maven.
 
 pub fn mojang_os() -> &'static str {
-    match std::env::consts::OS {
+    nom_mojang_du_systeme(std::env::consts::OS)
+}
+
+pub fn mojang_arch() -> &'static str {
+    nom_mojang_de_l_architecture(std::env::consts::ARCH)
+}
+
+/// La correspondance, séparée de la lecture de `std::env::consts`.
+///
+/// Ces constantes sont figées à la compilation : une suite qui ne tourne que
+/// sur Linux ne dirait rien des deux autres cas, et c'est pourtant là que se
+/// joue le nom d'un fichier à télécharger. Les prendre en argument est la
+/// seule façon de vérifier la table entière depuis n'importe quel poste.
+fn nom_mojang_du_systeme(os: &str) -> &'static str {
+    match os {
         "macos" => "osx",
         "windows" => "windows",
+        // Tout le reste passe pour un Unix : c'est ce que reçoivent les BSD,
+        // et proposer les bibliothèques Linux leur vaut mieux que rien.
         _ => "linux",
     }
 }
 
-pub fn mojang_arch() -> &'static str {
-    match std::env::consts::ARCH {
+fn nom_mojang_de_l_architecture(arch: &str) -> &'static str {
+    match arch {
         "x86" => "x86",
         "aarch64" => "arm64",
         _ => "x86_64",
