@@ -5,6 +5,11 @@ use anyhow::Result;
 use mc_pack::manifest::Manifest;
 
 /// Rend le plan retenu et la version de NeoForge qui l'accompagne.
+/// Hors de portée des tests de mutation : cette fonction interroge Modrinth et
+/// CurseForge pour résoudre le pack entier. Ce qu'elle décide est vérifié chez
+/// `mc_mods::resolve`, qui a un serveur d'essai ; ce qui reste ici est
+/// l'assemblage du registre et le compte rendu.
+#[mutants::skip]
 pub(super) async fn resoudre(
     manifest: &Manifest,
     options: &mc_pack::Options,

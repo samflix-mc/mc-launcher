@@ -5,6 +5,11 @@ use anyhow::{Result, bail};
 use super::super::incident::{report_game_crash, report_game_error};
 use super::preparation::Partie;
 
+/// Hors de portée des tests de mutation : cette fonction lance Minecraft et
+/// attend qu'il se termine. Ce qu'elle en tire — les erreurs relevées, le
+/// verdict — est vérifié chez `mc_instance::launch`, et ce qu'elle affiche est
+/// [`lignes_d_erreurs`].
+#[mutants::skip]
 pub(super) async fn jouer(partie: &Partie) -> Result<()> {
     let Partie {
         instance,
@@ -26,14 +31,8 @@ pub(super) async fn jouer(partie: &Partie) -> Result<()> {
     for erreur in &report.errors {
         report_game_error(instance, lock, version_id, erreur, None);
     }
-    if !report.errors.is_empty() {
-        eprintln!(
-            "\n{} erreurs relevées pendant la partie :",
-            report.errors.len()
-        );
-        for erreur in &report.errors {
-            eprintln!("  {} : {}", erreur.exception, erreur.message);
-        }
+    for ligne in lignes_d_erreurs(&report.errors) {
+        eprintln!("{ligne}");
     }
 
     match report.outcome {
@@ -56,6 +55,28 @@ pub(super) async fn jouer(partie: &Partie) -> Result<()> {
             )
         }
     }
+}
+
+/// Ce qu'on dit au joueur des erreurs relevées pendant sa partie.
+///
+/// Vide quand il n'y en a pas : annoncer « 0 erreurs relevées » après une
+/// partie qui s'est bien passée ferait chercher une panne inexistante. Sinon,
+/// chacune est nommée — Minecraft en rattrape beaucoup et continue, et ce sont
+/// souvent elles qui expliquent un comportement signalé bien plus tard.
+fn lignes_d_erreurs(erreurs: &[mc_instance::crash::Crash]) -> Vec<String> {
+    if erreurs.is_empty() {
+        return Vec::new();
+    }
+    let mut lignes = vec![format!(
+        "\n{} erreurs relevées pendant la partie :",
+        erreurs.len()
+    )];
+    lignes.extend(
+        erreurs
+            .iter()
+            .map(|erreur| format!("  {} : {}", erreur.exception, erreur.message)),
+    );
+    lignes
 }
 
 #[cfg(test)]

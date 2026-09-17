@@ -13,6 +13,11 @@ use mc_pack::source::Source;
 
 use preparation::preparer;
 
+/// Hors de portée des tests de mutation : cette commande prépare la partie —
+/// session, Java, instance — puis lance Minecraft. Ce qu'elle assemble est
+/// vérifié pièce par pièce : l'identité, la cible, les options de lancement et
+/// le récapitulatif ont chacun leur suite.
+#[mutants::skip]
 pub async fn launch(
     source: &Source,
     options: &mc_pack::Options,

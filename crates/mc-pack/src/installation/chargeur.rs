@@ -37,6 +37,11 @@ pub(super) async fn version(
 
 /// Pose le chargeur : c'est lui qui écrit son propre `version.json`, dont la
 /// ligne de commande dérive ensuite.
+/// Hors de portée des tests de mutation : cette fonction télécharge
+/// l'installateur NeoForge et l'exécute dans une JVM. Ce qu'elle délègue est
+/// vérifié chez `mc_instance::neoforge`, qui sait le faire avec un serveur
+/// d'essai et un faux java.
+#[mutants::skip]
 pub(super) async fn poser(
     version: &str,
     shared: &Path,

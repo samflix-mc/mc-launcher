@@ -106,3 +106,20 @@ fn l_annonce_traverse_ses_trois_provenances() {
     annoncer(&partie(&atelier, "true", Some("essai.invalid"), true));
     annoncer(&partie(&atelier, "true", None, false));
 }
+
+/// Minecraft rattrape beaucoup d'exceptions et continue : ces erreurs-là
+/// n'apparaissent nulle part ailleurs, et ce sont souvent elles qui expliquent
+/// un comportement signalé bien plus tard. Annoncer « 0 erreurs » après une
+/// partie sans incident ferait chercher une panne inexistante.
+#[test]
+fn les_erreurs_relevees_ne_s_annoncent_que_s_il_y_en_a() {
+    assert!(super::lignes_d_erreurs(&[]).is_empty());
+
+    let crash = mc_instance::crash::parse("java.lang.NullPointerException: rien du tout")
+        .expect("une exception");
+
+    let rendu = super::lignes_d_erreurs(std::slice::from_ref(&crash)).join("\n");
+    assert!(rendu.contains("1 erreurs relevées"), "{rendu}");
+    assert!(rendu.contains("java.lang.NullPointerException"), "{rendu}");
+    assert!(rendu.contains("rien du tout"), "{rendu}");
+}

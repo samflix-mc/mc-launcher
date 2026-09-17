@@ -44,11 +44,7 @@ pub(super) async fn preparer(
     // choisit avec ce que la CI lui a figé à la compilation.
     let (cible, demande_explicite, environnement) = super::cible::choisir(&manifest, serveur);
 
-    let launch_options = mc_instance::launch::LaunchOptions {
-        memory_mb: memoire,
-        quick_play: cible.clone().map(QuickPlay::Multiplayer),
-        ..Default::default()
-    };
+    let launch_options = options_de_lancement(memoire, cible.clone());
 
     let command = mc_instance::launch::build(
         &version_id,
@@ -70,3 +66,25 @@ pub(super) async fn preparer(
         environnement,
     })
 }
+
+/// Ce que la ligne de commande demande au jeu lui-même.
+///
+/// Deux réglages, et deux façons de les perdre en silence. Sans `memory_mb`,
+/// la JVM retombe sur son défaut — un quart de la mémoire de la machine, ce
+/// qui ne suffit pas à un modpack et donne un `OutOfMemoryError` au bout de
+/// vingt minutes. Sans `quick_play`, le jeu s'ouvre sur son menu au lieu de
+/// rejoindre le serveur, et l'on croit que le pack n'en déclare pas.
+fn options_de_lancement(
+    memoire: Option<u32>,
+    cible: Option<String>,
+) -> mc_instance::launch::LaunchOptions {
+    mc_instance::launch::LaunchOptions {
+        memory_mb: memoire,
+        quick_play: cible.map(QuickPlay::Multiplayer),
+        ..Default::default()
+    }
+}
+
+#[cfg(test)]
+#[path = "preparation.test.rs"]
+mod tests;

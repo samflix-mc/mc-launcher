@@ -58,4 +58,12 @@ fn aller_retour_json() {
     assert_eq!(manifest.mods.len(), 3);
     assert_eq!(manifest.mods[1].source, Some(Origin::Modrinth));
     assert_eq!(manifest.mods[2].channel, Some(Channel::Beta));
+
+    // Ce que le manifeste demande est ce que le résolveur ira chercher : une
+    // liste vide installerait un pack sans mods, sans qu'aucune erreur ne le
+    // signale — le jeu démarrerait, nu.
+    let demandes = manifest.requests().expect("le manifeste est cohérent");
+    assert_eq!(demandes.len(), 3, "{demandes:?}");
+    assert_eq!(demandes[1].source, Some(Origin::Modrinth));
+    assert_eq!(demandes[2].channel, Some(Channel::Beta));
 }

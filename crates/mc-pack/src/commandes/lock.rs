@@ -13,6 +13,11 @@ use mc_pack::source::Source;
 /// C'est ce qu'on lance en revue : le verrou montre les versions retenues et
 /// les dépendances ajoutées, sans attendre le téléchargement de huit cents
 /// mégaoctets d'assets.
+/// Hors de portée des tests de mutation : cette commande résout le pack en
+/// ligne, écrit le verrou et l'annonce. Chacune de ces trois parties est
+/// vérifiée séparément — la résolution chez mc-mods, l'écriture du verrou chez
+/// `Lockfile`, le rapport par sa propre suite.
+#[mutants::skip]
 pub async fn lock(source: &Source, options: &mc_pack::Options) -> Result<()> {
     let (manifest_path, manifest) = preparation::manifeste_a_verrouiller(source)?;
     let (plan, neoforge_version) = resolution::resoudre(&manifest, options).await?;
