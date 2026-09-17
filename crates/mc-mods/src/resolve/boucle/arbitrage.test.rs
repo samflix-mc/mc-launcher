@@ -1,4 +1,4 @@
-use super::{Arbitrage, Side, arbitrer};
+use super::{Arbitrage, Side, arbitrer, confronter, message_de_remplacement};
 
 /// Le cas qui fait converger la résolution : une dépendance déclarée ne
 /// déloge pas ce que le manifeste a épinglé.
@@ -67,5 +67,80 @@ fn a_autorite_egale_le_demandeur_en_place_le_reste() {
             cote: Side::Client,
             reprendre: true
         }
+    );
+}
+
+/// L'avertissement doit nommer les deux versions et qui a tranché : sans cela,
+/// le joueur lit « une version a été remplacée », ce qui ne se distingue pas du
+/// silence — et le pack n'a pas la version que le manifeste promet.
+#[test]
+fn l_avertissement_nomme_les_deux_versions_et_la_raison() {
+    use crate::resolve::essais::installed;
+    use crate::resolve::raison::Reason;
+
+    let ecarte = installed("jei", &["jei"], &[]);
+    let mut retenu = ecarte.candidate.clone();
+    retenu.version_number = "19.56".into();
+
+    let message = message_de_remplacement(&retenu, &ecarte, &Reason::Explicit);
+
+    assert!(message.contains("jei"), "{message}");
+    assert!(
+        message.contains("19.56"),
+        "le build retenu n'est pas nommé : {message}"
+    );
+    assert!(
+        message.contains("1.0"),
+        "le build écarté n'est pas nommé : {message}"
+    );
+    assert!(
+        message.contains("manifeste"),
+        "la raison manque : {message}"
+    );
+}
+
+/// `confronter` applique l'arbitrage à l'entrée en place. Rendre toujours
+/// « rien à faire » laisserait le build le moins autoritaire s'installer — et
+/// l'épinglage du manifeste ne servirait plus à rien.
+#[test]
+fn confronter_rend_le_cote_a_inscrire_quand_le_build_est_remplace() {
+    use crate::resolve::essais::installed;
+    use crate::resolve::raison::Reason;
+
+    let mut en_place = installed("jei", &["jei"], &[]);
+    en_place.autorite = 1;
+    en_place.side = Side::Client;
+    let mut entrant = en_place.candidate.clone();
+    entrant.version_id = "v2".into();
+    entrant.version_number = "19.56".into();
+
+    let issue = confronter(
+        &mut en_place,
+        &entrant,
+        &Reason::Explicit,
+        4,
+        Side::Server,
+        false,
+    );
+
+    assert_eq!(
+        issue,
+        Some(Side::Both),
+        "le côté fusionné doit être inscrit"
+    );
+
+    // Et à l'inverse, un demandeur moins autoritaire ne déloge personne.
+    let mut en_place = installed("jei", &["jei"], &[]);
+    en_place.autorite = 4;
+    assert_eq!(
+        confronter(
+            &mut en_place,
+            &entrant,
+            &Reason::Explicit,
+            1,
+            Side::Both,
+            false
+        ),
+        None
     );
 }

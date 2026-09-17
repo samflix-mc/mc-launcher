@@ -47,7 +47,7 @@ pub(super) async fn retenir(
     let mut cote = side_for(&request, &candidate);
 
     if let Some(existing) = chosen.get_mut(&id) {
-        let meme_build = existing.candidate.version_id == candidate.version_id;
+        let meme_build = meme_build(existing, &candidate);
         if impasse_implicite(&reason, entrante, existing.autorite, meme_build) {
             impasses.insert(id.clone());
         }
@@ -91,3 +91,19 @@ pub(super) async fn retenir(
     pousser_dependances(queue, deps, source, &parent, &id);
     Ok(())
 }
+
+/// Deux demandes désignent-elles le même build ?
+///
+/// C'est l'identifiant de version qui le dit, et lui seul : deux candidats
+/// peuvent porter le même numéro affiché et venir de sources différentes. La
+/// réponse décide de deux choses — si l'on annonce un remplacement au joueur,
+/// et si une exigence lue dans un jar vient de reperdre sa place pour de bon.
+/// L'inverser ferait annoncer des remplacements qui n'en sont pas, et
+/// consignerait des impasses là où la résolution avait convergé.
+fn meme_build(existing: &Installed, candidate: &crate::Candidate) -> bool {
+    existing.candidate.version_id == candidate.version_id
+}
+
+#[cfg(test)]
+#[path = "retenue.test.rs"]
+mod tests;

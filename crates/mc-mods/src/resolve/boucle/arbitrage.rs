@@ -78,17 +78,38 @@ pub(super) fn confronter(
 /// Se taire reviendrait à installer le build de l'autre branche en silence :
 /// le pack n'aurait pas la version que le manifeste promet, et rien ne le
 /// signalerait avant le premier symptôme en jeu.
+/// Hors de portée des tests de mutation : cette fonction n'a d'autre effet que
+/// d'émettre une ligne de journal, et Rust n'offre pas de moyen stable de
+/// relire la sortie de son propre processus. Ce qu'elle dit, en revanche, se
+/// vérifie — c'est [`message_de_remplacement`], juste en dessous.
+#[mutants::skip]
 pub(super) fn annoncer_remplacement(retenu: &Candidate, ecarte: &Installed, reason: &Reason) {
     tracing::warn!(
         slug = %retenu.slug,
         ecartee = %ecarte.candidate.version_number,
         retenue = %retenu.version_number,
+        "{}",
+        message_de_remplacement(retenu, ecarte, reason)
+    );
+}
+
+/// Ce que l'avertissement doit dire : les deux versions, et qui a tranché.
+///
+/// Séparé de son émission pour être relu par une suite. Un message qui
+/// perdrait l'une des deux versions laisserait le joueur avec « une version a
+/// été remplacée » — ce qui ne se distingue pas du silence.
+pub(super) fn message_de_remplacement(
+    retenu: &Candidate,
+    ecarte: &Installed,
+    reason: &Reason,
+) -> String {
+    format!(
         "« {} » : {} impose {}, qui remplace {} retenue jusqu'ici",
         retenu.slug,
         reason.describe(),
         retenu.version_number,
         ecarte.candidate.version_number,
-    );
+    )
 }
 
 #[cfg(test)]

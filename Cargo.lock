@@ -1110,6 +1110,7 @@ dependencies = [
  "futures-util",
  "mc-dl",
  "mc-essais",
+ "mutants",
  "reqwest 0.12.28",
  "serde",
  "serde_json",

@@ -26,7 +26,7 @@ pub(super) async fn telecharger_et_lire(
     download_all(registry, chosen).await?;
     inspect_all(chosen)?;
 
-    if a_telecharger > 0 {
+    if vaut_d_etre_annonce(a_telecharger) {
         tracing::info!(
             tour = pass,
             jars = a_telecharger,
@@ -37,3 +37,18 @@ pub(super) async fn telecharger_et_lire(
     }
     Ok(())
 }
+
+/// Un tour qui n'a rien téléchargé n'a rien à annoncer.
+///
+/// La résolution fait plusieurs tours, et les derniers ne descendent souvent
+/// aucun jar : ils ne font que relire ce que les précédents ont posé. Annoncer
+/// « 0 jars téléchargés en 3 ms » à chacun noierait la ligne qui compte — et ne
+/// plus rien annoncer du tout priverait le joueur du seul signe que
+/// l'installation avance.
+fn vaut_d_etre_annonce(a_telecharger: usize) -> bool {
+    a_telecharger > 0
+}
+
+#[cfg(test)]
+#[path = "descente.test.rs"]
+mod tests;
