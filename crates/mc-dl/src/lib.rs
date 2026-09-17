@@ -13,14 +13,20 @@
 //! - **atomique** — l'écriture passe par un `.part` renommé à la fin. Une
 //!   coupure ne laisse jamais un fichier tronqué que la vérification d'un
 //!   prochain passage prendrait pour valide s'il n'y avait pas d'empreinte.
+//! - **observable** — un gigaoctet descend en plusieurs minutes, et une
+//!   fenêtre qui ne dit rien pendant ce temps-là ne se distingue pas d'une
+//!   fenêtre plantée. Le corps est lu morceau par morceau, et chaque morceau
+//!   est annoncé : voir [`progression`].
 mod check;
 mod checksum;
 mod emplacements;
+pub mod progression;
 mod telechargement;
 
 pub use check::{Check, Fetched};
 pub use checksum::{Checksum, sha1_of_file, sha512_of_file};
 pub use emplacements::data_dir;
+pub use progression::{Avancement, Observateur};
 pub use telechargement::Downloader;
 pub use telechargement::fichier::write_atomic;
 
