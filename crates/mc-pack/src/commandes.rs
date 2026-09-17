@@ -6,7 +6,6 @@ pub mod arguments;
 mod essais;
 
 pub mod diagnostic;
-pub mod incident;
 pub mod install;
 pub mod lancement;
 pub mod lock;

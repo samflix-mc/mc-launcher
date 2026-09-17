@@ -32,7 +32,60 @@ impl Atelier {
         std::fs::write(&chemin, contenu).unwrap();
         chemin
     }
+
+    pub(crate) fn options(&self) -> crate::Options {
+        crate::Options {
+            layout: mc_instance::Layout::new(self.racine.join("données")),
+            instance_name: Some("samflix".into()),
+            ..Default::default()
+        }
+    }
+
+    /// Écrit le manifeste, son verrou, et ce que `mc_instance::verify` exige.
+    ///
+    /// Le lancement ne va jamais chercher le pack publié : il ouvre ce qui est
+    /// posé sur la machine. Une suite qui le vérifie doit donc poser un pack
+    /// complet, pas seulement un manifeste.
+    pub(crate) fn pack_installe(&self, mods: Vec<LockedMod>) -> crate::source::Source {
+        let manifeste = self.racine.join("samflix.json");
+        std::fs::write(&manifeste, MANIFESTE).unwrap();
+        verrou(mods.clone())
+            .save(&self.racine.join("samflix.lock.json"))
+            .unwrap();
+
+        let options = self.options();
+        let shared = options.layout.shared();
+        for (chemin, contenu) in [
+            ("versions/1.21.1/1.21.1.json", r#"{"libraries":[]}"#),
+            ("versions/1.21.1/1.21.1.jar", "jar"),
+            (
+                "versions/neoforge-21.1.250/neoforge-21.1.250.json",
+                r#"{"libraries":[]}"#,
+            ),
+        ] {
+            let cible = shared.join(chemin);
+            std::fs::create_dir_all(cible.parent().unwrap()).unwrap();
+            std::fs::write(cible, contenu).unwrap();
+        }
+
+        let instance = options.layout.instance("samflix");
+        std::fs::create_dir_all(instance.mods_dir()).unwrap();
+        std::fs::create_dir_all(instance.dir.join("server").join("mods")).unwrap();
+        for entree in &mods {
+            for dossier in [
+                instance.mods_dir(),
+                instance.dir.join("server").join("mods"),
+            ] {
+                std::fs::write(dossier.join(&entree.file_name), JAR).unwrap();
+            }
+        }
+
+        crate::source::Source::parse(manifeste.to_str().unwrap(), &options.layout)
+    }
 }
+
+/// Ce qu'on écrit à la place d'un vrai jar.
+pub(crate) const JAR: &[u8] = b"le jar";
 
 impl Drop for Atelier {
     fn drop(&mut self) {
@@ -88,5 +141,47 @@ pub(crate) fn manque(mod_id: &str, exige_par: &str) -> LockedMissing {
         mod_id: mod_id.to_string(),
         required_by: exige_par.to_string(),
         side: "both".into(),
+    }
+}
+
+/// Sérialise les tests qui posent `SAMFLIX_ENV`.
+///
+/// L'environnement est lu par tout ce qui choisit un serveur ou journalise une
+/// commande : deux tests qui le changent en même temps se contredisent. Verrou
+/// atomique et non `Mutex`, pour qu'il traverse aussi les tests asynchrones.
+static ENVIRONNEMENT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) struct Environnement;
+
+/// Pose l'environnement de déploiement, et le retire en se détruisant.
+pub(crate) fn environnement(valeur: &str) -> Environnement {
+    use std::sync::atomic::Ordering;
+    while ENVIRONNEMENT
+        .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+        .is_err()
+    {
+        std::thread::yield_now();
+    }
+    let garde = Environnement;
+    garde.poser(valeur);
+    garde
+}
+
+impl Environnement {
+    pub(crate) fn poser(&self, valeur: &str) {
+        // SAFETY : le verrou garantit qu'aucun autre test de ce binaire ne lit
+        // ni n'écrit SAMFLIX_ENV tant que le garde vit.
+        unsafe {
+            std::env::set_var("SAMFLIX_ENV", valeur);
+        }
+    }
+}
+
+impl Drop for Environnement {
+    fn drop(&mut self) {
+        unsafe {
+            std::env::remove_var("SAMFLIX_ENV");
+        }
+        ENVIRONNEMENT.store(false, std::sync::atomic::Ordering::Release);
     }
 }

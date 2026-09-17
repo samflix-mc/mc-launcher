@@ -1,0 +1,603 @@
+/*
+ * Toute la mise en forme de la fenêtre, ici et nulle part ailleurs.
+ *
+ * Pas de framework : l'écran tient en quatre zones, et une dépendance de mise
+ * en forme coûterait plus à relire qu'elle ne fait gagner.
+ *
+ * Pas de `styleUrl` sur le composant non plus, et c'est la partie qui se
+ * devine mal. Angular injecte les styles d'un composant à l'exécution, en
+ * créant des balises `<style>` depuis le JavaScript. En production, Tauri sert
+ * la page avec un CSP porteur d'un nonce — et la règle du CSP veut qu'un nonce
+ * annule `'unsafe-inline'`. Les balises écrites dans le HTML reçoivent le
+ * nonce de Tauri et passent ; celles que le JavaScript crée ensuite n'en ont
+ * pas, et sont rejetées. L'écran s'affichait donc sans aucun style, en
+ * production seulement — jamais en `tauri dev`, où le serveur Angular sert la
+ * page sans CSP.
+ *
+ * Une feuille globale est un vrai fichier, chargé par `<link>` : `style-src
+ * 'self'` suffit, et rien n'est injecté après coup.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --fond: #0e1014;
+  --fond-haut: #171b22;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-forte: rgba(255, 255, 255, 0.07);
+  --bordure: rgba(255, 255, 255, 0.1);
+  --bordure-forte: rgba(255, 255, 255, 0.2);
+
+  --texte: #eef1f5;
+  --texte-attenue: rgba(238, 241, 245, 0.62);
+  --texte-faible: rgba(238, 241, 245, 0.34);
+
+  --accent: #5b8731; /* le vert de Minecraft, déjà celui du README */
+  --accent-clair: #7cb342;
+  --attention: #e0a93b;
+  --erreur: #e5695c;
+
+  --rayon: 12px;
+  --transition: 0.22s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  color: var(--texte);
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+
+  /* Le fond tient lieu d'artwork : un dégradé radial chaud en haut, un fond
+     profond en bas. Aucune image à charger, donc aucun flash au démarrage et
+     rien à faire passer par le CSP. */
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(91, 135, 49, 0.22), transparent 60%),
+    linear-gradient(180deg, var(--fond-haut) 0%, var(--fond) 55%);
+  background-attachment: fixed;
+}
+
+/* Rien à sélectionner dans une fenêtre d'application, sauf ce qu'on recopie :
+   le code d'appareil, et le détail d'une erreur. */
+body {
+  user-select: none;
+}
+
+.code,
+.overlay__message,
+.note__detail {
+  user-select: text;
+}
+
+/* --- La charpente ---------------------------------------------------------
+   Trois rangées : héros, contenu extensible, barre d'action de hauteur fixe.
+   La barre ne bouge jamais, quel que soit l'état — c'est ce qui donne le
+   sentiment d'une application plutôt que d'une succession de pages. */
+
+.app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  transition: filter var(--transition);
+}
+
+/* Une erreur floute tout le reste : impossible de la manquer, là où un bandeau
+   en bas de page passait inaperçu dès qu'on avait fait défiler. */
+.app[data-flou] {
+  filter: blur(3px) saturate(0.85);
+  pointer-events: none;
+}
+
+/* --- Le héros ------------------------------------------------------------- */
+
+.heros {
+  padding: 28px 32px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.marque {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.marque__sceau {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--bordure-forte);
+  background: linear-gradient(145deg, var(--accent), #2f4a19);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.marque h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.marque__sous-titre {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--texte-faible);
+}
+
+.pastilles {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+}
+
+.pastilles div {
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  text-align: center;
+}
+
+.pastilles dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--texte-faible);
+}
+
+.pastilles dd {
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* --- Le contenu ----------------------------------------------------------- */
+
+.contenu {
+  padding: 8px 32px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  justify-content: center;
+}
+
+.bloc {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 26px;
+  border-radius: var(--rayon);
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+
+.bloc__titre {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.bloc__aide {
+  margin: 0;
+  font-size: 13px;
+  color: var(--texte-attenue);
+}
+
+/* Le code est lu à l'écran puis recopié ailleurs : c'est la seule chose de cet
+   écran qu'on regarde de loin. */
+.code {
+  margin: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: 6px;
+  color: var(--accent-clair);
+}
+
+/* --- Le chemin des phases -------------------------------------------------
+   Une liste verticale plutôt qu'une frise : onze étapes ne tiennent pas en
+   largeur sans devenir illisibles, et l'œil descend une liste plus vite qu'il
+   ne parcourt une frise. */
+
+.chemin {
+  list-style: none;
+  margin: 0 auto;
+  padding: 20px 24px;
+  width: 100%;
+  max-width: 420px;
+  border-radius: var(--rayon);
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  display: grid;
+  gap: 2px;
+}
+
+.etape {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  padding: 4px 0;
+  transition: color var(--transition);
+}
+
+.etape__puce {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--bordure-forte);
+  transition:
+    background var(--transition),
+    box-shadow var(--transition);
+}
+
+.etape[data-etat='faite'] .etape__puce {
+  background: var(--accent);
+}
+
+.etape[data-etat='faite'] .etape__libelle {
+  color: var(--texte-attenue);
+}
+
+/* L'étape en cours est la seule information qu'on cherche en regardant la
+   fenêtre : elle est la seule à être mise en avant. */
+.etape[data-etat='en-cours'] .etape__puce {
+  background: var(--accent-clair);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-clair) 25%, transparent);
+}
+
+.etape[data-etat='en-cours'] .etape__libelle {
+  color: var(--texte);
+  font-weight: 600;
+}
+
+.etape[data-etat='a-venir'] .etape__libelle {
+  color: var(--texte-faible);
+}
+
+/* --- Les notes ------------------------------------------------------------ */
+
+.note {
+  margin: 0 auto;
+  max-width: 520px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--bordure);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--texte-attenue);
+}
+
+.note--attention {
+  border-color: color-mix(in srgb, var(--attention) 45%, transparent);
+  background: color-mix(in srgb, var(--attention) 10%, transparent);
+  color: var(--attention);
+}
+
+.note__detail {
+  display: block;
+  margin-top: 6px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--texte-attenue);
+  word-break: break-word;
+}
+
+.note code,
+.bloc code {
+  font-family: ui-monospace, monospace;
+}
+
+/* --- La barre d'action ----------------------------------------------------
+   Hauteur fixe, et le bloc de droite permute entre le bouton et la
+   progression sans rien déplacer. */
+
+.actions {
+  height: 128px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-top: 1px solid var(--bordure);
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.45));
+}
+
+.joueur {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.joueur--vide {
+  font-size: 13px;
+  color: var(--texte-faible);
+}
+
+/* Une pastille locale plutôt qu'un avatar tiré d'un service d'avatars : un
+   UUID envoyé à un tiers pour une image décorative n'en vaut pas le prix. La
+   teinte dérive de l'UUID, donc elle est stable d'un lancement à l'autre. */
+.joueur__pastille {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--bordure-forte);
+  background: linear-gradient(
+    145deg,
+    hsl(var(--teinte) 45% 42%),
+    hsl(calc(var(--teinte) + 40) 40% 24%)
+  );
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.joueur__identite {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.joueur__pseudo {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* Le bouton principal : du texte, pas un pavé. Sur un fond travaillé, un halo
+   au survol se remarque mieux qu'un rectangle de couleur. */
+.jouer {
+  font: inherit;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  padding: 4px 2px;
+  border: none;
+  background: none;
+  color: var(--texte);
+  cursor: pointer;
+  transition:
+    text-shadow var(--transition),
+    color var(--transition);
+}
+
+.jouer:hover:not(:disabled) {
+  text-shadow: 0 0 22px color-mix(in srgb, var(--accent-clair) 80%, transparent);
+  color: #fff;
+}
+
+.jouer:disabled {
+  color: var(--texte-faible);
+  cursor: default;
+}
+
+.jouer:focus-visible,
+.bouton:focus-visible,
+.lien:focus-visible {
+  outline: 2px solid var(--accent-clair);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* --- La progression ------------------------------------------------------- */
+
+.progression {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Largeur figée : sinon le texte danse au passage de 9 % à 10 %, et tout ce
+   qui est à droite bouge avec lui. */
+.progression__chiffre {
+  width: 72px;
+  text-align: right;
+  font-size: 24px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.progression__detail {
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.jauge {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bordure);
+  overflow: hidden;
+}
+
+.jauge__barre {
+  height: 100%;
+  background: var(--accent-clair);
+  /* La largeur change cinq fois par seconde ; sans transition, elle saute. La
+     durée est calée sur la cadence d'émission pour que le mouvement paraisse
+     continu plutôt que saccadé. */
+  transition: width 200ms linear;
+}
+
+/* Entre deux lots — la résolution des mods, l'installateur NeoForge — il n'y a
+   rien à chiffrer. Une barre qui glisse dit « ça travaille » sans prétendre
+   savoir combien il reste. */
+.jauge__barre--indeterminee {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent-clair) 45%,
+    var(--accent-clair) 55%,
+    transparent
+  );
+  animation: glisse 1.4s ease-in-out infinite;
+  transition: none;
+}
+
+@keyframes glisse {
+  0% {
+    transform: translateX(-60%);
+  }
+  100% {
+    transform: translateX(60%);
+  }
+}
+
+.progression__etape {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Le détail change plusieurs fois par seconde : il ne doit jamais faire
+   changer la hauteur de la barre, sous peine de faire sauter tout l'écran. */
+.progression__fichier {
+  margin: 0;
+  font-size: 11px;
+  color: var(--texte-faible);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Boutons secondaires -------------------------------------------------- */
+
+.bouton {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 22px;
+  border-radius: 8px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition);
+}
+
+.bouton:hover:not(:disabled) {
+  background: var(--accent-clair);
+  border-color: var(--accent-clair);
+}
+
+.bouton:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.lien {
+  font: inherit;
+  font-size: 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--texte-attenue);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--transition);
+}
+
+.lien:hover:not(:disabled) {
+  color: var(--texte);
+}
+
+.lien:disabled {
+  color: var(--texte-faible);
+  cursor: default;
+}
+
+.lien--discret {
+  font-size: 11px;
+  text-decoration: none;
+  color: var(--texte-faible);
+}
+
+/* --- L'erreur ------------------------------------------------------------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.overlay__carte {
+  width: 100%;
+  max-width: 440px;
+  padding: 28px;
+  border-radius: var(--rayon);
+  border: 1px solid color-mix(in srgb, var(--erreur) 45%, transparent);
+  background: var(--fond-haut);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.overlay__titre {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--erreur);
+}
+
+.overlay__message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--texte-attenue);
+  word-break: break-word;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.overlay__actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}

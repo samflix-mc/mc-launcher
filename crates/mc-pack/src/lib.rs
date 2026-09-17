@@ -17,6 +17,7 @@ mod coherence;
 mod installation;
 mod verification;
 
+pub mod jeu;
 pub mod lockfile;
 pub mod manifest;
 pub mod progression;
@@ -24,6 +25,7 @@ pub mod source;
 
 pub use coherence::mods_client_absents;
 pub use installation::install;
+pub use jeu::{Identite, Partie, jouer, preparer};
 pub use progression::{Etape, Muet, Rapport};
 pub use verification::verify;
 

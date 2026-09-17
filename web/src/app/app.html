@@ -1,0 +1,205 @@
+<!--
+  Une seule page, quatre zones fixes : héros, contenu, chemin, barre d'action.
+  Rien ne se déplace d'un état à l'autre — seul le contenu des zones change.
+  C'est ce qui distingue une application d'un enchaînement d'écrans.
+-->
+<div class="app" [attr.data-flou]="erreur() ? '' : null">
+  <header class="heros">
+    <div class="marque">
+      <span class="marque__sceau" aria-hidden="true">SM</span>
+      <div>
+        <h1>samflix-mc</h1>
+        <p class="marque__sous-titre">Launcher</p>
+      </div>
+    </div>
+
+    @if (installation(); as pose) {
+      <dl class="pastilles">
+        <div><dt>Minecraft</dt><dd>{{ pose.minecraft }}</dd></div>
+        <div><dt>NeoForge</dt><dd>{{ pose.neoforge }}</dd></div>
+        <div><dt>Mods</dt><dd>{{ pose.mods }}</dd></div>
+      </dl>
+    }
+  </header>
+
+  <main class="contenu">
+    @if (!disponible) {
+      <p class="note note--attention">
+        Ouvert hors de la fenêtre Tauri : rien n'est branché à Rust. Lancer
+        <code>cargo tauri dev</code> depuis <code>crates/mc-app</code>.
+      </p>
+    } @else if (code(); as c) {
+      <section class="bloc bloc--code">
+        <p class="bloc__titre">Autoriser le launcher chez Microsoft</p>
+        <p class="code">{{ c.code }}</p>
+        <p class="bloc__aide">
+          La page s'est ouverte dans le navigateur. Saisir le code ci-dessus, puis
+          revenir ici — l'attente se termine toute seule.
+        </p>
+        <button type="button" class="lien" (click)="ouvrirLaPage(c.urlDirecte)">
+          Rouvrir la page
+        </button>
+      </section>
+    } @else if (!compte()) {
+      <section class="bloc">
+        <p class="bloc__titre">Se connecter pour jouer</p>
+        <p class="bloc__aide">
+          La connexion se fait par code d'appareil : Microsoft donne un code, la
+          page s'ouvre, et le launcher attend l'autorisation. Aucun mot de passe
+          ne transite par cette fenêtre.
+        </p>
+        <button
+          type="button"
+          class="bouton"
+          [disabled]="occupe()"
+          (click)="connecter()"
+        >
+          {{ occupe() ? 'Connexion en cours…' : 'Se connecter avec Microsoft' }}
+        </button>
+      </section>
+    } @else if (!jouable()) {
+      <section class="bloc">
+        <p class="bloc__titre">Ce compte ne possède pas Minecraft Java Edition</p>
+        <p class="bloc__aide">
+          La connexion a réussi — c'est bien un compte Microsoft valide — mais
+          aucun serveur en ligne ne l'acceptera, et rien ne sert d'installer le
+          pack.
+        </p>
+        <button type="button" class="lien" [disabled]="occupe()" (click)="deconnecter()">
+          Utiliser un autre compte
+        </button>
+      </section>
+    } @else {
+      <ol class="chemin">
+        @for (etape of etapes(); track etape.phase) {
+          <li class="etape" [attr.data-etat]="etape.etat">
+            <span class="etape__puce" aria-hidden="true"></span>
+            <span class="etape__libelle">{{ etape.libelle }}</span>
+          </li>
+        }
+      </ol>
+
+      @if (introuvables().length > 0) {
+        <p class="note note--attention">
+          {{ introuvables().length }} mods n'ont pas été trouvés. NeoForge refusera
+          de démarrer s'ils lui manquent.
+          <span class="note__detail">{{ introuvables().join(' · ') }}</span>
+        </p>
+      }
+
+      @if (installation()?.horsLigne) {
+        <p class="note note--attention">
+          Pack repris de la dernière copie connue : il peut ne plus correspondre
+          aux serveurs.
+        </p>
+      }
+
+      @if (message(); as m) {
+        <p class="note">{{ m }}</p>
+      }
+    }
+  </main>
+
+  <!--
+    La barre d'action ne bouge jamais. Le bloc de droite permute entre le
+    bouton et la progression, à hauteur identique : l'utilisateur comprend
+    d'instinct que là où il y aura « Jouer », il y a l'avancement.
+  -->
+  <footer class="actions">
+    @if (compte(); as c) {
+      <div class="joueur">
+        <span
+          class="joueur__pastille"
+          [style.--teinte]="teinte(c.uuid)"
+          aria-hidden="true"
+          >{{ initiales(c.pseudo) }}</span
+        >
+        <div class="joueur__identite">
+          <span class="joueur__pseudo">{{ c.pseudo }}</span>
+          <button type="button" class="lien lien--discret" [disabled]="occupe()" (click)="deconnecter()">
+            Se déconnecter
+          </button>
+        </div>
+      </div>
+    } @else {
+      <div class="joueur joueur--vide">Aucun compte connecté</div>
+    }
+
+    <div class="action">
+      @if (installe() && avancement(); as vu) {
+        <div class="progression">
+          <div class="progression__chiffre">{{ pourcent() }} %</div>
+          <div class="progression__detail">
+            <div class="jauge" role="progressbar" [attr.aria-valuenow]="progression()">
+              <div
+                class="jauge__barre"
+                [class.jauge__barre--indeterminee]="!vu.actif"
+                [style.width.%]="vu.actif ? progression() : 100"
+              ></div>
+            </div>
+            @if (etapeCourante(); as etape) {
+              <p class="progression__etape">
+                Étape {{ etape.numero }} / {{ etape.total }} · {{ etape.libelle }}
+              </p>
+            }
+            <p class="progression__fichier">
+              @if (vu.actif) {
+                {{ octets(vu.octets) }} / {{ octets(vu.total) }}
+                @if (vu.debit > 0) {
+                  · {{ debit(vu.debit) }}
+                }
+                @if (vu.restant !== null) {
+                  · {{ duree(vu.restant) }}
+                }
+                @if (vu.fichier) {
+                  · {{ vu.fichier }}
+                }
+              } @else {
+                {{ vu.note ?? 'En cours…' }}
+              }
+            </p>
+          </div>
+        </div>
+      } @else if (jouable()) {
+        <button
+          type="button"
+          class="jouer"
+          [disabled]="!disponible || occupe()"
+          (click)="pret() ? jouer() : installer()"
+        >
+          @if (joue()) {
+            EN JEU…
+          } @else if (pret()) {
+            JOUER
+          } @else {
+            INSTALLER
+          }
+        </button>
+        @if (pret() && !joue()) {
+          <button type="button" class="lien lien--discret" [disabled]="occupe()" (click)="installer()">
+            Vérifier les fichiers
+          </button>
+        }
+      }
+    </div>
+  </footer>
+</div>
+
+<!--
+  L'erreur prend tout le cadre et floute ce qu'il y a derrière. Elle était en
+  bas de page, et passait inaperçue dès qu'on avait fait défiler l'écran.
+-->
+@if (erreur(); as e) {
+  <div class="overlay" role="alertdialog" aria-modal="true">
+    <div class="overlay__carte">
+      <h2 class="overlay__titre">Quelque chose n'a pas fonctionné</h2>
+      <p class="overlay__message">{{ e }}</p>
+      <div class="overlay__actions">
+        <button type="button" class="bouton" (click)="fermerErreur()">Fermer</button>
+        <button type="button" class="lien lien--discret" (click)="copierErreur()">
+          Copier le détail
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -11,7 +11,7 @@ members = [
     "crates/mc-pack",
     # L'application : elle n'ajoute aucune logique de launcher, elle appelle
     # les crates ci-dessus et les rend visibles dans une fenêtre.
-    "src-tauri",
+    "crates/mc-app",
 ]
 
 [workspace.package]

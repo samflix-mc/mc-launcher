@@ -1,3 +1,4 @@
+# Cargo, pour tout le workspace.
 /target
 
 # Secrets : la clé d'API CurseForge est nominative et ne se versionne pas.
@@ -8,6 +9,6 @@
 /lcov.info
 
 # Le front : dépendances, sortie de build, cache du compilateur Angular.
-/node_modules
-/dist
-/.angular
+/web/node_modules
+/web/dist
+/web/.angular

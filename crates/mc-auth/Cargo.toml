@@ -15,6 +15,10 @@ tokio.workspace = true
 md-5.workspace = true
 mutants.workspace = true
 
+# Le trousseau du système, où va le jeton de rafraîchissement.
+# Voir `stockage.rs` pour ce qui se passe quand la machine n'en a pas.
+keyring.workspace = true
+
 # S'authentifier comme le launcher officiel : voir la section « Authentification »
 # du README pour ce que ce choix implique.
 minecraft-auth = "0.1.1"

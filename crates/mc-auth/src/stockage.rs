@@ -1,117 +1,72 @@
 //! Où vit la session entre deux lancements.
 //!
-//! Le fichier contient un jeton de rafraîchissement : quiconque le lit peut
-//! rouvrir la session du joueur sans mot de passe et sans second facteur. Il
-//! est donc écrit en `0600`, et jamais journalisé — la censure de `mc-log`
-//! reconnaît déjà `refresh_token` et `access_token`, mais le mieux reste de ne
-//! pas l'écrire.
+//! Le contenu est l'état complet de `minecraft-auth` : il porte un jeton de
+//! rafraîchissement, qui rouvre le compte du joueur sans mot de passe ni second
+//! facteur. C'est le secret le plus lourd que le launcher détienne.
+//!
+//! Deux endroits, dans cet ordre :
+//!
+//! 1. **le trousseau du système** — Secret Service, Keychain, Credential
+//!    Manager. Chiffré au repos, déverrouillé par la session de l'utilisateur,
+//!    hors de portée d'une sauvegarde qui embarquerait `~/.config` ;
+//! 2. **un fichier `0600`** — `~/.config/samflix-mc/session.json`, pour les
+//!    machines qui n'ont pas de trousseau : un conteneur, une session sans
+//!    portefeuille, un runner d'intégration. Le repli est journalisé en `warn` ;
+//!    ce n'est pas le fonctionnement normal, et ça doit se voir.
+//!
+//! ## Pourquoi les deux, et pas l'un ou l'autre
+//!
+//! La lecture essaie le trousseau **puis** le fichier. Une session ouverte au
+//! terminal avant que le trousseau ne soit disponible reste donc utilisable, et
+//! l'inverse aussi — la fenêtre et la ligne de commande partagent le compte
+//! sans que le joueur ait à se connecter deux fois.
+//!
+//! L'écriture, elle, ne touche pas au fichier tant que le trousseau répond.
+//! Elle ne l'efface pas non plus : supprimer sous son nez la session qu'une
+//! autre commande vient d'ouvrir serait la casser. Seul [`effacer`] — la
+//! déconnexion, qui est demandée — vide les deux.
 
-use std::path::{Path, PathBuf};
+mod fichier;
+mod trousseau;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
-/// Emplacement du fichier de session.
-///
-/// À côté de la clé CurseForge, dans la configuration et non dans les données :
-/// c'est un secret de l'utilisateur, pas un cache reconstructible.
-pub fn chemin() -> PathBuf {
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join("samflix-mc").join("session.json")
-}
+pub use fichier::chemin;
 
 /// La session enregistrée, ou `None` si personne ne s'est connecté ici.
 pub fn charger() -> Option<serde_json::Value> {
-    charger_depuis(&chemin())
-}
-
-/// Écrit la session, lisible par son seul propriétaire.
-pub fn enregistrer(etat: &serde_json::Value) -> Result<()> {
-    enregistrer_dans(&chemin(), etat)
-}
-
-/// Oublie la session. Ne pas en avoir n'est pas une erreur.
-pub fn effacer() -> Result<()> {
-    effacer_de(&chemin())
-}
-
-/// Les trois opérations prennent le chemin en argument plutôt que de le lire
-/// de l'environnement : c'est le seul moyen de vérifier qu'un fichier corrompu
-/// n'empêche pas de jouer, et que le jeton est bien écrit en `0600`, sans
-/// toucher à la session réelle du poste qui exécute les tests.
-///
-/// Un fichier illisible n'est pas une erreur fatale : il vaut « pas de
-/// session », et l'appelant proposera de se connecter. Le contraire
-/// empêcherait de jouer à cause d'un fichier corrompu.
-pub(crate) fn charger_depuis(chemin: &Path) -> Option<serde_json::Value> {
-    let brut = std::fs::read(chemin).ok()?;
-    match serde_json::from_slice(&brut) {
-        Ok(etat) => Some(etat),
+    match trousseau::charger() {
+        Ok(Some(etat)) => Some(etat),
+        // Rien dans le trousseau : reste le fichier.
+        Ok(None) => fichier::charger_depuis(&chemin()),
         Err(erreur) => {
-            tracing::warn!(
-                fichier = %chemin.display(),
-                erreur = %erreur,
-                "session enregistrée illisible, connexion à refaire"
-            );
-            None
+            tracing::warn!(erreur = %erreur, "trousseau illisible, lecture du fichier de session");
+            fichier::charger_depuis(&chemin())
         }
     }
 }
 
-pub(crate) fn enregistrer_dans(chemin: &Path, etat: &serde_json::Value) -> Result<()> {
-    if let Some(parent) = chemin.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("création de {}", parent.display()))?;
-    }
-
-    let brut = serde_json::to_vec_pretty(etat).context("sérialisation de la session")?;
-    ecrire_protege(chemin, &brut).with_context(|| format!("écriture de {}", chemin.display()))?;
-
-    tracing::debug!(fichier = %chemin.display(), "session enregistrée");
-    Ok(())
-}
-
-pub(crate) fn effacer_de(chemin: &Path) -> Result<()> {
-    match std::fs::remove_file(chemin) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e).with_context(|| format!("suppression de {}", chemin.display())),
+/// Écrit la session, au trousseau si la machine en a un.
+pub fn enregistrer(etat: &serde_json::Value) -> Result<()> {
+    match trousseau::enregistrer(etat) {
+        Ok(()) => {
+            tracing::debug!("session enregistrée dans le trousseau du système");
+            Ok(())
+        }
+        Err(erreur) => {
+            tracing::warn!(erreur = %erreur, "trousseau indisponible, repli sur le fichier 0600");
+            fichier::enregistrer_dans(&chemin(), etat)
+        }
     }
 }
 
-/// Crée le fichier en `0600` **avant** d'y écrire.
+/// Oublie la session, des deux côtés.
 ///
-/// Écrire puis restreindre laisserait une fenêtre pendant laquelle le jeton
-/// est lisible par tous ; sur un poste partagé, cette fenêtre suffit.
-#[cfg(unix)]
-fn ecrire_protege(chemin: &std::path::Path, contenu: &[u8]) -> std::io::Result<()> {
-    use std::io::Write;
-    use std::os::unix::fs::OpenOptionsExt;
-
-    let mut fichier = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(chemin)?;
-    fichier.write_all(contenu)
+/// Les deux effacements sont tentés avant de rendre la main : échouer sur l'un
+/// laisserait l'autre en place, et un jeton qu'on croit supprimé est pire qu'un
+/// jeton qu'on sait présent.
+pub fn effacer() -> Result<()> {
+    let trousseau = trousseau::effacer();
+    let fichier = fichier::effacer_de(&chemin());
+    trousseau.and(fichier)
 }
-
-/// Windows n'a pas de bit de permission équivalent : le fichier hérite des
-/// droits du répertoire, qui est déjà sous le profil de l'utilisateur.
-///
-/// Hors de portée des tests de mutation tant que la CI tourne sur Linux : ce
-/// corps-ci n'y est jamais compilé, donc aucune suite ne peut l'exercer. Le
-/// jour où un runner Windows s'ajoute, cet attribut doit tomber — c'est la
-/// couverture qui manque, pas le mutant qui est faux.
-#[cfg(not(unix))]
-#[mutants::skip]
-fn ecrire_protege(chemin: &std::path::Path, contenu: &[u8]) -> std::io::Result<()> {
-    std::fs::write(chemin, contenu)
-}
-
-#[cfg(test)]
-#[path = "stockage.test.rs"]
-mod tests;

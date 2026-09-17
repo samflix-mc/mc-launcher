@@ -6,9 +6,10 @@ L'application : une fenêtre **Tauri 2** dont le front est en **Angular 22**, sa
 framework de style — du CSS et rien d'autre.
 
 ```bash
-pnpm install           # une fois
-cargo tauri dev        # démarre le serveur Angular puis la fenêtre
-cargo tauri build      # binaire + paquets dans src-tauri/target/release
+pnpm --dir web install     # une fois
+cd crates/mc-app
+cargo tauri dev            # démarre le serveur Angular puis la fenêtre
+cargo tauri build          # binaire + paquets dans target/release
 ```
 
 `build` produit le binaire `samflix-launcher` et, sous `bundle/`, un `.deb`, un
@@ -24,18 +25,33 @@ variable à la main reste possible et l'emporte, dans les deux sens.
 
 ## Disposition
 
-Celle que Tauri attend, à la racine du dépôt.
+Deux dossiers, et rien d'autre à la racine que ce qui décrit le dépôt.
 
 ```
-angular.json, package.json, tsconfig*.json   le front
-src/                                          app.ts (l'écran), launcher.ts (le pont)
-public/                                       favicon
-src-tauri/src/                                lib.rs, commandes.rs, coffre.rs, webkit.rs
-crates/                                       tout le reste — la logique du launcher
+crates/          tout le Rust, un seul workspace
+├── mc-auth/     Microsoft → Xbox → XSTS → Minecraft, et le trousseau
+├── mc-dl/       téléchargement vérifié, et l'observation de sa progression
+├── mc-java/     détection et installation du runtime
+├── mc-instance/ Minecraft, NeoForge, la ligne de commande du jeu
+├── mc-mods/     résolution et déploiement des mods
+├── mc-pack/     l'orchestration : install, jeu, verrou — et la CLI
+├── mc-log/      journalisation, censure, incidents
+├── mc-essais/   un serveur HTTP local, pour les suites
+└── mc-app/      l'application Tauri : tauri.conf.json, icônes, src/
+
+web/             tout le front
+├── src/app/     app.ts (l'écran), launcher.ts (le pont), format.ts
+├── public/      les assets servis tels quels
+└── dist/        la sortie de build (ignorée)
+
+target/          la sortie de Cargo (ignorée)
+docs/            ce fichier et ses voisins
 ```
 
-`src-tauri` est un membre du workspace Cargo comme les autres crates : un seul
-`cargo test`, un seul verrou, une seule mesure de couverture.
+`mc-app` est un membre du workspace comme les autres : un seul `cargo test`, un
+seul verrou, une seule mesure de couverture. Ses chemins remontent d'un cran —
+`frontendDist` vaut `../../web/dist/launcher/browser` — parce que Tauri résout
+le répertoire de l'application relativement à `tauri.conf.json`.
 
 ## La cinématique
 
@@ -90,15 +106,25 @@ alors que tout est déjà là.
 
 ## Ce que l'application fait, et ce qu'elle ne fait pas
 
-Elle n'ajoute **aucune** logique de launcher. L'authentification est celle de
-`mc-auth`, l'installation celle de `mc-pack`, le lancement celui de
-`mc-instance`, la journalisation celle de `mc-log`. `src-tauri` est un pont :
-des types sérialisables, des commandes, un coffre pour le jeton, et de quoi
-montrer où en sont les crates pendant qu'elles travaillent.
+Elle n'ajoute **aucune** logique de launcher. `mc-auth` authentifie,
+`mc_pack::install` installe, `mc_pack::jeu` prépare et lance, `mc-log`
+journalise. `mc-app` appelle, agrège, et raconte : c'est tout.
 
-C'est délibéré : la ligne de commande fait la même chose avec le même code, et
-deux orchestrations parallèles finiraient par diverger — l'une installerait ce
-que l'autre ne lancerait pas.
+C'est délibéré, et cela s'est vérifié à l'usage. Le lancement vivait dans le
+**binaire** `mc-pack`, sous `commandes/lancement/` : tant qu'il n'y avait qu'une
+ligne de commande, cela ne coûtait rien. Dès que la fenêtre a voulu lancer le
+jeu, elle n'a pas pu l'appeler — et a réassemblé la session, le Java du verrou
+et la ligne de commande de son côté, en sautant au passage la vérification de
+cohérence de l'instance. Deux assemblages pour la même chose, dont un seul
+correct.
+
+Le lancement est donc remonté dans la bibliothèque, et les deux appelants s'en
+servent. Ce qui reste au binaire est ce qui lui appartient : l'affichage.
+
+Même histoire pour le trousseau. Il a d'abord été écrit dans `mc-app`, et
+`mc_auth::charger()` continuait de lire le fichier : la fenêtre enregistrait à
+un endroit que la ligne de commande ne regardait pas. Il est dans `mc-auth`,
+avec le reste du stockage de session, et les deux voient le même compte.
 
 `mc-log` plutôt que `tauri-plugin-log`, d'ailleurs : le second écrirait les
 jetons tels quels. Une fenêtre graphique avale sa sortie standard, donc le
@@ -145,9 +171,40 @@ Linux. On échangerait un contournement connu contre un bug non contournable.
 À reconsidérer quand une bêta 3.x paraîtra avec un guide de migration, et en
 priorité si le runtime CEF devient fiable.
 
+## L'écran
+
+Une seule page, trois rangées, et **rien qui se déplace** d'un état à l'autre :
+un héros, un contenu, et une barre d'action de hauteur fixe. C'est ce qui
+distingue une application d'une succession de pages.
+
+La barre d'action porte le compte à gauche et l'action à droite. Le bloc de
+droite **permute** entre le bouton et la progression, à la même place : là où
+il y aura « JOUER », il y a l'avancement. Rien ne saute quand l'installation
+démarre.
+
+Trois choix qui viennent de défauts constatés, et non d'une préférence :
+
+- **La barre compte l'installation entière, pas le lot en cours.** Chaque étape
+  annonce son propre lot, donc une barre par lot repasserait par zéro sept fois
+  — et « 100 % » sept fois de suite fait douter qu'il se passe quelque chose.
+- **Entre deux lots, la barre devient indéterminée.** La résolution des mods
+  enchaîne jusqu'à six passes entrecoupées d'inspections de jars, et
+  l'installateur NeoForge tourne une minute sans rien télécharger. Une barre
+  pleine pendant ce temps ment ; une barre qui glisse dit « ça travaille ».
+- **Une erreur prend tout le cadre et floute ce qu'il y a derrière.** Elle
+  s'affichait en bas de page : dès qu'on avait fait défiler l'écran, on ne la
+  voyait pas. Le flou la rend impossible à manquer, et son détail se copie.
+
+La pastille du joueur est locale — ses initiales sur une teinte dérivée de son
+UUID — plutôt qu'un avatar tiré d'un service comme `mc-heads` ou `crafatar` :
+envoyer l'UUID d'un joueur à un tiers pour une image décorative n'en vaut pas
+le prix. Si un vrai rendu de skin devient souhaitable, c'est un choix à faire
+explicitement, avec le CSP qui va avec.
+
 ## Contrôles
 
 ```bash
-pnpm test                                                  # le front, vitest
-cargo clippy --all-targets -- -D warnings && cargo test     # le reste
+pnpm --dir web test                                        # le front, vitest
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
 ```

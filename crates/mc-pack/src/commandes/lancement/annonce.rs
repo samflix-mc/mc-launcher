@@ -2,7 +2,7 @@
 
 use mc_pack::manifest::Manifest;
 
-use super::preparation::Partie;
+use mc_pack::Partie;
 
 /// Hors de portée des tests de mutation : cette fonction n'a d'autre effet que
 /// d'écrire sur la sortie standard, et Rust n'offre pas de moyen stable de la
