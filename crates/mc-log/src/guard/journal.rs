@@ -28,12 +28,22 @@ pub(crate) fn current_log_name(component: &str) -> String {
     format!("{component}.log.{}", time::OffsetDateTime::now_utc().date())
 }
 
+/// Âge à partir duquel un journal est supprimé.
+///
+/// Le calcul est ici plutôt qu'en ligne : deux semaines écrites en jours, en
+/// heures et en secondes se confondent vite, et une multiplication changée en
+/// addition ferait une limite de quatre heures — les journaux disparaîtraient
+/// entre deux parties, sans que rien ne le signale.
+fn retention() -> std::time::Duration {
+    std::time::Duration::from_secs(KEEP_DAYS * 24 * 3600)
+}
+
 /// Supprime les journaux trop anciens.
 pub(crate) fn purge_old_logs(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
-    let limit = std::time::Duration::from_secs(KEEP_DAYS * 24 * 3600);
+    let limit = retention();
 
     for entry in entries.flatten() {
         let path = entry.path();

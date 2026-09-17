@@ -1,4 +1,11 @@
-use super::{current_log_name, log_dir, purge_old_logs};
+use super::{current_log_name, log_dir, purge_old_logs, retention};
+
+/// Deux semaines, et le dire en secondes : c'est la seule unité que connaisse
+/// `Duration`, et celle où l'erreur ne se voit pas.
+#[test]
+fn les_journaux_se_gardent_deux_semaines() {
+    assert_eq!(retention(), std::time::Duration::from_secs(14 * 86_400));
+}
 
 /// Un répertoire de travail propre à ce test.
 fn dossier(nom: &str) -> std::path::PathBuf {

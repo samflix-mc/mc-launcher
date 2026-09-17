@@ -1,4 +1,4 @@
-use super::{scrub_event, scrub_log_attribute};
+use super::{scrub_event, scrub_log_attribute, scrub_value};
 
 #[test]
 fn un_attribut_de_journal_structure_est_censure() {
@@ -89,4 +89,41 @@ fn les_champs_d_un_evenement_sont_censures() {
         "jeton envoyé en clair : {rendu}"
     );
     assert!(rendu.contains("[secret]"));
+}
+
+/// Un secret ne se trouve pas toujours à la racine : les variables d'une trace
+/// d'appels et les contextes d'un événement sont des objets qui contiennent des
+/// listes qui contiennent des objets. La censure descend donc, et ne pas
+/// descendre ne casse rien de visible — cela laisse seulement passer le jeton
+/// d'un cran plus bas.
+#[test]
+fn la_censure_descend_dans_les_listes_et_les_objets() {
+    use sentry::protocol::Value;
+
+    let jeton = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ";
+    let mut valeur = Value::Array(vec![
+        Value::String(format!("access_token={jeton}")),
+        Value::Object(
+            [(
+                "entete".to_string(),
+                Value::Array(vec![Value::String(format!(
+                    "Authorization: Bearer {jeton}"
+                ))]),
+            )]
+            .into_iter()
+            .collect(),
+        ),
+        // Ce qui n'est pas du texte traverse intact : les nombres et les
+        // booléens servent au tri, et n'ont rien à cacher.
+        Value::from(42),
+    ]);
+
+    scrub_value(&mut valeur);
+
+    let rendu = format!("{valeur:?}");
+    assert!(!rendu.contains("eyJhbGci"), "jeton en clair : {rendu}");
+    // Le premier niveau, puis celui qui se cache deux crans plus bas.
+    assert!(rendu.contains("access_token=[secret]"), "{rendu}");
+    assert!(rendu.contains("Authorization: [secret]"), "{rendu}");
+    assert!(rendu.contains("42"), "{rendu}");
 }

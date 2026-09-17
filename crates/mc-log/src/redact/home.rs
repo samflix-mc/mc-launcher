@@ -20,9 +20,15 @@ pub(super) fn redact_home(text: &str) -> String {
 /// La racine « / » est écartée : elle préfixe tout.
 static HOME: std::sync::LazyLock<Option<String>> = std::sync::LazyLock::new(|| {
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
-    let home = home.to_string_lossy().into_owned();
-    (!home.is_empty() && home != "/").then_some(home)
+    maison_utilisable(&home.to_string_lossy())
 });
+
+/// Ce qu'on accepte de remplacer par `~`, lu une seule fois — d'où cette
+/// fonction, seule façon d'éprouver les deux valeurs qu'il faut refuser sans
+/// relancer le processus avec un autre environnement.
+fn maison_utilisable(home: &str) -> Option<String> {
+    (!home.is_empty() && home != "/").then(|| home.to_string())
+}
 
 #[cfg(test)]
 #[path = "home.test.rs"]
