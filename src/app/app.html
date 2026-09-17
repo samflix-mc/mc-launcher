@@ -1,13 +1,13 @@
 <main class="launcher">
   <header class="entete">
     <h1>samflix-mc</h1>
-    <p class="sous-titre">Launcher — maquette</p>
+    <p class="sous-titre">Launcher</p>
   </header>
 
   @if (!disponible) {
     <p class="bandeau bandeau--avertissement">
       Ouvert hors de la fenêtre Tauri : rien n'est branché à Rust. Lancer
-      <code>cargo tauri dev</code> depuis <code>ui/src-tauri</code>.
+      <code>cargo tauri dev</code> depuis la racine du dépôt.
     </p>
   }
 
@@ -24,7 +24,8 @@
 
       @if (!c.possedeLeJeu) {
         <p class="bandeau bandeau--avertissement">
-          Ce compte ne possède pas Minecraft Java Edition.
+          Ce compte ne possède pas Minecraft Java Edition — rien ne sert d'installer
+          le pack, aucun serveur en ligne ne l'acceptera.
         </p>
       }
 
@@ -65,17 +66,102 @@
     </section>
   }
 
-  <section class="carte">
-    <h2>Jouer</h2>
-    <button
-      type="button"
-      class="bouton bouton--principal"
-      [disabled]="!disponible || occupe()"
-      (click)="jouer()"
-    >
-      Lancer le jeu
-    </button>
-  </section>
+  @if (jouable()) {
+    <section class="carte">
+      <h2>Installation</h2>
+
+      <ol class="chemin">
+        @for (etape of etapes(); track etape.phase) {
+          <li class="etape" [attr.data-etat]="etape.etat">
+            <span class="etape__puce" aria-hidden="true"></span>
+            <span class="etape__libelle">{{ etape.libelle }}</span>
+          </li>
+        }
+      </ol>
+
+      @if (avancement(); as a) {
+        @if (telecharge(a.phase)) {
+          <div class="jauge" role="progressbar" [attr.aria-valuenow]="progression()">
+            <div class="jauge__barre" [style.width.%]="progression()"></div>
+          </div>
+
+          <p class="detail mono">
+            {{ octets(a.octets) }} / {{ octets(a.total) }}
+            @if (a.fichiersTotal > 0) {
+              · {{ a.fichiers }} / {{ a.fichiersTotal }} fichiers
+            }
+            @if (a.debit > 0) {
+              · {{ debit(a.debit) }}
+            }
+            @if (a.restant !== null) {
+              · {{ duree(a.restant) }} restantes
+            }
+          </p>
+
+          @if (a.fichier; as fichier) {
+            <p class="detail detail--fichier mono">{{ fichier }}</p>
+          }
+        }
+
+        @if (a.note; as note) {
+          <p class="explication">{{ note }}</p>
+        }
+      }
+
+      @if (installation(); as pose) {
+        <dl class="profil">
+          <dt>Instance</dt>
+          <dd>{{ pose.instance }}</dd>
+          <dt>Minecraft</dt>
+          <dd>{{ pose.minecraft }} — NeoForge {{ pose.neoforge }}</dd>
+          <dt>Java</dt>
+          <dd>{{ pose.java }}</dd>
+          <dt>Mods</dt>
+          <dd>{{ pose.mods }}</dd>
+        </dl>
+
+        @if (pose.horsLigne) {
+          <p class="bandeau bandeau--avertissement">
+            Pack repris de la dernière copie connue : il peut ne plus correspondre
+            aux serveurs.
+          </p>
+        }
+      }
+
+      <button
+        type="button"
+        class="bouton"
+        [disabled]="!disponible || occupe()"
+        (click)="installer()"
+      >
+        @if (pret()) {
+          Vérifier et mettre à jour
+        } @else {
+          Installer le pack
+        }
+      </button>
+    </section>
+
+    <section class="carte">
+      <h2>Jouer</h2>
+
+      @if (!pret()) {
+        <p class="explication">
+          Le pack doit être installé avant de lancer le jeu. Les deux gestes restent
+          séparés : lancer ne réinstalle rien.
+        </p>
+      }
+
+      <button
+        type="button"
+        class="bouton bouton--principal"
+        [disabled]="!disponible || occupe() || !pret()"
+        (click)="jouer()"
+      >
+        Lancer le jeu
+      </button>
+    </section>
+  }
 
   @if (message(); as m) {
     <p class="bandeau">{{ m }}</p>

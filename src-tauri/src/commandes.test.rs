@@ -1,10 +1,10 @@
 //! Ce que les commandes promettent à la fenêtre.
 //!
-//! Les trois commandes qui comptent parlent à Microsoft ou au trousseau : ce
-//! qui s'en vérifie sans compte, c'est le contrat de sérialisation. Il n'est
-//! pas cosmétique — le nom d'un champ est ce que le TypeScript lit, et le
-//! renommer casse l'affichage sans casser la compilation d'aucun des deux
-//! côtés.
+//! Les commandes qui comptent parlent à Microsoft, à Mojang ou au trousseau :
+//! ce qui s'en vérifie sans compte, c'est le contrat de sérialisation et les
+//! quelques décisions prises en local. Le nom d'un champ est ce que le
+//! TypeScript lit, et le renommer casse l'affichage sans casser la compilation
+//! d'aucun des deux côtés.
 
 use super::*;
 use mc_auth::Profile;
@@ -31,7 +31,8 @@ fn le_compte_reprend_le_profil_de_la_session() {
 #[test]
 fn l_absence_de_licence_est_transmise_telle_quelle() {
     // Le compte est valide, la connexion a réussi : c'est bien un `false` qui
-    // doit arriver à la fenêtre, pas une erreur ni un `true` par défaut.
+    // doit arriver à la fenêtre, pas une erreur ni un `true` par défaut. C'est
+    // ce qui évite d'installer huit cents mégaoctets pour rien.
     let compte = Compte::from((&session("Sam", "abc"), false));
 
     assert!(!compte.possede_le_jeu);
@@ -86,12 +87,52 @@ fn une_erreur_sans_contexte_reste_son_message() {
 }
 
 #[test]
-fn le_bouton_jouer_dit_ce_qui_manque() {
-    // Une chaîne vide passerait les tests d'existence en laissant un bouton
-    // qui ne répond rien.
-    let message = lancer_jeu();
+fn le_chemin_est_complet_et_ordonne() {
+    // La fenêtre le demande une fois, à l'ouverture, pour dessiner ce qui
+    // reste à faire. Un chemin partiel ne montrerait jamais la fin.
+    let chemin = chemin();
 
-    assert!(message.contains("mc-pack launch"), "{message}");
+    assert_eq!(chemin.len(), Phase::TOUTES.len());
+    let rangs: Vec<usize> = chemin.iter().map(|etape| etape.rang).collect();
+    assert_eq!(rangs, (0..Phase::TOUTES.len()).collect::<Vec<_>>());
+    assert!(chemin.iter().all(|etape| !etape.libelle.is_empty()));
+}
+
+#[test]
+fn le_chemin_se_serialise_avec_ses_libelles() {
+    let json = serde_json::to_value(chemin()).expect("sérialisation");
+
+    assert_eq!(json[0]["phase"], "connexion");
+    assert_eq!(json[0]["libelle"], "Compte Microsoft");
+}
+
+#[test]
+fn fermer_le_jeu_n_est_pas_une_panne() {
+    // Un joueur qui quitte sa partie ne doit pas voir un bandeau rouge. Seul
+    // un code de sortie non nul en est un.
+    let rapport = mc_instance::launch::Report {
+        outcome: mc_instance::launch::Outcome::Normal,
+        errors: Vec::new(),
+    };
+    assert_eq!(verdict(&rapport), "Partie terminée.");
+
+    let interrompu = mc_instance::launch::Report {
+        outcome: mc_instance::launch::Outcome::Interrupted { signal: 15 },
+        errors: Vec::new(),
+    };
+    assert_eq!(verdict(&interrompu), "Jeu fermé.");
+}
+
+#[test]
+fn un_plantage_est_nomme_avec_son_code() {
+    let rapport = mc_instance::launch::Report {
+        outcome: mc_instance::launch::Outcome::Failed { code: 1 },
+        errors: Vec::new(),
+    };
+
+    let dit = verdict(&rapport);
+    assert!(dit.contains("erreur"), "{dit}");
+    assert!(dit.contains('1'), "{dit}");
 }
 
 #[test]

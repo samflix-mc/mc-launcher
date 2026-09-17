@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "samflix-mc",
-        "width": 880,
-        "height": 620,
+        "width": 900,
+        "height": 820,
         "minWidth": 720,
-        "minHeight": 520,
+        "minHeight": 560,
         "resizable": true,
         "fullscreen": false
       }

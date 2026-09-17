@@ -1,16 +1,21 @@
 //! Ce que l'interface a le droit d'appeler.
 //!
-//! Rien de la chaîne d'authentification n'est réécrit ici : `mc-auth` la porte
-//! déjà, testée, et ce module ne fait que la traduire en quelque chose qu'une
-//! fenêtre peut afficher — des structures sérialisables, un événement pour le
-//! code d'appareil, et des messages d'erreur lisibles.
+//! Rien de la chaîne d'authentification ni de l'installation n'est réécrit ici :
+//! `mc-auth`, `mc-pack` et `mc-instance` les portent déjà, testées. Ce module
+//! les traduit en quelque chose qu'une fenêtre peut afficher — des structures
+//! sérialisables, des événements, et des messages d'erreur lisibles.
+
+use std::sync::{Arc, Mutex};
 
 use mc_auth::{Auth, DeviceCode, Session};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::cinematique::{self, Pret};
 use crate::coffre;
+use crate::phase::Phase;
+use crate::suivi::Suivi;
 
 /// L'événement qui porte le code d'appareil jusqu'à la fenêtre.
 ///
@@ -18,6 +23,16 @@ use crate::coffre;
 /// le code ne peut donc pas être la valeur de retour de la commande, il faut
 /// le pousser pendant l'attente.
 pub const EVENEMENT_CODE: &str = "auth://code";
+
+/// Ce que l'application garde entre deux commandes.
+#[derive(Default)]
+pub struct Etat {
+    /// Le compteur d'avancement, partagé avec les téléchargements.
+    pub suivi: Arc<Suivi>,
+    /// Ce qu'a produit la dernière installation réussie. Tant qu'il est vide,
+    /// le jeu ne peut pas être lancé — et le bouton reste éteint.
+    pub pret: Mutex<Option<Pret>>,
+}
 
 /// Le compte connecté, tel que la fenêtre l'affiche.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -27,8 +42,8 @@ pub struct Compte {
     pub uuid: String,
     /// Faux quand le compte n'a pas de licence Minecraft Java Edition. La
     /// connexion réussit quand même — c'est un compte Microsoft valide — mais
-    /// aucun serveur en ligne ne l'acceptera, et le dire tôt évite de chercher
-    /// la panne au lancement.
+    /// aucun serveur en ligne ne l'acceptera, et rien ne sert d'installer huit
+    /// cents mégaoctets pour l'apprendre ensuite.
     pub possede_le_jeu: bool,
 }
 
@@ -63,6 +78,33 @@ impl From<&DeviceCode> for CodeAppareil {
     }
 }
 
+/// Ce qu'une installation a posé, pour le compte rendu.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Installation {
+    pub instance: String,
+    pub minecraft: String,
+    pub neoforge: String,
+    pub java: String,
+    pub mods: usize,
+    /// Le pack distant était injoignable et la copie locale a servi : ce que
+    /// le joueur installe peut ne plus correspondre aux serveurs.
+    pub hors_ligne: bool,
+}
+
+impl From<&mc_pack::Outcome> for Installation {
+    fn from(outcome: &mc_pack::Outcome) -> Self {
+        Self {
+            instance: outcome.instance.name.clone(),
+            minecraft: outcome.lock.minecraft.clone(),
+            neoforge: outcome.neoforge.clone(),
+            java: outcome.java.version.full.clone(),
+            mods: outcome.client_mods,
+            hors_ligne: outcome.from_cache,
+        }
+    }
+}
+
 /// Une erreur, telle qu'elle traverse le pont vers la fenêtre.
 ///
 /// `anyhow::Error` ne se sérialise pas, et n'en garder que le dernier message
@@ -81,6 +123,33 @@ impl From<anyhow::Error> for Erreur {
                 .join(" : "),
         )
     }
+}
+
+/// Une phase du chemin, telle que la fenêtre la dessine.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EtapeVue {
+    pub phase: Phase,
+    pub libelle: String,
+    pub rang: usize,
+}
+
+/// Le chemin complet, dans l'ordre.
+///
+/// Demandé une fois à l'ouverture. L'interface a besoin de le connaître en
+/// entier **avant** que quoi que ce soit ne commence : c'est ce qui distingue
+/// « on en est à la moitié » de « il se passe quelque chose ». Le déduire des
+/// phases au fur et à mesure ne montrerait jamais ce qui reste.
+#[tauri::command]
+pub fn chemin() -> Vec<EtapeVue> {
+    Phase::TOUTES
+        .iter()
+        .map(|phase| EtapeVue {
+            phase: *phase,
+            libelle: phase.libelle().to_string(),
+            rang: phase.rang(),
+        })
+        .collect()
 }
 
 /// Le compte déjà connecté sur cette machine, s'il y en a un.
@@ -108,13 +177,19 @@ pub async fn statut() -> Result<Option<Compte>, Erreur> {
 ///
 /// Le flux n'a pas de champ de mot de passe à nous : Microsoft donne un code,
 /// le joueur l'autorise dans son navigateur, et l'appel attend là jusqu'à ce
-/// qu'il l'ait fait — ou que le code expire. C'est ce que `mc-auth` fait déjà
-/// au terminal ; ici, le code part vers la fenêtre et la page s'ouvre.
+/// qu'il l'ait fait — ou que le code expire.
 #[tauri::command]
-pub async fn connexion(app: AppHandle) -> Result<Compte, Erreur> {
-    let auth = Auth::login(move |code| annoncer(&app, code)).await?;
+pub async fn connexion(app: AppHandle, etat: State<'_, Etat>) -> Result<Compte, Erreur> {
+    etat.suivi.phase(Phase::Connexion);
+    let auth = Auth::login({
+        let app = app.clone();
+        move |code| annoncer(&app, code)
+    })
+    .await?;
 
     let session = auth.session().await?;
+
+    etat.suivi.phase(Phase::Licence);
     let possede_le_jeu = auth.owns_game().await?;
     coffre::enregistrer(&auth.etat().await?)?;
 
@@ -124,22 +199,96 @@ pub async fn connexion(app: AppHandle) -> Result<Compte, Erreur> {
 
 /// Oublie la session.
 #[tauri::command]
-pub fn deconnexion() -> Result<(), Erreur> {
+pub fn deconnexion(etat: State<'_, Etat>) -> Result<(), Erreur> {
     coffre::effacer()?;
+    // Ce qui a été installé reste sur le disque, mais plus personne n'est
+    // connecté pour le lancer : laisser le bouton allumé promettrait une
+    // partie qu'aucune session ne peut ouvrir.
+    *etat.pret.lock().expect("état prêt") = None;
+    etat.suivi.phase(Phase::Connexion);
     tracing::info!("session oubliée");
     Ok(())
 }
 
-/// Ce que le bouton « Jouer » fait pour l'instant : le dire.
+/// Installe le pack — la partie longue.
 ///
-/// Le lancement existe — c'est `mc-pack launch` — mais il n'est pas branché à
-/// cette fenêtre. Rendre un message plutôt qu'une erreur est délibéré : rien
-/// n'a raté, la fonction n'est pas encore là, et un bandeau rouge dirait le
-/// contraire.
+/// Rend la main quand tout est en place. L'avancement ne passe pas par la
+/// valeur de retour mais par l'événement de la cinématique, émis cinq fois par
+/// seconde pendant tout ce temps.
 #[tauri::command]
-pub fn lancer_jeu() -> String {
-    "Le lancement n'est pas encore branché à cette interface — « mc-pack launch » s'en charge."
-        .to_string()
+pub async fn installer(app: AppHandle, etat: State<'_, Etat>) -> Result<Installation, Erreur> {
+    let outcome = cinematique::installer(&app, &etat.suivi).await?;
+
+    let installation = Installation::from(&outcome);
+    *etat.pret.lock().expect("état prêt") = Some(Pret::from(&outcome));
+
+    tracing::info!(
+        instance = %installation.instance,
+        mods = installation.mods,
+        "pack installé, prêt à jouer"
+    );
+    Ok(installation)
+}
+
+/// Lance le jeu avec le compte connecté.
+///
+/// N'installe rien : `docs/lancement.md` pose que les deux gestes restent
+/// séparés, et les enchaîner ferait attendre huit cents mégaoctets à qui
+/// voulait seulement jouer. Sans installation préalable dans cette session, la
+/// commande refuse plutôt que de deviner.
+#[tauri::command]
+pub async fn lancer_jeu(app: AppHandle, etat: State<'_, Etat>) -> Result<String, Erreur> {
+    let pret = etat
+        .pret
+        .lock()
+        .expect("état prêt")
+        .clone()
+        .ok_or_else(|| Erreur("installe le pack avant de lancer le jeu".to_string()))?;
+
+    let session = session_de_jeu().await?;
+    let rapport = cinematique::jouer(&app, &etat.suivi, session, pret).await?;
+
+    etat.suivi.phase(Phase::Pret);
+    Ok(verdict(&rapport))
+}
+
+/// Ce que le jeu a laissé en s'arrêtant, dit en une phrase.
+///
+/// Fermer sa fenêtre n'est pas une panne, et un signal non plus : seul un code
+/// de sortie non nul en est une. Les confondre ferait clignoter un bandeau
+/// rouge à chaque fin de partie.
+fn verdict(rapport: &mc_instance::launch::Report) -> String {
+    match &rapport.outcome {
+        mc_instance::launch::Outcome::Normal => "Partie terminée.".to_string(),
+        mc_instance::launch::Outcome::Interrupted { .. } => "Jeu fermé.".to_string(),
+        mc_instance::launch::Outcome::Failed { code } => {
+            let detail = rapport
+                .errors
+                .first()
+                .map(|erreur| format!(" — {}", erreur.exception))
+                .unwrap_or_default();
+            format!("Le jeu s'est arrêté sur une erreur (code {code}){detail}")
+        }
+    }
+}
+
+/// La session de jeu, reprise du coffre au dernier moment.
+///
+/// Pas celle de la connexion : entre-temps le jeton a pu expirer, et c'est
+/// l'accès qui le rafraîchit. L'état est réécrit derrière, sans quoi le
+/// rafraîchissement serait perdu et le lancement suivant redemanderait un code.
+async fn session_de_jeu() -> Result<mc_instance::launch::Session, Erreur> {
+    let etat = coffre::charger()
+        .ok_or_else(|| Erreur("aucune session — connecte-toi d'abord".to_string()))?;
+    let auth = Auth::resume(&etat)?;
+    let session = auth.session().await?;
+    coffre::enregistrer(&auth.etat().await?)?;
+
+    Ok(mc_instance::launch::Session::online(
+        session.profile.name,
+        session.profile.id,
+        session.minecraft_token,
+    ))
 }
 
 /// Pousse le code vers la fenêtre, et ouvre la page.

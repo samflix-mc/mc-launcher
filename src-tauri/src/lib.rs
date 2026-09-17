@@ -21,8 +21,11 @@
 //! journal est alors la seule chose qu'un joueur puisse joindre à un rapport,
 //! et c'est exactement le moment où il ne faut pas qu'un jeton s'y trouve.
 
+mod cinematique;
 mod coffre;
 mod commandes;
+mod phase;
+mod suivi;
 mod webkit;
 
 /// Monte la fenêtre et rend la main quand elle se ferme.
@@ -46,10 +49,16 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // Le compteur d'avancement vit aussi longtemps que la fenêtre : les
+        // téléchargements l'incrémentent depuis leurs tâches, la boucle
+        // d'émission le lit, et aucune commande ne peut le posséder.
+        .manage(commandes::Etat::default())
         .invoke_handler(tauri::generate_handler![
+            commandes::chemin,
             commandes::statut,
             commandes::connexion,
             commandes::deconnexion,
+            commandes::installer,
             commandes::lancer_jeu,
         ])
         .run(tauri::generate_context!())

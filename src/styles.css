@@ -196,3 +196,93 @@ body {
 .bandeau code {
   font-family: ui-monospace, monospace;
 }
+
+/* --- Le chemin des phases ------------------------------------------------
+   Une liste verticale plutôt qu'une frise horizontale : onze étapes ne
+   tiennent pas en largeur sans devenir illisibles, et l'œil descend une liste
+   plus vite qu'il ne parcourt une frise. */
+
+.chemin {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  gap: 2px;
+}
+
+.etape {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  padding: 3px 0;
+}
+
+.etape__puce {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--bordure);
+}
+
+.etape[data-etat='faite'] .etape__puce {
+  background: var(--accent);
+}
+
+.etape[data-etat='faite'] .etape__libelle {
+  color: var(--texte-attenue);
+}
+
+/* L'étape en cours est la seule information qu'on cherche en regardant la
+   fenêtre : elle est la seule à être mise en avant. */
+.etape[data-etat='en-cours'] .etape__puce {
+  background: var(--accent-clair);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-clair) 25%, transparent);
+}
+
+.etape[data-etat='en-cours'] .etape__libelle {
+  color: var(--texte);
+  font-weight: 600;
+}
+
+.etape[data-etat='a-venir'] .etape__libelle {
+  color: var(--bordure);
+}
+
+/* --- La jauge ------------------------------------------------------------ */
+
+.jauge {
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--fond);
+  border: 1px solid var(--bordure);
+  overflow: hidden;
+}
+
+.jauge__barre {
+  height: 100%;
+  background: var(--accent);
+  /* La largeur change cinq fois par seconde ; sans transition, elle saute. La
+     durée est calée sur la cadence d'émission pour que le mouvement paraisse
+     continu plutôt que saccadé. */
+  transition: width 200ms linear;
+}
+
+.detail {
+  margin: 0;
+  font-size: 13px;
+  color: var(--texte-attenue);
+}
+
+/* Le nom du fichier change plusieurs fois par seconde : il ne doit jamais
+   faire changer la hauteur de la carte, sous peine de faire sauter tout ce
+   qui est en dessous. */
+.detail--fichier {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

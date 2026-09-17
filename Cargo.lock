@@ -3984,12 +3984,17 @@ dependencies = [
  "anyhow",
  "keyring",
  "mc-auth",
+ "mc-dl",
+ "mc-instance",
+ "mc-java",
  "mc-log",
+ "mc-pack",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "tokio",
  "tracing",
 ]
 

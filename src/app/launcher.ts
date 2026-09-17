@@ -18,10 +18,56 @@ export interface CodeAppareil {
 }
 
 /**
- * Le nom de l'événement est écrit des deux côtés — `EVENEMENT_CODE` en Rust.
- * Le changer ici seul laisse une fenêtre qui attend un code déjà émis.
+ * Les identifiants de phase, tels que `phase.rs` les sérialise.
+ *
+ * Écrits des deux côtés : les renommer d'un seul laisse une fenêtre qui
+ * n'éclaire plus la bonne ligne, sans qu'aucune compilation ne s'en plaigne.
  */
+export type Phase =
+  | 'connexion'
+  | 'licence'
+  | 'pack'
+  | 'chargeur'
+  | 'minecraft'
+  | 'java'
+  | 'neo-forge'
+  | 'mods'
+  | 'verrou'
+  | 'pret'
+  | 'lancement';
+
+/** Une phase du chemin, avec de quoi la dessiner. */
+export interface EtapeVue {
+  readonly phase: Phase;
+  readonly libelle: string;
+  readonly rang: number;
+}
+
+/** L'état de l'installation, cinq fois par seconde. */
+export interface Avancement {
+  readonly phase: Phase;
+  readonly note: string | null;
+  readonly fichier: string | null;
+  readonly octets: number;
+  readonly total: number;
+  readonly fichiers: number;
+  readonly fichiersTotal: number;
+  readonly debit: number;
+  readonly restant: number | null;
+}
+
+/** Ce qu'une installation a posé. */
+export interface Installation {
+  readonly instance: string;
+  readonly minecraft: string;
+  readonly neoforge: string;
+  readonly java: string;
+  readonly mods: number;
+  readonly horsLigne: boolean;
+}
+
 const EVENEMENT_CODE = 'auth://code';
+const EVENEMENT_AVANCEMENT = 'cinematique://avancement';
 
 /**
  * Le seul endroit qui parle à Rust.
@@ -34,6 +80,11 @@ const EVENEMENT_CODE = 'auth://code';
 export class Launcher {
   /** Vrai dans la fenêtre Tauri, faux dans un navigateur ordinaire. */
   readonly disponible = isTauri();
+
+  /** Le chemin complet, demandé une fois à l'ouverture. */
+  chemin(): Promise<EtapeVue[]> {
+    return invoke<EtapeVue[]>('chemin');
+  }
 
   /** Le compte déjà connecté sur cette machine, ou `null`. */
   statut(): Promise<Compte | null> {
@@ -50,7 +101,17 @@ export class Launcher {
     return invoke<void>('deconnexion');
   }
 
-  /** Pour l'instant : rend le message expliquant que ce n'est pas branché. */
+  /**
+   * Installe le pack. Plusieurs minutes.
+   *
+   * L'avancement ne passe pas par la promesse : il arrive par événement,
+   * pendant tout ce temps.
+   */
+  installer(): Promise<Installation> {
+    return invoke<Installation>('installer');
+  }
+
+  /** Lance le jeu, et rend la main quand la partie se termine. */
   lancerJeu(): Promise<string> {
     return invoke<string>('lancer_jeu');
   }
@@ -64,6 +125,11 @@ export class Launcher {
    */
   surCodeAppareil(recevoir: (code: CodeAppareil) => void): Promise<UnlistenFn> {
     return listen<CodeAppareil>(EVENEMENT_CODE, (evenement) => recevoir(evenement.payload));
+  }
+
+  /** S'abonne à l'avancement de la cinématique. */
+  surAvancement(recevoir: (avancement: Avancement) => void): Promise<UnlistenFn> {
+    return listen<Avancement>(EVENEMENT_AVANCEMENT, (evenement) => recevoir(evenement.payload));
   }
 
   /** Rouvre la page Microsoft — Rust l'a déjà tenté, ceci est le recours. */
