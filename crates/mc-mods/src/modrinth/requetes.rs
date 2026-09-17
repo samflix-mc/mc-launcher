@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 
 use crate::Candidate;
 
+use super::Modrinth;
 use super::api::{ApiVersion, Project};
 use super::conversion::to_candidate;
-use super::{API, Modrinth};
 
 impl Modrinth {
     pub(super) async fn get_json<T: serde::de::DeserializeOwned>(
@@ -52,7 +52,7 @@ impl Modrinth {
         loader: &str,
     ) -> Result<Vec<Candidate>> {
         let Some(project): Option<Project> = self
-            .get_json(&format!("{API}/project/{id_or_slug}"), &[])
+            .get_json(&self.url(&format!("/project/{id_or_slug}")), &[])
             .await?
         else {
             return Ok(Vec::new());
@@ -63,7 +63,10 @@ impl Modrinth {
             ("game_versions", format!("[\"{mc}\"]")),
         ];
         let versions: Vec<ApiVersion> = self
-            .get_json(&format!("{API}/project/{}/version", project.id), &query)
+            .get_json(
+                &self.url(&format!("/project/{}/version", project.id)),
+                &query,
+            )
             .await?
             .unwrap_or_default();
 

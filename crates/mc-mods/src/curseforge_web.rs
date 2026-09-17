@@ -41,10 +41,24 @@ pub(crate) const PAGE_SIZE: usize = 50;
 /// Le client sans clé : mêmes routes que le site lui-même.
 pub struct CurseForgeWeb {
     pub(crate) dl: Arc<mc_dl::Downloader>,
+    /// Les deux racines sont substituables pour les tests. C'est ici que cela
+    /// compte le plus : ces routes ne sont pas documentées et cfwidget est un
+    /// service tiers bénévole, donc rien de ce qui suit ne peut être vérifié
+    /// contre le vrai service sans le rendre responsable de la CI.
+    pub(crate) web: String,
+    pub(crate) widget: String,
 }
 
 impl CurseForgeWeb {
     pub fn new(dl: Arc<mc_dl::Downloader>) -> Self {
-        Self { dl }
+        Self::avec_bases(dl, WEB, WIDGET)
+    }
+
+    pub(crate) fn avec_bases(dl: Arc<mc_dl::Downloader>, web: &str, widget: &str) -> Self {
+        Self {
+            dl,
+            web: web.to_string(),
+            widget: widget.to_string(),
+        }
     }
 }

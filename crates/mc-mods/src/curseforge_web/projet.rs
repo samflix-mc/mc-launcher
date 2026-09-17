@@ -2,8 +2,8 @@
 
 use anyhow::{Context, Result};
 
+use super::CurseForgeWeb;
 use super::api::Widget;
-use super::{CurseForgeWeb, WIDGET};
 
 impl CurseForgeWeb {
     pub(super) async fn get_json<T: serde::de::DeserializeOwned>(
@@ -40,7 +40,7 @@ impl CurseForgeWeb {
             let response = self
                 .dl
                 .client()
-                .get(format!("{WIDGET}/{slug}"))
+                .get(format!("{}/{slug}", self.widget))
                 .send()
                 .await
                 .with_context(|| format!("cfwidget pour {slug}"))?;
@@ -71,3 +71,7 @@ impl CurseForgeWeb {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "projet.test.rs"]
+mod tests;

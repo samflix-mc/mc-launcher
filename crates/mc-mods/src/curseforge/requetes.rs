@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail};
 use super::api::{ApiMod, Envelope};
 use super::cle::KEY_REFUSED;
 use super::cle::config_key_path;
-use super::{API, CLASS_MODS, CurseForge, GAME_MINECRAFT};
+use super::{CLASS_MODS, CurseForge, GAME_MINECRAFT};
 
 impl CurseForge {
     pub(super) async fn get_json<T: serde::de::DeserializeOwned>(
@@ -53,13 +53,18 @@ impl CurseForge {
             ("slug", slug.to_string()),
         ];
         let found: Option<Envelope<Vec<ApiMod>>> =
-            self.get_json(&format!("{API}/mods/search"), &query).await?;
+            self.get_json(&self.url("/mods/search"), &query).await?;
         Ok(found.and_then(|e| e.data.into_iter().next()))
     }
 
     pub(super) async fn project_by_id(&self, id: u32) -> Result<Option<ApiMod>> {
-        let found: Option<Envelope<ApiMod>> =
-            self.get_json(&format!("{API}/mods/{id}"), &[]).await?;
+        let found: Option<Envelope<ApiMod>> = self
+            .get_json(&self.url(&format!("/mods/{id}")), &[])
+            .await?;
         Ok(found.map(|e| e.data))
     }
 }
+
+#[cfg(test)]
+#[path = "requetes.test.rs"]
+mod tests;

@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 
 use crate::Candidate;
 
+use super::CurseForge;
 use super::api::{ApiFile, Envelope};
 use super::conversion::{loader_type, to_candidate};
-use super::{API, CurseForge};
 
 impl CurseForge {
     /// Versions compatibles, désignées par slug ou par identifiant numérique.
@@ -30,7 +30,7 @@ impl CurseForge {
             ("pageSize", "50".to_string()),
         ];
         let files: Option<Envelope<Vec<ApiFile>>> = self
-            .get_json(&format!("{API}/mods/{}/files", project.id), &query)
+            .get_json(&self.url(&format!("/mods/{}/files", project.id)), &query)
             .await?;
         let files = files.map(|e| e.data).unwrap_or_default();
 
@@ -51,7 +51,7 @@ impl CurseForge {
         // l'exige pas.
         let found: Option<Envelope<Vec<ApiFile>>> = self
             .post_json(
-                &format!("{API}/mods/files"),
+                &self.url("/mods/files"),
                 serde_json::json!({ "fileIds": [file_id] }),
             )
             .await?;

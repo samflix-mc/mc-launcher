@@ -70,3 +70,7 @@ fn link_or_copy(from: &Path, to: &Path) -> Result<()> {
         .with_context(|| format!("copie de {} vers {}", from.display(), to.display()))?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "deploiement.test.rs"]
+mod tests;

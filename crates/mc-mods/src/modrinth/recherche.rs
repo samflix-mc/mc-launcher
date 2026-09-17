@@ -4,21 +4,21 @@ use anyhow::Result;
 
 use crate::Candidate;
 
+use super::Modrinth;
 use super::api::{ApiVersion, Project, SearchResponse};
 use super::conversion::to_candidate;
-use super::{API, Modrinth};
 
 impl Modrinth {
     /// Version précise, pour un build épinglé dans le manifeste.
     pub async fn candidate_by_version(&self, version_id: &str) -> Result<Option<Candidate>> {
         let Some(version): Option<ApiVersion> = self
-            .get_json(&format!("{API}/version/{version_id}"), &[])
+            .get_json(&self.url(&format!("/version/{version_id}")), &[])
             .await?
         else {
             return Ok(None);
         };
         let Some(project): Option<Project> = self
-            .get_json(&format!("{API}/project/{}", version.project_id), &[])
+            .get_json(&self.url(&format!("/project/{}", version.project_id)), &[])
             .await?
         else {
             return Ok(None);
@@ -52,7 +52,7 @@ impl Modrinth {
             ("limit", "5".to_string()),
         ];
         let Some(found): Option<SearchResponse> =
-            self.get_json(&format!("{API}/search"), &query).await?
+            self.get_json(&self.url("/search"), &query).await?
         else {
             return Ok(Vec::new());
         };

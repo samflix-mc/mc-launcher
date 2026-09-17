@@ -3,7 +3,6 @@
 use crate::jar::Side;
 use crate::{Candidate, Channel, Origin};
 
-use super::WEB;
 use super::api::WebFile;
 
 /// Chargeurs que CurseForge nomme dans `gameVersions`.
@@ -41,11 +40,17 @@ pub(super) fn channel_of(release_type: u32) -> Channel {
 /// L'URL du CDN n'est pas reconstruite à partir de l'identifiant : c'est par
 /// cette reconstruction qu'on contournerait le refus d'un auteur d'être
 /// redistribué. Passer par la route du site laisse CurseForge décider.
-pub(super) fn download_url(project_id: u32, file_id: u64) -> String {
-    format!("{WEB}/mods/{project_id}/files/{file_id}/download")
+pub(super) fn download_url(web: &str, project_id: u32, file_id: u64) -> String {
+    format!("{web}/mods/{project_id}/files/{file_id}/download")
 }
 
-pub(super) fn to_candidate(project_id: u32, slug: &str, name: &str, file: WebFile) -> Candidate {
+pub(super) fn to_candidate(
+    web: &str,
+    project_id: u32,
+    slug: &str,
+    name: &str,
+    file: WebFile,
+) -> Candidate {
     Candidate {
         origin: Origin::CurseForge,
         project_id: project_id.to_string(),
@@ -55,7 +60,7 @@ pub(super) fn to_candidate(project_id: u32, slug: &str, name: &str, file: WebFil
         version_number: file.display_name.clone(),
         display_name: file.display_name,
         channel: channel_of(file.release_type),
-        url: download_url(project_id, file.id),
+        url: download_url(web, project_id, file.id),
         file_name: file.file_name,
         // Aucune empreinte publiée par cette source : le SHA-1 sera calculé au
         // téléchargement puis figé dans le verrou.

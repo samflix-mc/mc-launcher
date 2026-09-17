@@ -44,11 +44,26 @@ const RELATION_REQUIRED: u32 = 3;
 pub struct CurseForge {
     pub(crate) dl: Arc<mc_dl::Downloader>,
     pub(crate) key: String,
+    /// Racine de l'API, substituable pour les tests : provoquer un refus de
+    /// clé chez CurseForge n'est pas quelque chose qu'on peut demander.
+    pub(crate) base: String,
 }
 
 impl CurseForge {
     pub fn new(dl: Arc<mc_dl::Downloader>, key: String) -> Self {
-        Self { dl, key }
+        Self::avec_base(dl, key, API)
+    }
+
+    pub(crate) fn avec_base(dl: Arc<mc_dl::Downloader>, key: String, base: &str) -> Self {
+        Self {
+            dl,
+            key,
+            base: base.to_string(),
+        }
+    }
+
+    pub(crate) fn url(&self, chemin: &str) -> String {
+        format!("{}{chemin}", self.base)
     }
 
     /// Construit la source si une clé est disponible, sinon `None`.

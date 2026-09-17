@@ -91,3 +91,7 @@ impl Registry {
             .await
     }
 }
+
+#[cfg(test)]
+#[path = "curseforge.test.rs"]
+mod tests;

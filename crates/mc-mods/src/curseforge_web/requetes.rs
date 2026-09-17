@@ -6,7 +6,7 @@ use crate::{Candidate, DeclaredDep};
 
 use super::api::{Page, WebDependency, WebFile};
 use super::conversion::{compatible, to_candidate};
-use super::{CurseForgeWeb, PAGE_SIZE, WEB};
+use super::{CurseForgeWeb, PAGE_SIZE};
 
 impl CurseForgeWeb {
     /// Versions compatibles publiées par un projet.
@@ -22,7 +22,8 @@ impl CurseForgeWeb {
 
         let Some(page): Option<Page<WebFile>> = self
             .get_json(&format!(
-                "{WEB}/mods/{project_id}/files?pageSize={PAGE_SIZE}&removeAlphas=false"
+                "{}/mods/{project_id}/files?pageSize={PAGE_SIZE}&removeAlphas=false",
+                self.web
             ))
             .await?
         else {
@@ -42,7 +43,7 @@ impl CurseForgeWeb {
             .data
             .into_iter()
             .filter(|f| compatible(&f.game_versions, mc, loader))
-            .map(|f| to_candidate(project_id, &slug, &name, f))
+            .map(|f| to_candidate(&self.web, project_id, &slug, &name, f))
             .collect();
 
         // Rien trouvé alors que le projet publie bien plus que ce qu'on voit :
@@ -69,7 +70,10 @@ impl CurseForgeWeb {
     /// Dépendances obligatoires déclarées, à l'échelle du projet.
     pub(super) async fn dependencies(&self, project_id: u32) -> Result<Option<Vec<DeclaredDep>>> {
         let Some(page): Option<Page<WebDependency>> = self
-            .get_json(&format!("{WEB}/mods/{project_id}/dependencies?pageSize=20"))
+            .get_json(&format!(
+                "{}/mods/{project_id}/dependencies?pageSize=20",
+                self.web
+            ))
             .await?
         else {
             return Ok(None);
@@ -93,3 +97,7 @@ impl CurseForgeWeb {
         ))
     }
 }
+
+#[cfg(test)]
+#[path = "requetes.test.rs"]
+mod tests;

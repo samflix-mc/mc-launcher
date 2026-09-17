@@ -32,7 +32,7 @@ fn le_bon_chargeur_est_exige_quand_il_est_declare() {
 fn l_url_passe_par_la_route_du_site() {
     // Et non par une URL de CDN reconstruite, qui contournerait le refus
     // éventuel de l'auteur.
-    let url = download_url(238222, 8886909);
+    let url = download_url(crate::curseforge_web::WEB, 238222, 8886909);
     assert!(url.starts_with("https://www.curseforge.com/api/v1/"));
     assert!(url.ends_with("/mods/238222/files/8886909/download"));
     assert!(!url.contains("forgecdn"));

@@ -80,3 +80,7 @@ pub async fn resolve_with(
         .sort_by(|a, b| a.candidate.slug.cmp(&b.candidate.slug));
     Ok(plan)
 }
+
+#[cfg(test)]
+#[path = "boucle.test.rs"]
+mod tests;

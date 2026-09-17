@@ -21,10 +21,25 @@ pub(crate) const API: &str = "https://api.modrinth.com/v2";
 /// Le client Modrinth : source prioritaire, et la seule qui publie un SHA-512.
 pub struct Modrinth {
     pub(crate) dl: Arc<mc_dl::Downloader>,
+    /// Racine de l'API. Fixée une fois à la construction, et substituable : les
+    /// tests ne peuvent pas dépendre de la disponibilité de Modrinth, ni
+    /// provoquer chez elle un 500 ou une réponse tronquée.
+    pub(crate) base: String,
 }
 
 impl Modrinth {
     pub fn new(dl: Arc<mc_dl::Downloader>) -> Self {
-        Self { dl }
+        Self::avec_base(dl, API)
+    }
+
+    pub(crate) fn avec_base(dl: Arc<mc_dl::Downloader>, base: &str) -> Self {
+        Self {
+            dl,
+            base: base.to_string(),
+        }
+    }
+
+    pub(crate) fn url(&self, chemin: &str) -> String {
+        format!("{}{chemin}", self.base)
     }
 }

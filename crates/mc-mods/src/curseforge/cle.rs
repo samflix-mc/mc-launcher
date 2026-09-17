@@ -34,3 +34,7 @@ pub fn config_key_path() -> std::path::PathBuf {
         .unwrap_or_else(|| std::path::PathBuf::from("."));
     base.join("samflix-mc").join("curseforge.key")
 }
+
+#[cfg(test)]
+#[path = "cle.test.rs"]
+mod tests;

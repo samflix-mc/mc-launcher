@@ -4,9 +4,9 @@ use anyhow::Result;
 
 use crate::Candidate;
 
+use super::CurseForgeWeb;
 use super::api::WebFile;
 use super::conversion::to_candidate;
-use super::{CurseForgeWeb, WEB};
 
 impl CurseForgeWeb {
     /// Build précis, pour un épinglage du manifeste.
@@ -19,12 +19,14 @@ impl CurseForgeWeb {
             return Ok(None);
         };
         let Some(file): Option<WebFile> = self
-            .get_json(&format!("{WEB}/mods/{project_id}/files/{file_id}"))
+            .get_json(&format!("{}/mods/{project_id}/files/{file_id}", self.web))
             .await?
         else {
             return Ok(None);
         };
-        Ok(Some(to_candidate(project_id, id_or_slug, &name, file)))
+        Ok(Some(to_candidate(
+            &self.web, project_id, id_or_slug, &name, file,
+        )))
     }
 
     /// Cherche le projet portant un `modId`, la recherche par mot-clé étant
@@ -38,3 +40,7 @@ impl CurseForgeWeb {
         self.candidates(mod_id, mc, loader).await
     }
 }
+
+#[cfg(test)]
+#[path = "epingle.test.rs"]
+mod tests;
