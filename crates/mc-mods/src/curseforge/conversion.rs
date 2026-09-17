@@ -8,10 +8,14 @@ use super::{LOADER_FABRIC, LOADER_FORGE, LOADER_NEOFORGE, LOADER_QUILT, RELATION
 
 pub(super) fn loader_type(loader: &str) -> u32 {
     match loader.to_ascii_lowercase().as_str() {
-        "neoforge" => LOADER_NEOFORGE,
         "forge" => LOADER_FORGE,
         "fabric" => LOADER_FABRIC,
         "quilt" => LOADER_QUILT,
+        // NeoForge est le chargeur de ce réseau, et le défaut de ce qu'on ne
+        // sait pas lire : refuser laisserait le pack sans candidat plutôt
+        // qu'avec un mauvais. Il n'est pas cité au-dessus, car une branche qui
+        // rend ce que le défaut rend déjà ne peut être distinguée de son
+        // absence — la suite, elle, exige bien cet identifiant pour lui.
         _ => LOADER_NEOFORGE,
     }
 }

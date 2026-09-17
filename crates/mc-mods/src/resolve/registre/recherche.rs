@@ -61,3 +61,7 @@ impl Registry {
         Ok(Some(found))
     }
 }
+
+#[cfg(test)]
+#[path = "recherche.test.rs"]
+mod tests;
