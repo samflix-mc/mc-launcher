@@ -8,6 +8,7 @@ import {
   type Compte,
   type EtapeVue,
   type Installation,
+  type Marque,
 } from './launcher';
 
 /** Un chemin réduit, mais de même forme que le vrai : 3 étapes + 2 aboutissements. */
@@ -44,6 +45,7 @@ function pose(partiel: Partial<Installation> = {}): Installation {
     java: '21.0.5+11',
     mods: 128,
     introuvables: [],
+    ecarts: [],
     horsLigne: false,
     ...partiel,
   };
@@ -63,6 +65,10 @@ class LauncherDEssai implements Partial<Launcher> {
 
   /** De quoi pousser un avancement depuis le test. */
   pousser: (a: Avancement) => void = () => {};
+
+  marque(): Promise<Marque> {
+    return Promise.resolve({ nom: 'Mon Réseau', sceau: 'MR' });
+  }
 
   chemin(): Promise<EtapeVue[]> {
     return Promise.resolve(CHEMIN);
@@ -244,8 +250,11 @@ describe('App', () => {
     launcher.pousser(avancement({ phase: 'mods', actif: false, note: 'Résolution des mods…' }));
     await fixture.whenStable();
 
-    const barre = element(fixture).querySelector('.jauge__barre');
-    expect(barre?.classList.contains('jauge__barre--indeterminee')).toBe(true);
+    // Un élément distinct, et non la barre chiffrée : la barre porte une
+    // largeur, le glisseur une position. Les mélanger faisait revenir le
+    // dégradé d'un bord à l'autre d'un coup.
+    expect(element(fixture).querySelector('.jauge__glisseur')).not.toBeNull();
+    expect(element(fixture).querySelector('.jauge__barre')).toBeNull();
     expect(texte(fixture)).toContain('Résolution des mods…');
   });
 

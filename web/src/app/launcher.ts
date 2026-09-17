@@ -3,6 +3,12 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
+/** Sous quel nom le launcher se présente, figé à la compilation. */
+export interface Marque {
+  readonly nom: string;
+  readonly sceau: string;
+}
+
 /** Le compte connecté, tel que `commandes.rs` le sérialise. */
 export interface Compte {
   readonly pseudo: string;
@@ -69,6 +75,8 @@ export interface Installation {
   readonly mods: number;
   /** Les mods que la résolution n'a pas trouvés. */
   readonly introuvables: readonly string[];
+  /** Ce par quoi l'installation s'écarte du verrou publié. */
+  readonly ecarts: readonly string[];
   readonly horsLigne: boolean;
 }
 
@@ -86,6 +94,11 @@ const EVENEMENT_AVANCEMENT = 'cinematique://avancement';
 export class Launcher {
   /** Vrai dans la fenêtre Tauri, faux dans un navigateur ordinaire. */
   readonly disponible = isTauri();
+
+  /** Le nom du launcher, demandé une fois à l'ouverture. */
+  marque(): Promise<Marque> {
+    return invoke<Marque>('marque');
+  }
 
   /** Le chemin complet, demandé une fois à l'ouverture. */
   chemin(): Promise<EtapeVue[]> {
@@ -147,6 +160,18 @@ export class Launcher {
   ouvrirPage(url: string): Promise<void> {
     return openUrl(url);
   }
+}
+
+/**
+ * La tête du joueur, rendue en trois dimensions par mc-heads.net.
+ *
+ * Un service tiers, et c'est un choix : l'UUID part chez lui. Il est public —
+ * n'importe quel serveur où le joueur se connecte le connaît — et c'est le
+ * prix d'un vrai rendu de skin plutôt qu'une pastille de couleur. Le CSP de
+ * `tauri.conf.json` autorise ce domaine et lui seul.
+ */
+export function teteDuJoueur(uuid: string, taille = 96): string {
+  return `https://mc-heads.net/head/${encodeURIComponent(uuid)}/${taille}`;
 }
 
 /**

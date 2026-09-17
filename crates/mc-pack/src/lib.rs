@@ -51,6 +51,10 @@ pub struct Outcome {
     pub source: String,
     /// Le pack distant était injoignable et la copie locale a servi.
     pub from_cache: bool,
+    /// Ce par quoi l'installation s'écarte du verrou rejoué. Vide quand les
+    /// deux coïncident un pour un — et toujours vide hors rejeu, où il n'y a
+    /// rien à quoi se comparer.
+    pub ecarts: Vec<String>,
 }
 
 #[derive(Debug, Default)]

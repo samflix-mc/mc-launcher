@@ -361,16 +361,23 @@ body {
   letter-spacing: 0.5px;
 }
 
-.joueur__identite {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
+/* Le rendu de tête isométrique de mc-heads : une image carrée, sans habillage.
+   `image-rendering: pixelated` conserve les pixels du skin — un lissage
+   bilinéaire rendrait une bouillie sur une texture de 8 pixels de côté. */
+.joueur__tete {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55));
 }
 
 .joueur__pseudo {
   font-size: 15px;
   font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .action {
@@ -459,26 +466,30 @@ body {
 }
 
 /* Entre deux lots — la résolution des mods, l'installateur NeoForge — il n'y a
-   rien à chiffrer. Une barre qui glisse dit « ça travaille » sans prétendre
-   savoir combien il reste. */
-.jauge__barre--indeterminee {
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--accent-clair) 45%,
-    var(--accent-clair) 55%,
-    transparent
-  );
-  animation: glisse 1.4s ease-in-out infinite;
-  transition: none;
+   rien à chiffrer. Un segment qui traverse dit « ça travaille » sans prétendre
+   savoir combien il reste.
+
+   Il doit sortir **entièrement** du cadre des deux côtés : c'est la seule
+   façon que le retour au début ne se voie pas. Une translation de -60 % à
+   +60 % laissait le segment visible aux deux extrémités, et le cycle se
+   terminait par un saut d'un bord à l'autre — un va-et-vient saccadé plutôt
+   qu'un glissement. Le segment fait 32 % de la piste, et la translation, qui
+   se compte en pourcentage de sa propre largeur, l'emmène de -35 % à +134 %
+   de la piste : invisible au départ comme à l'arrivée. */
+.jauge__glisseur {
+  height: 100%;
+  width: 32%;
+  border-radius: 2px;
+  background: var(--accent-clair);
+  animation: glisse 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 @keyframes glisse {
-  0% {
-    transform: translateX(-60%);
+  from {
+    transform: translateX(-110%);
   }
-  100% {
-    transform: translateX(60%);
+  to {
+    transform: translateX(420%);
   }
 }
 

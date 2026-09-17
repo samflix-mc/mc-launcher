@@ -2,6 +2,7 @@
 
 mod chargeur;
 mod compte_rendu;
+mod conformite;
 mod java;
 mod mods;
 mod mojang;
@@ -109,6 +110,28 @@ pub async fn install(
         replay,
     )?;
 
+    // Rejouer un verrou publié, c'est lui obéir — encore faut-il vérifier
+    // qu'on y est arrivé. Un build retiré de sa source, une déduplication qui
+    // a tranché autrement : l'installation se termine « bien », et l'écart
+    // n'apparaît qu'à la connexion, sous la forme d'une éjection qui ne nomme
+    // pas sa cause.
+    let ecarts = if replay {
+        let ecarts = conformite::ecarts(
+            &lock,
+            pose.plan
+                .mods
+                .iter()
+                .map(|m| (m.candidate.slug.as_str(), m.candidate.version_id.as_str())),
+        );
+        for ecart in &ecarts {
+            tracing::warn!(ecart, "l'installation s'écarte du verrou publié");
+            rapport.note(&format!("  ⚠ {ecart}"));
+        }
+        ecarts
+    } else {
+        Vec::new()
+    };
+
     Ok(compte_rendu::assembler(
         source,
         pose,
@@ -119,6 +142,7 @@ pub async fn install(
         previous_lock,
         neoforge_version,
         from_cache,
+        ecarts,
     ))
 }
 

@@ -38,14 +38,22 @@ fn hors_ligne(pseudo: &str) -> Session {
     Session::offline(&profil.name, &profil.id)
 }
 
+/// Ce qu'on dit quand personne n'est connecté.
+///
+/// Une constante plutôt qu'un littéral au point d'appel : le message doit
+/// donner **les deux** issues — se connecter, ou jouer hors ligne — et c'est la
+/// seule chose qui s'en vérifie. L'éprouver en appelant [`en_ligne`] voudrait
+/// dire garantir qu'aucune session n'existe sur la machine qui exécute la
+/// suite. Le trousseau du système ne se déplace pas avec une variable
+/// d'environnement, contrairement au fichier : le test passerait ou non selon
+/// que le développeur est connecté, ce qui n'apprend rien sur le code.
+pub(crate) const SANS_SESSION: &str = "aucune session enregistrée.\n\
+     Se connecter avec « mc-auth login », ou jouer hors ligne avec « --pseudo <NOM> ».";
+
 /// La session enregistrée par `mc-auth login`, rafraîchie si besoin.
 async fn en_ligne() -> Result<Session> {
     let Some(etat) = mc_auth::charger() else {
-        bail!(
-            "aucune session enregistrée.\n\
-             Se connecter avec « mc-auth login », ou jouer hors ligne avec \
-             « --pseudo <NOM> »."
-        );
+        bail!(SANS_SESSION);
     };
 
     let auth = mc_auth::Auth::resume(&etat)?;

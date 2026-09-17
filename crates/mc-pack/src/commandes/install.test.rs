@@ -29,6 +29,7 @@ fn resultat(atelier: &Atelier) -> mc_pack::Outcome {
         previous_lock: None,
         source: "packs/samflix.json".into(),
         from_cache: false,
+        ecarts: Vec::new(),
     }
 }
 

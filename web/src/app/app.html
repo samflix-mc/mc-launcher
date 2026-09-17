@@ -6,9 +6,9 @@
 <div class="app" [attr.data-flou]="erreur() ? '' : null">
   <header class="heros">
     <div class="marque">
-      <span class="marque__sceau" aria-hidden="true">SM</span>
+      <span class="marque__sceau" aria-hidden="true">{{ marque().sceau }}</span>
       <div>
-        <h1>samflix-mc</h1>
+        <h1>{{ marque().nom }}</h1>
         <p class="marque__sous-titre">Launcher</p>
       </div>
     </div>
@@ -87,6 +87,14 @@
         </p>
       }
 
+      @if (ecarts().length > 0) {
+        <p class="note note--attention">
+          {{ ecarts().length }} écarts avec le verrou publié : ce qui est installé
+          ne correspond pas exactement à ce que les serveurs attendent.
+          <span class="note__detail">{{ ecarts().join(' · ') }}</span>
+        </p>
+      }
+
       @if (installation()?.horsLigne) {
         <p class="note note--attention">
           Pack repris de la dernière copie connue : il peut ne plus correspondre
@@ -108,18 +116,31 @@
   <footer class="actions">
     @if (compte(); as c) {
       <div class="joueur">
-        <span
-          class="joueur__pastille"
-          [style.--teinte]="teinte(c.uuid)"
-          aria-hidden="true"
-          >{{ initiales(c.pseudo) }}</span
+        @if (teteIndisponible()) {
+          <!-- Le rendu n'a pas pu être chargé : une pastille vaut mieux que
+               l'icône d'image cassée du navigateur. -->
+          <span class="joueur__pastille" [style.--teinte]="teinte(c.uuid)" aria-hidden="true">{{
+            initiales(c.pseudo)
+          }}</span>
+        } @else {
+          <img
+            class="joueur__tete"
+            [src]="tete(c.uuid)"
+            [alt]="'Tête de ' + c.pseudo"
+            width="64"
+            height="64"
+            (error)="teteEnEchec()"
+          />
+        }
+        <span class="joueur__pseudo">{{ c.pseudo }}</span>
+        <button
+          type="button"
+          class="lien lien--discret"
+          [disabled]="occupe()"
+          (click)="deconnecter()"
         >
-        <div class="joueur__identite">
-          <span class="joueur__pseudo">{{ c.pseudo }}</span>
-          <button type="button" class="lien lien--discret" [disabled]="occupe()" (click)="deconnecter()">
-            Se déconnecter
-          </button>
-        </div>
+          Se déconnecter
+        </button>
       </div>
     } @else {
       <div class="joueur joueur--vide">Aucun compte connecté</div>
@@ -131,11 +152,16 @@
           <div class="progression__chiffre">{{ pourcent() }} %</div>
           <div class="progression__detail">
             <div class="jauge" role="progressbar" [attr.aria-valuenow]="progression()">
-              <div
-                class="jauge__barre"
-                [class.jauge__barre--indeterminee]="!vu.actif"
-                [style.width.%]="vu.actif ? progression() : 100"
-              ></div>
+              @if (vu.actif) {
+                <div class="jauge__barre" [style.width.%]="progression()"></div>
+              } @else {
+                <!--
+                  Un élément distinct, et non la même barre animée : la barre
+                  porte une largeur, le glisseur une position. Les mélanger
+                  faisait revenir le dégradé d'un bord à l'autre d'un coup.
+                -->
+                <div class="jauge__glisseur"></div>
+              }
             </div>
             @if (etapeCourante(); as etape) {
               <p class="progression__etape">

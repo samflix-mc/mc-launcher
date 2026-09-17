@@ -5,6 +5,8 @@ import * as format from './format';
 import {
   Launcher,
   messageDErreur,
+  teteDuJoueur,
+  type Marque,
   type Avancement,
   type CodeAppareil,
   type Compte,
@@ -39,6 +41,7 @@ export class App implements OnDestroy {
   /** Faux hors de la fenêtre Tauri : l'écran le dit plutôt que d'échouer. */
   protected readonly disponible = this.launcher.disponible;
 
+  protected readonly marque = signal<Marque>({ nom: 'launcher', sceau: '??' });
   protected readonly chemin = signal<EtapeVue[]>([]);
   protected readonly compte = signal<Compte | null>(null);
   protected readonly code = signal<CodeAppareil | null>(null);
@@ -62,6 +65,9 @@ export class App implements OnDestroy {
 
   /** Les mods que la résolution n'a pas trouvés, s'il y en a. */
   protected readonly introuvables = computed(() => this.installation()?.introuvables ?? []);
+
+  /** Ce par quoi l'installation s'écarte du verrou publié. */
+  protected readonly ecarts = computed(() => this.installation()?.ecarts ?? []);
 
   /** Combien d'étapes comptent réellement dans la progression. */
   private readonly etapesUtiles = computed(
@@ -141,6 +147,7 @@ export class App implements OnDestroy {
         await this.launcher.surAvancement((avancement) => this.avancement.set(avancement)),
         await this.launcher.surCodeAppareil((code) => this.code.set(code)),
       );
+      this.marque.set(await this.launcher.marque());
       this.chemin.set(await this.launcher.chemin());
       this.installation.set(await this.launcher.installation());
       this.compte.set(await this.launcher.statut());
@@ -225,6 +232,23 @@ export class App implements OnDestroy {
 
   protected teinte(identifiant: string): number {
     return format.teinte(identifiant);
+  }
+
+  /** L'adresse du rendu de tête, pour l'attribut `src`. */
+  protected tete(uuid: string): string {
+    return teteDuJoueur(uuid);
+  }
+
+  /**
+   * Le rendu n'a pas pu être chargé — hors ligne, service indisponible.
+   *
+   * On retombe sur la pastille de couleur plutôt que de laisser l'icône
+   * d'image cassée du navigateur, qui est ce qu'on remarque le plus.
+   */
+  protected readonly teteIndisponible = signal(false);
+
+  protected teteEnEchec(): void {
+    this.teteIndisponible.set(true);
   }
 
   protected initiales(pseudo: string): string {

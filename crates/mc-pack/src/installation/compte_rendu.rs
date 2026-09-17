@@ -19,6 +19,7 @@ pub(super) fn assembler(
     previous_lock: Option<Lockfile>,
     neoforge: String,
     from_cache: bool,
+    ecarts: Vec<String>,
 ) -> Outcome {
     Outcome {
         instance: pose.instance,
@@ -35,5 +36,6 @@ pub(super) fn assembler(
         previous_lock,
         source: source.describe(),
         from_cache,
+        ecarts,
     }
 }

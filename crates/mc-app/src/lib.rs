@@ -23,6 +23,7 @@
 
 mod cinematique;
 mod commandes;
+mod marque;
 mod phase;
 mod suivi;
 mod webkit;
@@ -52,7 +53,20 @@ pub fn run() {
         // téléchargements l'incrémentent depuis leurs tâches, la boucle
         // d'émission le lit, et aucune commande ne peut le posséder.
         .manage(commandes::Etat::default())
+        // Le titre de `tauri.conf.json` est figé dans le fichier ; celui-ci
+        // vient de `MC_LAUNCHER_NOM`. Le poser ici évite d'avoir deux endroits
+        // à changer pour renommer le launcher, dont un qu'on oublie.
+        .setup(|app| {
+            use tauri::Manager;
+            if let Some(fenetre) = app.get_webview_window("main")
+                && let Err(erreur) = fenetre.set_title(marque::nom())
+            {
+                tracing::warn!(erreur = %erreur, "titre de la fenêtre inchangé");
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
+            commandes::marque,
             commandes::chemin,
             commandes::statut,
             commandes::connexion,

@@ -14,6 +14,7 @@ use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::cinematique;
+use crate::marque::Marque;
 use crate::phase::Phase;
 use crate::suivi::Suivi;
 
@@ -121,6 +122,9 @@ pub struct Installation {
     /// même, mais NeoForge refusera de démarrer s'ils lui manquent : c'est à
     /// dire tout de suite, pas au premier lancement.
     pub introuvables: Vec<String>,
+    /// Ce par quoi l'installation s'écarte du verrou publié. Vide quand les
+    /// deux coïncident un pour un.
+    pub ecarts: Vec<String>,
     /// Le pack distant était injoignable et la copie locale a servi : ce que
     /// le joueur installe peut ne plus correspondre aux serveurs.
     pub hors_ligne: bool,
@@ -140,6 +144,7 @@ impl From<&mc_pack::Outcome> for Installation {
                 .iter()
                 .map(|manque| format!("{} (exigé par {})", manque.mod_id, manque.required_by))
                 .collect(),
+            ecarts: outcome.ecarts.clone(),
             hors_ligne: outcome.from_cache,
         }
     }
@@ -189,6 +194,15 @@ pub fn chemin() -> Vec<EtapeVue> {
             rang: phase.rang(),
         })
         .collect()
+}
+
+/// Sous quel nom le launcher se présente.
+///
+/// Figé à la compilation par `MC_LAUNCHER_NOM` : « samflix-mc » est le nom du
+/// réseau aujourd'hui, pas une constante du produit.
+#[tauri::command]
+pub fn marque() -> Marque {
+    Marque::courante()
 }
 
 /// Le compte déjà connecté sur cette machine, s'il y en a un.
