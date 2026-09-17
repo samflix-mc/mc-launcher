@@ -29,6 +29,13 @@ pub fn ouvrir(command: &str, source: &Source) -> tracing::span::EnteredSpan {
 
 /// Une erreur remontée jusqu'ici met fin au programme : c'est le dernier
 /// endroit où elle peut devenir un incident plutôt qu'un simple message.
+///
+/// Hors de portée des tests de mutation : tout ce que fait cette fonction est
+/// d'émettre une ligne de journal — que la couche Sentry transforme en
+/// incident, ce qui se vérifie chez elle — et d'écrire le chemin du fichier
+/// détaillé sur la sortie d'erreur. Rust ne permet de relire ni l'une ni
+/// l'autre depuis le processus qui les produit.
+#[mutants::skip]
 pub fn conclure(command: &str, result: &Result<ExitCode>, debut: Instant, log: &mc_log::Guard) {
     match &result {
         Ok(_) => tracing::info!(

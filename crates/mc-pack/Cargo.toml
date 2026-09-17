@@ -26,3 +26,9 @@ path = "src/main.rs"
 
 [dev-dependencies]
 mc-essais = { path = "../mc-essais" }
+
+# Le transport de test du SDK : il retient les incidents au lieu de les
+# envoyer. Sans lui, ce qui part chez Sentry quand le jeu plante ne se
+# vérifierait qu'en lisant le tableau de bord, une fois l'incident survenu
+# chez un joueur.
+sentry = { workspace = true, features = ["test"] }

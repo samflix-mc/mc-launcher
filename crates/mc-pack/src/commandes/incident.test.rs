@@ -63,9 +63,99 @@ fn une_exception_traversee_se_distingue_d_une_erreur_fatale() {
     let crash = mc_instance::crash::parse(TRACE).expect("une exception");
     let lock = verrou(vec![entree("jei", "both")]);
 
-    // Sans client Sentry, l'identifiant rendu est nul — ce qui compte ici est
-    // que les deux chemins, fatal et traversé, s'assemblent sans paniquer.
-    let fatale = report_game_error(&instance, &lock, "neoforge-21.1.250", &crash, Some(1));
-    let traversee = report_game_error(&instance, &lock, "neoforge-21.1.250", &crash, None);
-    assert_eq!(fatale, traversee, "aucun client : les deux sont nuls");
+    let mut identifiant = None;
+    let evenements = sentry::test::with_captured_events(|| {
+        identifiant = Some(report_game_error(
+            &instance,
+            &lock,
+            "neoforge-21.1.250",
+            &crash,
+            Some(1),
+        ));
+    });
+
+    assert_eq!(evenements.len(), 1, "{evenements:?}");
+    assert_ne!(
+        identifiant.unwrap(),
+        sentry::types::Uuid::nil(),
+        "aucun identifiant à donner au joueur"
+    );
+
+    // Le contexte joint est ce qu'on demanderait sinon au joueur, question
+    // par question.
+    let extra = &evenements[0].extra;
+    assert_eq!(extra["version"].as_str(), Some("neoforge-21.1.250"));
+    assert_eq!(extra["minecraft"].as_str(), Some("1.21.1"));
+    assert_eq!(extra["neoforge"].as_str(), Some("21.1.250"));
+    assert_eq!(extra["code_sortie"].as_str(), Some("1"));
+    assert!(
+        extra["mods"].as_str().unwrap().contains("jei"),
+        "la liste des mods manque : {extra:?}"
+    );
+
+    // Sans code de sortie, l'incident se distingue d'une erreur fatale :
+    // autrement, les deux se confondraient dans le tableau de bord.
+    let traversees = sentry::test::with_captured_events(|| {
+        report_game_error(&instance, &lock, "neoforge-21.1.250", &crash, None);
+    });
+    assert!(
+        !traversees[0].extra.contains_key("code_sortie"),
+        "{:?}",
+        traversees[0].extra
+    );
+}
+
+/// Un plantage avec trace devient un incident à part entière : c'est le seul
+/// moment où l'on dispose de l'exception, et un joueur ne pensera ni à la
+/// trouver ni à la joindre.
+#[test]
+fn un_plantage_avec_trace_part_comme_incident() {
+    let atelier = Atelier::neuf("incident-envoi");
+    atelier.pack_installe(vec![entree("jei", "both")]);
+    let instance = atelier.options().layout.instance("samflix");
+
+    let debut = lancement();
+    let logs = instance.game_dir.join("logs");
+    std::fs::create_dir_all(&logs).unwrap();
+    std::fs::write(logs.join("latest.log"), TRACE).unwrap();
+
+    let evenements = sentry::test::with_captured_events(|| {
+        report_game_crash(
+            &instance,
+            &verrou(vec![entree("jei", "both")]),
+            "neoforge-21.1.250",
+            debut,
+            1,
+        );
+    });
+
+    assert_eq!(evenements.len(), 1, "{evenements:?}");
+    let exception = evenements[0]
+        .exception
+        .values
+        .first()
+        .expect("la trace est jointe comme exception");
+    assert_eq!(exception.ty, "java.lang.module.ResolutionException");
+}
+
+/// Sans trace, aucun incident de jeu ne part : il n'y a pas d'exception à
+/// regrouper, et un incident vide encombrerait le tableau de bord sans rien
+/// apprendre.
+#[test]
+fn un_plantage_sans_trace_n_envoie_pas_d_incident_de_jeu() {
+    let atelier = Atelier::neuf("incident-muet");
+    atelier.pack_installe(Vec::new());
+    let instance = atelier.options().layout.instance("samflix");
+
+    let evenements = sentry::test::with_captured_events(|| {
+        report_game_crash(
+            &instance,
+            &verrou(Vec::new()),
+            "neoforge-21.1.250",
+            lancement(),
+            1,
+        );
+    });
+
+    assert!(evenements.is_empty(), "{evenements:?}");
 }
