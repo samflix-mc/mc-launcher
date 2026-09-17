@@ -15,6 +15,7 @@ fn faux_jeu(script: &str) -> Command {
 #[cfg(unix)]
 #[tokio::test]
 async fn une_partie_qui_se_termine_bien_ne_remonte_rien() {
+    let _atelier = crate::essais::atelier();
     let rapport = run(&faux_jeu("echo 'Stopping worker threads'"))
         .await
         .expect("le processus démarre");
@@ -29,6 +30,7 @@ async fn une_partie_qui_se_termine_bien_ne_remonte_rien() {
 #[cfg(unix)]
 #[tokio::test]
 async fn une_exception_relevee_en_cours_de_partie_est_retenue() {
+    let _atelier = crate::essais::atelier();
     let rapport = run(&faux_jeu(
         "echo 'java.lang.NullPointerException: rien du tout'; \
          echo '	at net.minecraft.Foo(Foo.java:1)'; \
@@ -51,6 +53,7 @@ async fn une_exception_relevee_en_cours_de_partie_est_retenue() {
 #[cfg(unix)]
 #[tokio::test]
 async fn la_sortie_d_erreur_est_lue_comme_la_sortie_standard() {
+    let _atelier = crate::essais::atelier();
     let rapport = run(&faux_jeu(
         "echo 'java.io.IOException: disque plein' >&2; exit 1",
     ))
@@ -64,6 +67,7 @@ async fn la_sortie_d_erreur_est_lue_comme_la_sortie_standard() {
 #[cfg(unix)]
 #[tokio::test]
 async fn un_java_introuvable_se_dit_avec_son_chemin() {
+    let _atelier = crate::essais::atelier();
     let commande = Command {
         java: std::path::PathBuf::from("/usr/lib/jvm/qui-n-existe-pas/bin/java"),
         args: Vec::new(),

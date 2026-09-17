@@ -141,6 +141,46 @@ pub(crate) const VANILLA: &str = r#"{
   }
 }"#;
 
+/// Sérialise les tests qui écrivent un exécutable ou qui en lancent un.
+///
+/// Sans cela, la suite échoue par intermittence sur `ETXTBSY` — « Text file
+/// busy ». Un test écrit un script et l'exécute ; un autre, au même instant,
+/// duplique le processus pour lancer `/bin/sh`. L'enfant hérite un instant du
+/// descripteur d'écriture encore ouvert, et le noyau refuse d'exécuter un
+/// fichier que quelqu'un tient en écriture. Rien dans le code vérifié n'est en
+/// cause, et la panne ne se voit qu'à la charge : elle a mis sept machines en
+/// parallèle à se déclarer.
+///
+/// Le verrou ferme la fenêtre des deux côtés — aucune écriture pendant qu'un
+/// autre test lance un processus, et réciproquement. C'est le même garde, et
+/// le même `ETXTBSY`, que mc-java tient dans son propre module d'essais.
+///
+/// Un verrou atomique plutôt qu'un `Mutex` : ces tests sont asynchrones, et
+/// tenir un `MutexGuard` à travers un `await` est exactement ce que clippy
+/// refuse — à raison, puisque rien ne garantit que la tâche reprenne sur le
+/// même fil.
+static ATELIER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) struct Atelier;
+
+/// À tenir pendant qu'on fabrique un exécutable, ou qu'on en lance un.
+pub(crate) fn atelier() -> Atelier {
+    use std::sync::atomic::Ordering;
+    while ATELIER
+        .compare_exchange_weak(false, true, Ordering::Acquire, Ordering::Relaxed)
+        .is_err()
+    {
+        std::thread::yield_now();
+    }
+    Atelier
+}
+
+impl Drop for Atelier {
+    fn drop(&mut self) {
+        ATELIER.store(false, std::sync::atomic::Ordering::Release);
+    }
+}
+
 /// Le delta d'un chargeur : il hérite du socle et remplace une bibliothèque.
 pub(crate) const NEOFORGE: &str = r#"{
   "id": "neoforge-21.1.250",

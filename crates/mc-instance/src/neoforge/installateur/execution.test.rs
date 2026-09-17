@@ -12,6 +12,7 @@ fn la_queue_garde_les_dernieres_lignes() {
 #[cfg(unix)]
 #[tokio::test]
 async fn un_installateur_qui_reussit_ne_dit_rien() {
+    let _atelier = crate::essais::atelier();
     let dir = std::env::temp_dir();
     run_installer(
         std::path::Path::new("installateur.jar"),
@@ -29,6 +30,7 @@ async fn un_installateur_qui_reussit_ne_dit_rien() {
 #[cfg(unix)]
 #[tokio::test]
 async fn un_echec_rapporte_les_deux_sorties() {
+    let _atelier = crate::essais::atelier();
     let script = std::env::temp_dir().join(format!("mc-neoforge-echec-{}", std::process::id()));
     std::fs::write(
         &script,
@@ -61,6 +63,7 @@ async fn un_echec_rapporte_les_deux_sorties() {
 #[cfg(unix)]
 #[tokio::test]
 async fn un_java_introuvable_nomme_l_installateur() {
+    let _atelier = crate::essais::atelier();
     let erreur = run_installer(
         std::path::Path::new("/cache/neoforge-21.1.250-installer.jar"),
         "--install-client",
