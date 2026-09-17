@@ -33,6 +33,10 @@ fn la_release_nomme_le_launcher_et_non_le_crate_qui_journalise() {
 
 #[test]
 fn l_environnement_est_celui_qui_est_declare() {
+    // Les deux lectures doivent porter sur la même déclaration : sans ce
+    // verrou, la suite de `environment::resolution` peut poser sa valeur entre
+    // elles, et ce test échouerait pour une raison qui ne le concerne pas.
+    let _garde = crate::essais::environnement_stable();
     assert_eq!(
         options().environment.as_deref(),
         Some(crate::environment::current().as_str())

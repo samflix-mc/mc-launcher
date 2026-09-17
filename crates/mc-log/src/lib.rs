@@ -59,6 +59,8 @@
 
 mod console;
 pub mod environment;
+#[cfg(test)]
+mod essais;
 mod fichier;
 mod guard;
 pub mod incidents;

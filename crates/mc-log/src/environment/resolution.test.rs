@@ -61,29 +61,33 @@ fn seuls_les_environnements_publies_sont_dits_deployes() {
 /// déclaration » sur la même exécution envoie chercher au mauvais endroit.
 #[test]
 fn le_diagnostic_dit_d_ou_vient_l_environnement() {
-    use super::{current, origin};
+    use super::{COMPILED, current, origin};
 
-    // SAFETY : la variable est posée puis retirée dans le même test, et aucun
-    // autre test de ce crate ne lit SAMFLIX_ENV.
-    unsafe {
-        std::env::set_var("SAMFLIX_ENV", "staging");
-    }
+    let garde = crate::essais::environnement("staging");
     assert_eq!(current(), Environment::Preproduction);
     assert_eq!(origin(), "variable SAMFLIX_ENV au lancement");
 
     // Une valeur illisible ne doit pas être annoncée comme une déclaration :
     // c'est précisément le cas où l'on cherche pourquoi l'environnement n'est
     // pas celui qu'on croyait.
-    unsafe {
-        std::env::set_var("SAMFLIX_ENV", "prodction");
-    }
+    garde.poser("prodction");
     assert_ne!(origin(), "variable SAMFLIX_ENV au lancement");
 
-    unsafe {
-        std::env::remove_var("SAMFLIX_ENV");
+    // Sans déclaration au lancement, il ne reste que ce que la compilation a
+    // pu figer : rien sur un poste, « development » sur la CI, qui compile
+    // avec la variable posée. Ce test dit l'accord des deux réponses ; il ne
+    // peut pas dire laquelle, sans quoi il mesurerait le runner.
+    garde.retirer();
+    match COMPILED.and_then(Environment::parse) {
+        Some(compile) => {
+            assert_eq!(current(), compile);
+            assert_eq!(origin(), "SAMFLIX_ENV figé à la compilation");
+        }
+        None => {
+            assert_eq!(current(), Environment::Local);
+            assert_eq!(origin(), "défaut, aucune déclaration");
+        }
     }
-    assert_eq!(current(), Environment::Local);
-    assert!(origin().contains("défaut") || origin().contains("compilation"));
 }
 
 #[test]
