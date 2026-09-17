@@ -1,0 +1,336 @@
+name: Mutation
+
+# La couverture dit quelles lignes ont été exécutées, jamais si quelqu'un a
+# regardé le résultat. Un test qui appelle une fonction sans rien vérifier
+# couvre ses lignes à 100 % et ne tombera pas le jour où elle rendra le
+# contraire. Les tests de mutation posent l'autre question : si l'on change ce
+# code — une comparaison inversée, une addition en soustraction, un retour
+# remplacé par une valeur par défaut — la suite s'en aperçoit-elle ?
+#
+# Un mutant « survivant » désigne donc une ligne exécutée mais non vérifiée.
+# C'est la mesure qui manquait à côté des 80 % de SonarQube Cloud.
+#
+# UNIQUEMENT SUR LES PULL REQUESTS, ET UNIQUEMENT SUR LEUR DIFF. Le dépôt
+# entier compte plus de mille mutants, et chacun coûte une recompilation : le
+# diff d'une PR ordinaire en compte quelques dizaines, et la réponse arrive
+# pendant la revue — la seule façon qu'elle serve à quelque chose. Pour passer
+# tout le dépôt au crible, il reste le déclenchement manuel ci-dessous.
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tout:
+        description: "Passer tout le dépôt au crible, et non le seul diff"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  # Le même environnement que les contrôles et la couverture : plusieurs tests
+  # lisent SAMFLIX_ENV, et un mutant jugé sous un autre régime ne dit rien du
+  # code que la CI construit.
+  SAMFLIX_ENV: development
+
+  # Au-delà, la part est confiée à un runner de plus. Le découpage est calculé
+  # à chaque exécution, et non figé : une PR de trois fichiers ne réserve pas
+  # onze machines, et une refonte qui déplace tout le dépôt ne fait pas
+  # attendre une heure.
+  #
+  # Cent, parce qu'une part coûte huit secondes de mise en place, soixante-dix
+  # secondes de suite non mutée, puis cinq secondes par mutant et par tâche.
+  # Avec quatre tâches, cent mutants tiennent sous les cinq minutes — le temps
+  # qu'on accepte d'attendre sans quitter la revue des yeux. Les deux premiers
+  # termes sont incompressibles : la suite non mutée doit tourner dans chaque
+  # part, et la sortir mettrait un build complet sur le chemin critique du
+  # découpage, que les parts attendent.
+  MUTANTS_PAR_PART: 100
+
+  # Garde-fou, et il a servi. Une matrice se compte en machines réellement
+  # démarrées, or un compte n'en obtient qu'un nombre limité à la fois : à
+  # onze parts, l'une d'elles a attendu cinquante-cinq minutes qu'un runner se
+  # libère, puis s'est fait couper par son propre délai. Les dix autres avaient
+  # fini en dix minutes.
+  #
+  # Dix parts tiennent dans ce que GitHub accorde, en laissant la place aux
+  # trois autres workflows qui démarrent en même temps. Au-delà, les parts
+  # grossissent plutôt que de se multiplier : mieux vaut une part de deux cents
+  # mutants qui tourne qu'une part de cent qui attend.
+  PARTS_MAX: 10
+
+  # Zéro, et c'est tenu : les mille douze mutants du dépôt sont tués, sauf
+  # ceux qu'aucun test ne pourrait atteindre — et ceux-là sont nommés un par un
+  # dans le code, par un `#[mutants::skip]` qui dit pourquoi. Ce qui parle à
+  # Microsoft par une bibliothèque tierce, ce qui télécharge chez Mojang ou
+  # NeoForge, ce qui n'écrit que sur la sortie standard : trois familles, et
+  # rien d'autre.
+  #
+  # Un survivant qui paraît ici est donc un vrai trou, pas de la dette : du
+  # code qu'une PR vient d'écrire et que rien ne vérifie. Le relever demande de
+  # dire, dans la PR qui le fait, quel code on a décidé de ne plus vérifier.
+  MUTANTS_TOLERES: 0
+
+jobs:
+  # Compter avant de distribuer : « --list » n'exécute rien, il n'analyse que
+  # la syntaxe, et rend en quelques secondes le nombre exact de mutants que le
+  # diff met en jeu. C'est ce nombre qui décide combien de machines suivent.
+  decoupage:
+    name: Compter les mutants à tester
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    outputs:
+      parts: ${{ steps.calcul.outputs.parts }}
+      nombre: ${{ steps.calcul.outputs.nombre }}
+      total: ${{ steps.calcul.outputs.total }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Le diff se calcule contre la base de la PR : sans l'historique, il
+          # n'y a rien à quoi se comparer, et cargo-mutants passerait le dépôt
+          # entier.
+          fetch-depth: 0
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+
+      # Trois points et non deux : le diff porte sur ce que la branche ajoute
+      # depuis leur ancêtre commun, et non sur tout ce qui a changé dans main
+      # entre-temps. Sans cela, une PR héritait des mutants d'un voisin.
+      - name: Établir le diff de la pull request
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff "${{ github.event.pull_request.base.sha }}...HEAD" -- '*.rs' > pr.diff
+          echo "Diff de $(grep -c '^+++ ' pr.diff || echo 0) fichier(s) Rust."
+
+      - name: Conserver le diff pour les parts
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: diff-de-la-pr
+          path: pr.diff
+          retention-days: 1
+
+      - name: Combien de parts
+        id: calcul
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cible=(--in-diff pr.diff)
+          else
+            cible=()
+          fi
+
+          total=$(cargo mutants --list --colors never "${cible[@]}" | wc -l)
+
+          # Division entière arrondie au-dessus : 150 mutants font une part,
+          # 151 en font deux.
+          nombre=$(( (total + MUTANTS_PAR_PART - 1) / MUTANTS_PAR_PART ))
+          [ "$nombre" -gt "$PARTS_MAX" ] && nombre=$PARTS_MAX
+
+          # Un diff sans une ligne de Rust ne met aucun mutant en jeu : la
+          # matrice reste vide, et les parts ne démarrent pas.
+          if [ "$total" -eq 0 ]; then
+            parts='[]'
+            nombre=0
+          else
+            parts=$(seq 0 $((nombre - 1)) | jq -c --slurp .)
+          fi
+
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "nombre=$nombre" >> "$GITHUB_OUTPUT"
+          echo "parts=$parts" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Tests de mutation::$total mutant(s) dans ce" \
+               "diff, répartis en $nombre part(s) d'au plus $MUTANTS_PAR_PART."
+
+  parts:
+    name: Mutants, part ${{ matrix.part }}
+    needs: decoupage
+    if: needs.decoupage.outputs.nombre != '0'
+    # x86 et non ARM comme les contrôles : taiki-e/install-action ne publie pas
+    # de binaire aarch64 pour cargo-mutants, et le faire compiler à chaque
+    # exécution coûterait plus cher que le job lui-même.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      # Une part qui tombe ne doit pas emporter les autres : c'est le total des
+      # survivants qui décide, et il faut donc les avoir tous.
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(needs.decoupage.outputs.parts) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+
+      # Le même diff que celui qui a servi à compter, et non un diff recalculé :
+      # deux listes qui ne coïncideraient pas feraient des parts qui se
+      # recouvrent ou qui laissent un mutant de côté.
+      - name: Reprendre le diff
+        if: github.event_name == 'pull_request'
+        uses: actions/download-artifact@v7
+        with:
+          name: diff-de-la-pr
+
+      # Le code de sortie ne suffit pas à décider : il vaut 1 aussi bien pour
+      # « des mutants ont survécu » que pour « la compilation est cassée », et
+      # les deux n'appellent pas la même conclusion. On lit donc ce que
+      # cargo-mutants écrit, après s'être assuré qu'il a bien tourné.
+      - name: Chercher les mutants survivants
+        run: |
+          set +e
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cible=(--in-diff pr.diff)
+          else
+            cible=()
+          fi
+
+          # Gardé au journal : le jour où une part se met à déclarer des
+          # mutants « incompilables » en série, c'est la première chose à
+          # regarder — quatre copies du répertoire de compilation tiennent
+          # large, mais rien ne le dit une fois le runner rendu.
+          df -h / | tail -1
+          # Quatre tâches, soit un cœur chacune. Chacune travaille sur sa propre
+          # copie du dépôt et de son répertoire de compilation : celui-ci pèse
+          # sept cents mégaoctets, quatre copies en font moins de trois
+          # gigaoctets, et un runner en offre quatorze. La prudence d'un temps —
+          # deux tâches — venait d'un répertoire local de huit gigaoctets, gonflé
+          # par des mois de profils accumulés ; elle laissait deux cœurs oisifs.
+          # Il reste qu'on ne monte pas plus haut sans y regarder : un mutant
+          # déclaré « incompilable » faute de place ressemble à s'y méprendre à
+          # un mutant tué.
+          #
+          # « round-robin » plutôt que des tranches consécutives : les mutants
+          # sont listés fichier par fichier, et découper en tranches donnerait
+          # à une part les huit crates légers et à une autre mc-pack en entier.
+          # Le temps d'attente est celui de la part la plus lente ; les
+          # distribuer un sur n les égalise.
+          part=(--shard ${{ matrix.part }}/${{ needs.decoupage.outputs.nombre }}
+                --sharding round-robin)
+
+          # Combien cette part a-t-elle à faire ? « --list » n'exécute rien et
+          # répond en quelques secondes : sans ce nombre, une part en cours
+          # n'apprend rien à qui la regarde — on lit défiler des lignes sans
+          # savoir si elle commence ou si elle finit.
+          attendus=$(cargo mutants --list --colors never \
+                       "${part[@]}" "${cible[@]}" | wc -l)
+          echo "Cette part a $attendus mutant(s) à éprouver."
+
+          # La sortie part dans un fichier pour laisser la place à la
+          # progression ; elle est réaffichée en entier à la fin, et conservée
+          # en artefact quoi qu'il arrive.
+          cargo mutants --colors never --no-shuffle -j 4 \
+            "${part[@]}" "${cible[@]}" > mutants.journal 2>&1 &
+          travail=$!
+
+          # Un point toutes les trente secondes. Les fichiers de sortie
+          # gagnent une ligne par mutant éprouvé : les compter dit où l'on en
+          # est sans rien demander à cargo-mutants.
+          debut=$(date +%s)
+          tour=0
+          while kill -0 "$travail" 2>/dev/null; do
+            # Réveil toutes les cinq secondes pour ne pas faire attendre une
+            # part qui vient de finir, mais un point toutes les trente : de
+            # quoi suivre sans noyer le journal.
+            sleep 5
+            tour=$((tour + 1))
+            [ $((tour % 6)) -eq 0 ] || continue
+
+            faits=$(cat mutants.out/caught.txt mutants.out/missed.txt \
+                        mutants.out/timeout.txt mutants.out/unviable.txt \
+                        2>/dev/null | wc -l)
+            survivants=$(wc -l < mutants.out/missed.txt 2>/dev/null || echo 0)
+            printf '  … %s/%s éprouvés, %s survivant(s), %s s écoulées\n' \
+              "$faits" "$attendus" "$survivants" "$(( $(date +%s) - debut ))"
+          done
+
+          wait "$travail"
+          code=$?
+          set -e
+          cat mutants.journal
+
+          if [ ! -f mutants.out/outcomes.json ]; then
+            echo "::error title=Tests de mutation::cargo-mutants n'a produit" \
+                 "aucun résultat (code $code) — compilation ou suite de base" \
+                 "en échec, voir le journal ci-dessus."
+            exit 1
+          fi
+
+          # La suite non mutée doit passer, sans quoi tout ce qui suit ne
+          # mesure rien : chaque mutant serait « tué » par un test déjà rouge.
+          if ! jq -e '[.outcomes[]
+                       | select(.scenario == "Baseline")
+                       | select(.summary == "Success")] | length == 1' \
+                 mutants.out/outcomes.json > /dev/null; then
+            echo "::error title=Tests de mutation::la suite non mutée ne passe" \
+                 "pas — aucun mutant n'a de sens tant que c'est le cas."
+            exit 1
+          fi
+
+      # Le rapport est conservé même — surtout — quand des mutants ont survécu :
+      # c'est là qu'on veut savoir quelle ligne personne ne vérifie. C'est aussi
+      # ce que la part suivante additionne.
+      - name: Conserver le rapport de la part
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mutants-part-${{ matrix.part }}
+          path: mutants.out
+          retention-days: 14
+          if-no-files-found: warn
+
+  # Le budget se juge sur le total, et ne peut donc pas l'être dans une part :
+  # chacune n'a vu qu'un mutant sur n.
+  budget:
+    name: Mutants sur le code nouveau
+    needs: [decoupage, parts]
+    if: always() && needs.decoupage.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Une part qui échoue n'a pas mesuré ce qu'on lui demandait : son rapport
+      # est incomplet, et un total tiré des autres serait plus bas que la
+      # réalité — le budget passerait pour une raison fausse.
+      - name: Toutes les parts ont-elles abouti ?
+        if: needs.parts.result != 'success' && needs.parts.result != 'skipped'
+        run: |
+          echo "::error title=Tests de mutation::une part au moins n'a pas" \
+               "abouti (${{ needs.parts.result }}) : le total des survivants" \
+               "serait incomplet."
+          exit 1
+
+      - name: Reprendre les rapports des parts
+        if: needs.decoupage.outputs.nombre != '0'
+        uses: actions/download-artifact@v7
+        with:
+          pattern: mutants-part-*
+          path: parts
+
+      - name: Appliquer le budget
+        run: |
+          survivants=0
+          if [ -d parts ]; then
+            # Une part sans survivant n'écrit pas toujours le fichier : ne
+            # compter que ceux qui existent, et additionner leurs lignes.
+            survivants=$(cat parts/*/missed.txt 2>/dev/null | wc -l)
+          fi
+
+          if [ "$survivants" -gt "$MUTANTS_TOLERES" ]; then
+            echo "::error title=Tests de mutation::$survivants mutant(s)" \
+                 "survivant(s) pour $MUTANTS_TOLERES toléré(s). Ce code" \
+                 "s'exécute sans que rien ne vérifie ce qu'il rend ; la liste" \
+                 "est ci-dessous, et les rapports complets en artefacts."
+            cat parts/*/missed.txt 2>/dev/null
+            exit 1
+          fi
+
+          echo "::notice title=Tests de mutation::$survivants survivant(s) sur" \
+               "${{ needs.decoupage.outputs.total }} mutant(s) testés en" \
+               "${{ needs.decoupage.outputs.nombre }} part(s)," \
+               "budget $MUTANTS_TOLERES."

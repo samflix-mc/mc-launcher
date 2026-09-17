@@ -25,10 +25,18 @@ jobs:
       - run: cargo build --release --locked
       - name: Vérifier que le binaire démarre
         run: |
-          # Un identifiant invalide doit produire l'erreur AADSTS700038 de
-          # Microsoft : ça prouve que la chaîne HTTP fonctionne de bout en bout,
-          # sans exiger de compte ni de secret dans la CI.
-          out=$(./target/release/mc-auth 00000000-0000-0000-0000-000000000000 2>&1 || true)
+          # « login » demande un code d'appareil à Microsoft, l'affiche, puis
+          # attend une validation qui ne viendra pas ici : le code reçu prouve
+          # que la chaîne HTTP fonctionne de bout en bout, sans exiger de compte
+          # ni de secret dans la CI. C'est ce que vérifiait l'ancien
+          # AADSTS700038, du temps où le binaire prenait un identifiant
+          # d'application en argument ; l'identité est désormais celle du
+          # launcher officiel, et il n'y a plus d'argument à salir pour
+          # provoquer un refus.
+          #
+          # Le délai coupe l'attente, et non la requête : celle-ci répond en
+          # moins de deux secondes, ou la CI a mieux à signaler qu'un code.
+          out=$(timeout 60 ./target/release/mc-auth login 2>&1 || true)
           echo "$out"
-          echo "$out" | grep -q "AADSTS700038" \
+          echo "$out" | grep -q "microsoft.com/link?otc=" \
             || { echo "::error::réponse inattendue de Microsoft"; exit 1; }

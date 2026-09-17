@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/mc-auth",
     "crates/mc-dl",
+    "crates/mc-essais",
     "crates/mc-log",
     "crates/mc-java",
     "crates/mc-mods",
@@ -18,6 +19,15 @@ license = "MIT"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# L'attribut `#[mutants::skip]`, et rien d'autre : le crate ne contient pas une
+# ligne de code exécutable, et l'attribut disparaît à la compilation. Il marque
+# le peu de code qu'aucun test ne peut atteindre — ce qui parle à Microsoft par
+# des adresses écrites dans une bibliothèque tierce, et ce qui ne se compile
+# que sur une autre plateforme. Le fichier .cargo/mutants.toml ne pouvait pas
+# s'en charger : ses exclusions ne s'appliquent pas à toutes les formes de
+# mutants, et une raison écrite à côté du code se relit mieux qu'une regex.
+mutants = "0.0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "process"] }
 md-5 = "0.10"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

@@ -20,3 +20,6 @@ zip.workspace = true
 [[bin]]
 name = "mc-java"
 path = "src/main.rs"
+
+[dev-dependencies]
+mc-essais = { path = "../mc-essais" }

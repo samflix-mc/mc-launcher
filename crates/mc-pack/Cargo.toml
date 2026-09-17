@@ -8,6 +8,7 @@ description = "Installe un pack décrit par un manifeste JSON : Java, jeu, charg
 [dependencies]
 anyhow.workspace = true
 tracing.workspace = true
+mutants.workspace = true
 mc-log = { path = "../mc-log" }
 mc-auth = { path = "../mc-auth" }
 sentry.workspace = true
@@ -22,3 +23,12 @@ mc-instance = { path = "../mc-instance" }
 [[bin]]
 name = "mc-pack"
 path = "src/main.rs"
+
+[dev-dependencies]
+mc-essais = { path = "../mc-essais" }
+
+# Le transport de test du SDK : il retient les incidents au lieu de les
+# envoyer. Sans lui, ce qui part chez Sentry quand le jeu plante ne se
+# vérifierait qu'en lisant le tableau de bord, une fois l'incident survenu
+# chez un joueur.
+sentry = { workspace = true, features = ["test"] }

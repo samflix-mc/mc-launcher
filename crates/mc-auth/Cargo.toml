@@ -13,7 +13,29 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 md-5.workspace = true
-reqwest.workspace = true
+mutants.workspace = true
+
+# S'authentifier comme le launcher officiel : voir la section « Authentification »
+# du README pour ce que ce choix implique.
+minecraft-auth = "0.1.1"
+
+# Seul crate du dépôt en reqwest 0.13 : `minecraft-auth` l'exige et l'expose
+# dans sa signature (`JavaAuthManager::builder(reqwest::Client)`). Les deux
+# versions cohabitent déjà dans le binaire — sentry 0.49 tire la 0.13.
+#
+# La bibliothèque déclare reqwest sans TLS du tout : c'est à nous de l'activer.
+# En 0.13 les features TLS ont été refondues — plus de `rustls-tls-*` ni de
+# `webpki-roots`, un seul `rustls` qui embarque son fournisseur et ses racines.
+# Le résultat est celui qu'on veut partout ailleurs : rustls, rien à lier au
+# système.
+reqwest = { version = "0.13", default-features = false, features = [
+    "json",
+    "form",
+    "rustls",
+] }
+
+[dev-dependencies]
+mc-essais = { path = "../mc-essais" }
 
 [[bin]]
 name = "mc-auth"
