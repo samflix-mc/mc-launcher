@@ -211,12 +211,49 @@ jobs:
           # à une part les huit crates légers et à une autre mc-pack en entier.
           # Le temps d'attente est celui de la part la plus lente ; les
           # distribuer un sur n les égalise.
+          part=(--shard ${{ matrix.part }}/${{ needs.decoupage.outputs.nombre }}
+                --sharding round-robin)
+
+          # Combien cette part a-t-elle à faire ? « --list » n'exécute rien et
+          # répond en quelques secondes : sans ce nombre, une part en cours
+          # n'apprend rien à qui la regarde — on lit défiler des lignes sans
+          # savoir si elle commence ou si elle finit.
+          attendus=$(cargo mutants --list --colors never \
+                       "${part[@]}" "${cible[@]}" | wc -l)
+          echo "Cette part a $attendus mutant(s) à éprouver."
+
+          # La sortie part dans un fichier pour laisser la place à la
+          # progression ; elle est réaffichée en entier à la fin, et conservée
+          # en artefact quoi qu'il arrive.
           cargo mutants --colors never --no-shuffle -j 4 \
-            --shard ${{ matrix.part }}/${{ needs.decoupage.outputs.nombre }} \
-            --sharding round-robin \
-            "${cible[@]}"
+            "${part[@]}" "${cible[@]}" > mutants.journal 2>&1 &
+          travail=$!
+
+          # Un point toutes les trente secondes. Les fichiers de sortie
+          # gagnent une ligne par mutant éprouvé : les compter dit où l'on en
+          # est sans rien demander à cargo-mutants.
+          debut=$(date +%s)
+          tour=0
+          while kill -0 "$travail" 2>/dev/null; do
+            # Réveil toutes les cinq secondes pour ne pas faire attendre une
+            # part qui vient de finir, mais un point toutes les trente : de
+            # quoi suivre sans noyer le journal.
+            sleep 5
+            tour=$((tour + 1))
+            [ $((tour % 6)) -eq 0 ] || continue
+
+            faits=$(cat mutants.out/caught.txt mutants.out/missed.txt \
+                        mutants.out/timeout.txt mutants.out/unviable.txt \
+                        2>/dev/null | wc -l)
+            survivants=$(wc -l < mutants.out/missed.txt 2>/dev/null || echo 0)
+            printf '  … %s/%s éprouvés, %s survivant(s), %s s écoulées\n' \
+              "$faits" "$attendus" "$survivants" "$(( $(date +%s) - debut ))"
+          done
+
+          wait "$travail"
           code=$?
           set -e
+          cat mutants.journal
 
           if [ ! -f mutants.out/outcomes.json ]; then
             echo "::error title=Tests de mutation::cargo-mutants n'a produit" \
