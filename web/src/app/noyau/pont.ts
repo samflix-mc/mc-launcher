@@ -43,6 +43,20 @@ export class Pont {
    */
   readonly disponible = DANS_TAURI || serveurDeDeveloppement();
 
+  /**
+   * Sommes-nous dans la FENÊTRE, et pas seulement devant un backend ?
+   *
+   * La distinction est née d'un plantage : `disponible` voulait dire « dans
+   * Tauri » jusqu'à ce que le serveur de développement existe, et il veut
+   * maintenant dire « il y a quelqu'un à qui parler ». Or `getCurrentWindow()`
+   * ne s'adresse pas à un backend : c'est une API de la fenêtre, et hors
+   * d'elle, elle lève.
+   *
+   * Tout ce qui pilote la FENÊTRE — réduire, agrandir, fermer — lit donc
+   * ceci ; tout ce qui demande des DONNÉES lit `disponible`.
+   */
+  readonly dansLaFenetre = DANS_TAURI;
+
   // --- Le démarrage --------------------------------------------------------
 
   /**

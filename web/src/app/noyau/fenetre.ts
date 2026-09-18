@@ -34,14 +34,14 @@ export class Fenetre {
   readonly maximisee = signal(false);
 
   async reduire(): Promise<void> {
-    if (!this.pont.disponible) {
+    if (!this.pont.dansLaFenetre) {
       return;
     }
     await getCurrentWindow().minimize();
   }
 
   async basculerMaximisee(): Promise<void> {
-    if (!this.pont.disponible) {
+    if (!this.pont.dansLaFenetre) {
       return;
     }
     const fenetre = getCurrentWindow();
@@ -50,7 +50,7 @@ export class Fenetre {
   }
 
   async fermer(): Promise<void> {
-    if (!this.pont.disponible) {
+    if (!this.pont.dansLaFenetre) {
       return;
     }
     await getCurrentWindow().close();
@@ -58,7 +58,7 @@ export class Fenetre {
 
   /** Relit l'état au démarrage : la fenêtre peut s'ouvrir déjà maximisée. */
   async observer(): Promise<void> {
-    if (!this.pont.disponible) {
+    if (!this.pont.dansLaFenetre) {
       return;
     }
     this.maximisee.set(await getCurrentWindow().isMaximized());
