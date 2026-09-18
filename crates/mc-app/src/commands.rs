@@ -14,6 +14,7 @@ use tauri_plugin_opener::OpenerExt;
 
 pub mod news;
 pub mod pack;
+pub mod server;
 pub mod settings;
 
 use crate::brand::Brand;

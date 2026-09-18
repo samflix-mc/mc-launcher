@@ -69,16 +69,16 @@ répertoire des journaux. C'est ce que la CI oppose au tag.
 ```
 crates/            tout le Rust, un seul workspace
 ├── mc-auth/       Microsoft → Xbox → XSTS → Minecraft, et le trousseau
-├── mc-chemins/    l'unique endroit qui décide où le launcher range ses affaires
+├── mc-paths/    l'unique endroit qui décide où le launcher range ses affaires
 ├── mc-dl/         téléchargement vérifié, et l'observation de sa progression
 ├── mc-java/       détection et installation du runtime
 ├── mc-instance/   Minecraft, NeoForge, la ligne de commande du jeu
 ├── mc-mods/       résolution et déploiement des mods
-├── mc-nouvelles/  le fil de news : contrat JSON, markdown vers arbre typé
+├── mc-news/  le fil de news : contrat JSON, markdown vers arbre typé
 ├── mc-pack/       l'orchestration : install, comparaison, jeu, verrou — et la CLI
-├── mc-reglages/   les préférences du joueur, leurs bornes, leur persistance
+├── mc-settings/   les préférences du joueur, leurs bornes, leur persistance
 ├── mc-log/        journalisation, censure, incidents
-├── mc-essais/     un serveur HTTP local, pour les suites
+├── mc-testkit/     un serveur HTTP local, pour les suites
 └── mc-app/        l'application Tauri : tauri.conf.json, icônes, src/
 
 web/               tout le front
@@ -720,7 +720,7 @@ Les liens externes des billets ne naviguent pas : ils passent par
 
 Elle n'ajoute **aucune** logique de launcher. `mc-auth` authentifie,
 `mc_pack::install` installe, `mc_pack::jeu` compare, rattrape et lance,
-`mc-nouvelles` lit le fil, `mc-reglages` garde les préférences, `mc-chemins`
+`mc-news` lit le fil, `mc-settings` garde les préférences, `mc-paths`
 décide des emplacements, `mc-log` journalise. `mc-app` appelle, agrège, et
 raconte : c'est tout.
 
@@ -737,7 +737,7 @@ un endroit que la ligne de commande ne regardait pas. Il vit dans
 `crates/mc-auth/src/stockage/`, et les deux voient le même compte.
 
 Même histoire, enfin, pour les chemins : chaque crate dérivait les siens. C'est
-`mc-chemins` qui décide, et `crates/mc-app/src/paths.rs` qui pose ceux du
+`mc-paths` qui décide, et `crates/mc-app/src/paths.rs` qui pose ceux du
 résolveur de Tauri au démarrage.
 
 `mc-log` plutôt que `tauri-plugin-log`, d'ailleurs : le second écrirait les

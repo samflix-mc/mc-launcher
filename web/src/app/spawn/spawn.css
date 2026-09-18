@@ -84,3 +84,18 @@
 .hm-stack {
   align-content: start;
 }
+
+/* **A settled state does not pulse.**
+
+   The design system animates `.hm-status--unknown`'s dot, and that
+   animation carries a meaning: a response is expected. It's right while
+   the first probe is in flight. It lies for an environment that declares
+   no server at all — preproduction would pulse forever waiting for an
+   answer nobody is coming to give, and a player would read "it's still
+   loading" where the truth is "there is nothing to load".
+
+   Both keep the grey, because neither is a refused connection. Only one
+   keeps moving. */
+[data-test='server-badge'][data-settled='true'] .hm-status__dot {
+  animation: none;
+}

@@ -22,26 +22,26 @@
 
   <!-- --- The status panels -------------------------------------------------- -->
   <div class="hm-stack">
-    <!-- --- The server: RESERVED SPOT ---------------------------------------
-         Nothing probes it yet. The values are dashes and the badge is
-         "unknown", which the design system reserves precisely for the state
-         before the first response — and which pulses to say so.
-
-         Hardcoding "online · 42/120" would be worse than showing nothing: a
-         player would believe the server reachable, and wouldn't understand
-         why the game refuses it. See `docs/interface.md`. -->
+    <!-- --- The server ---------------------------------------------------
+         Probed on mount and every thirty seconds after. Three badge states,
+         not two: "unknown" covers both "no answer yet" and "this
+         environment declares no server" — neither is "down", so neither
+         gets the red badge. See `Spawn.server`. -->
     <div class="hm-glass hm-glass--pad" data-test="server-panel">
       <div class="hm-spawn__head">
         <div>
           <p class="hm-glass__eyebrow">Server</p>
-          <h3 class="hm-glass__title hm-spawn__title" data-test="server-name">
-            {{ server().name }}
-          </h3>
+          <h3 class="hm-glass__title hm-spawn__title" data-test="server-name">Server</h3>
         </div>
 
-        <span class="hm-status hm-status--unknown" data-state="unknown" data-test="server-badge">
+        <span
+          [class]="'hm-status hm-status--' + server().variant"
+          [attr.data-state]="server().variant"
+          [attr.data-settled]="server().settled"
+          data-test="server-badge"
+        >
           <span class="hm-status__dot" aria-hidden="true"></span>
-          {{ server().status }}
+          {{ server().state }}
         </span>
       </div>
 

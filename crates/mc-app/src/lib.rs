@@ -146,6 +146,8 @@ pub fn run() {
             game_session::stop_game,
             // The network's news.
             commands::news::news,
+            // The Spawn page's "Server" panel: is it up, and for how many.
+            commands::server::server_status,
             // Settings, and what the screen allows.
             commands::settings::settings,
             commands::settings::save_settings,

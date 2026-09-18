@@ -170,7 +170,7 @@ variation d'un test.
 
 Ce que le périmètre écarte, et pourquoi :
 
-- **`mc-essais`**, le harnais des suites — un serveur HTTP local, de faux
+- **`mc-testkit`**, le harnais des suites — un serveur HTTP local, de faux
   runtimes, des archives fabriquées. Le muter reviendrait à demander qu'un test
   vérifie le harnais d'un autre test ;
 - **`mc-app`**, par `default-members` et non par le fichier d'exclusions : il
@@ -195,7 +195,7 @@ vérifiée — seule l'impression est écartée.
 ### Un mutant équivalent est souvent un détour
 
 L'exclusion n'est pas le premier réflexe, et un exemple récent le montre. Dans
-l'encodeur base64 de `mc-nouvelles`, deux mutants remplaçaient `|` par `^` dans
+l'encodeur base64 de `mc-news`, deux mutants remplaçaient `|` par `^` dans
 
 ```rust
 let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);

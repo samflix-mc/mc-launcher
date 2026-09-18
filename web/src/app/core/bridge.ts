@@ -12,6 +12,7 @@ import type {
   Feed,
   Brand,
   Report,
+  ServerStatus,
   Settings,
 } from './contracts';
 import { IN_TAURI, call, listen, openOutsideApp } from './transport';
@@ -224,6 +225,19 @@ export class Bridge {
 
   news(): Promise<Feed> {
     return call<Feed>('news');
+  }
+
+  // --- The server ------------------------------------------------------
+
+  /**
+   * Probes the server this pack declares for this binary's environment.
+   *
+   * Never rejects on an unreachable server or a missing declaration — both
+   * are ordinary states the panel draws, not failures. A few seconds at
+   * most: the command carries its own short deadline.
+   */
+  serverStatus(): Promise<ServerStatus> {
+    return call<ServerStatus>('server_status');
   }
 
   // --- Settings --------------------------------------------------------

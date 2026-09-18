@@ -113,6 +113,29 @@ export interface Report {
   readonly purge: readonly string[];
 }
 
+// --- The server ----------------------------------------------------------
+
+/**
+ * What the panel knows about the server, in three states rather than two.
+ *
+ * `Undeclared` isn't `Offline`: the first means this environment has no
+ * server to probe at all — preproduction, for instance — and the second
+ * means one was dialed and didn't answer. Collapsing them would tell a
+ * player their server is down when there never was one to join.
+ */
+export type ServerState = 'online' | 'offline' | 'undeclared';
+
+/** What the Spawn page's "Server" panel shows, refreshed on a timer. */
+export interface ServerStatus {
+  readonly state: ServerState;
+  /** Empty when `state` is `undeclared`. */
+  readonly host: string;
+  /** `null` until a successful probe has actually counted them. */
+  readonly players: number | null;
+  readonly slots: number | null;
+  readonly version: string | null;
+}
+
 // --- News --------------------------------------------------------------
 
 /**

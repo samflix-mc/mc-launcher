@@ -2,9 +2,10 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { Report, PackState } from '../core/contracts';
+import type { Report, PackState, ServerStatus } from '../core/contracts';
 import { News } from '../core/news';
 import { Pack } from '../core/pack';
+import { Server } from '../core/server';
 import { Spawn } from './spawn';
 
 function state(over: Partial<PackState> = {}): PackState {
@@ -34,6 +35,17 @@ function report(over: Partial<Report> = {}): Report {
   };
 }
 
+function serverStatus(over: Partial<ServerStatus> = {}): ServerStatus {
+  return {
+    state: 'online',
+    host: 'mc.ggy.info',
+    players: 12,
+    slots: 120,
+    version: '1.21.1',
+    ...over,
+  };
+}
+
 /**
  * The Spawn page.
  *
@@ -43,6 +55,7 @@ function report(over: Partial<Report> = {}): Report {
  */
 describe('Spawn', () => {
   let pack: Pack;
+  let server: Server;
 
   function mount() {
     const fixture = TestBed.createComponent(Spawn);
@@ -58,6 +71,7 @@ describe('Spawn', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({ providers: [provideRouter([])] });
     pack = TestBed.inject(Pack);
+    server = TestBed.inject(Server);
   });
 
   /**
@@ -114,6 +128,72 @@ describe('Spawn', () => {
     expect(read(fixture, 'mods')).toContain('128 mods');
     expect(read(fixture, 'java')).toContain('Java 21');
     expect(read(fixture, 'installed')).toContain('Installed');
+  });
+
+  /**
+   * **Three server badge states, not two.**
+   *
+   * `unknown` covers both "no probe has answered yet" and "this environment
+   * declares no server" — neither one means the server refused a
+   * connection, so neither gets the red badge that `offline` gets once a
+   * probe has actually run and failed.
+   */
+  it('before the first probe, the server badge says it’s looking', () => {
+    const fixture = mount();
+
+    const badge = fixture.nativeElement.querySelector('[data-test="server-badge"]');
+    expect(badge.dataset.state).toBe('unknown');
+    expect(badge.textContent).toContain('Checking');
+    // Not settled: the dot pulses, and here the pulse is true — an answer
+    // really is expected.
+    expect(badge.dataset.settled).toBe('false');
+  });
+
+  it('an online server shows its address and player count', () => {
+    server.status.set(serverStatus());
+    const fixture = mount();
+
+    const badge = fixture.nativeElement.querySelector('[data-test="server-badge"]');
+    expect(badge.dataset.state).toBe('online');
+    expect(badge.textContent).toContain('Online');
+    expect(read(fixture, 'address')).toContain('mc.ggy.info');
+    expect(read(fixture, 'players')).toContain('12 / 120');
+  });
+
+  it('an offline server shows its address but no player count', () => {
+    server.status.set(
+      serverStatus({ state: 'offline', players: null, slots: null, version: null }),
+    );
+    const fixture = mount();
+
+    const badge = fixture.nativeElement.querySelector('[data-test="server-badge"]');
+    expect(badge.dataset.state).toBe('offline');
+    expect(badge.textContent).toContain('Offline');
+    expect(read(fixture, 'address')).toContain('mc.ggy.info');
+    expect(read(fixture, 'players')).toBe('—');
+  });
+
+  /**
+   * An environment with no declared server — preproduction, typically —
+   * isn't "down": it never had a server to refuse a connection. The badge
+   * says so instead of showing a dash-filled "offline".
+   */
+  it('an environment with no declared server says so, not "offline"', () => {
+    server.status.set(
+      serverStatus({ state: 'undeclared', host: '', players: null, slots: null, version: null }),
+    );
+    const fixture = mount();
+
+    const badge = fixture.nativeElement.querySelector('[data-test="server-badge"]');
+    expect(badge.dataset.state).toBe('unknown');
+    expect(badge.textContent).toContain('No server declared');
+    expect(read(fixture, 'address')).toBe('—');
+    expect(read(fixture, 'players')).toBe('—');
+    // **Settled, and that's the point.** It shares the grey of "checking"
+    // because neither is a refused connection, but the pulse means "a
+    // response is expected" — and none is. Without this, preproduction
+    // would pulse forever waiting for an answer nobody is coming to give.
+    expect(badge.dataset.settled).toBe('true');
   });
 
   /**

@@ -12,6 +12,7 @@ members = [
     "crates/mc-mods",
     "crates/mc-instance",
     "crates/mc-pack",
+    "crates/mc-ping",
     # L'application : elle n'ajoute aucune logique de launcher, elle appelle
     # les crates ci-dessus et les rend visibles dans une fenêtre.
     "crates/mc-app",
@@ -49,6 +50,7 @@ default-members = [
     "crates/mc-mods",
     "crates/mc-instance",
     "crates/mc-pack",
+    "crates/mc-ping",
 ]
 
 [workspace.package]

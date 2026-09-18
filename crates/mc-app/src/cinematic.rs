@@ -133,7 +133,12 @@ fn player_comfort() -> mc_pack::game::Comfort {
 /// this binary's environment designates, and the default layout. The two
 /// must stay identical, otherwise the window would install somewhere other
 /// than where `mc-pack launch` goes looking.
-fn where_to_install() -> (mc_pack::source::Source, mc_pack::Options) {
+///
+/// `pub(crate)`: `commands::server` reads the same local pack to find its
+/// declared server, and must resolve it exactly the way installing and
+/// playing do — a second, slightly different `Source` here would let the
+/// panel probe an address nothing actually installs from.
+pub(crate) fn where_to_install() -> (mc_pack::source::Source, mc_pack::Options) {
     let options = mc_pack::Options::default();
     let source = mc_pack::source::Source::parse(mc_pack::source::default_url(), &options.layout);
     (source, options)

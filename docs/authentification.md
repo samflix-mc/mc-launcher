@@ -30,7 +30,7 @@ accès, ou dans une suite de tests : le fichier s'isole en déplaçant
 
 ### Où ce fichier se trouve, plateforme par plateforme
 
-Le chemin ne se devine plus : il vient de `mc-chemins`, et l'application lui
+Le chemin ne se devine plus : il vient de `mc-paths`, et l'application lui
 impose au démarrage les racines que Tauri connaît, pour que les crates et la
 fenêtre ne tombent jamais sur deux arborescences différentes.
 

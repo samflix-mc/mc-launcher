@@ -100,11 +100,11 @@ changement.
 | [`mc-java`](crates/mc-java) | détecte le Java que le verrou exige, en installe un au besoin |
 | [`mc-log`](crates/mc-log) | journaux console et fichier, incidents Sentry, censure des jetons |
 | [`mc-dl`](crates/mc-dl) | téléchargements : reprise, empreintes, écriture atomique |
-| [`mc-nouvelles`](crates/mc-nouvelles) | le fil de news : contrat JSON, markdown vers arbre typé — **aucun HTML** |
-| [`mc-reglages`](crates/mc-reglages) | les préférences du joueur, leurs bornes, et leur fusion dans `options.txt` |
-| [`mc-chemins`](crates/mc-chemins) | l'unique endroit qui décide où le launcher range ses affaires |
+| [`mc-news`](crates/mc-news) | le fil de news : contrat JSON, markdown vers arbre typé — **aucun HTML** |
+| [`mc-settings`](crates/mc-settings) | les préférences du joueur, leurs bornes, et leur fusion dans `options.txt` |
+| [`mc-paths`](crates/mc-paths) | l'unique endroit qui décide où le launcher range ses affaires |
 | [`mc-app`](crates/mc-app) | l'application Tauri : la fenêtre, et rien d'autre — voir [interface.md](docs/interface.md) |
-| [`mc-essais`](crates/mc-essais) | serveur HTTP d'essai, pour éprouver ce qui parle au réseau |
+| [`mc-testkit`](crates/mc-testkit) | serveur HTTP d'essai, pour éprouver ce qui parle au réseau |
 
 ## Qualité
 

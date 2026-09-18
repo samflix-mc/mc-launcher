@@ -49,6 +49,9 @@ mc-instance = { path = "../mc-instance" }
 mc-java = { path = "../mc-java" }
 mc-news = { path = "../mc-news" }
 mc-pack = { path = "../mc-pack" }
+# Probes the server the pack declares for this binary's environment — the
+# Spawn page's "Server" panel.
+mc-ping = { path = "../mc-ping" }
 # Ce que le joueur règle. mc-pack n'en dépend PAS : la bibliothèque
 # d'installation n'a pas à savoir qu'une interface existe, et le CLI garde ses
 # propres drapeaux. C'est l'application qui lit le fichier et passe les VALEURS.

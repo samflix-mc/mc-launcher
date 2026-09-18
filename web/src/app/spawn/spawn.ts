@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   afterNextRender,
   computed,
   inject,
@@ -14,7 +15,30 @@ import { Incidents } from '../core/incidents';
 import { Log } from '../core/log';
 import { News } from '../core/news';
 import { Pack } from '../core/pack';
+import { Server } from '../core/server';
 import { Bridge } from '../core/bridge';
+
+/** How often the server panel re-probes. */
+const SERVER_REFRESH_MS = 30_000;
+
+/** What the server panel shows — the badge's color, and the three facts. */
+interface ServerView {
+  readonly variant: 'online' | 'offline' | 'unknown';
+  /**
+   * Is this state SETTLED, or are we still waiting?
+   *
+   * The design system makes the `unknown` dot pulse, and that pulse means
+   * one precise thing: a response is expected. It's right while the first
+   * probe is in flight, and it lies for an environment that declares no
+   * server at all — preproduction would pulse forever for an answer nobody
+   * is coming to give. Both stay grey, because neither is "down"; only one
+   * keeps moving.
+   */
+  readonly settled: boolean;
+  readonly state: string;
+  readonly address: string;
+  readonly players: string;
+}
 
 /** What the pack's status badge says, and in what color. */
 interface Badge {
@@ -73,6 +97,8 @@ export class Spawn {
   private readonly bridge = inject(Bridge);
   private readonly windowService = inject(WindowService);
   private readonly log = inject(Log);
+  private readonly serverService = inject(Server);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly state = this.pack.state;
   protected readonly report = this.pack.lastReport;
@@ -84,32 +110,58 @@ export class Spawn {
   protected readonly Users = Users;
 
   /**
-   * The server's status — **a reserved spot**, and nothing more.
+   * The server panel, drawn from what [`Server`](../core/server) last
+   * probed.
    *
-   * The design system lays out a "Server" panel next to the modpack's: a
-   * badge, an address, a player count, a ping. Nothing measures any of it
-   * yet — the launcher probes no server, and the pack's manifest doesn't
-   * publish its address.
+   * **Three states, not two.** `unknown` covers both the moment before the
+   * first probe answers AND an environment with no declared server at all
+   * — preproduction, typically. Neither is "down": a red badge on either
+   * would tell a player a connection was refused when none was ever
+   * attempted. `online` and `offline` only appear once a probe has actually
+   * run and come back one way or the other.
    *
-   * It's therefore drawn in the state the design system reserves for
-   * before-the-first-response: `--unknown`, which pulses to say it's
-   * waiting. The values are dashes.
-   *
-   * **Hardcoding "Online · 42/120" would be worse than showing nothing**: a
-   * player would believe the server reachable, and wouldn't understand why
-   * the game refuses it. A spot that says it doesn't know lies to no one.
-   *
-   * What it will take to fill in: an address in the manifest, a probe on
-   * the Rust side — Minecraft's status protocol, a TCP handshake and some
-   * JSON — and a refresh every thirty seconds, as the design system
-   * prescribes.
+   * **Player counts only ever come from a successful probe.** `players` and
+   * `slots` on the bridge's answer are `null` for every state but `online`
+   * — carrying over a stale count while offline, or guessing one while
+   * still checking, would claim knowledge the launcher doesn't have.
    */
-  protected readonly server = computed(() => ({
-    name: this.state()?.name ?? 'Server',
-    status: 'Unknown state',
-    address: '—',
-    players: '—',
-  }));
+  protected readonly server = computed<ServerView>(() => {
+    const current = this.serverService.status();
+    if (!current) {
+      return { variant: 'unknown', settled: false, state: 'Checking', address: '—', players: '—' };
+    }
+    switch (current.state) {
+      case 'online': {
+        const players =
+          current.players !== null && current.slots !== null
+            ? `${current.players} / ${current.slots}`
+            : '—';
+        return {
+          variant: 'online',
+          settled: true,
+          state: 'Online',
+          address: current.host,
+          players,
+        };
+      }
+      case 'offline':
+        return {
+          variant: 'offline',
+          settled: true,
+          state: 'Offline',
+          address: current.host,
+          players: '—',
+        };
+      case 'undeclared':
+        return {
+          variant: 'unknown',
+          settled: true,
+          state: 'No server declared',
+          address: '—',
+          players: '—',
+        };
+    }
+  });
   protected readonly Check = Check;
   protected readonly Clock = Clock;
   protected readonly TriangleAlert = TriangleAlert;
@@ -181,5 +233,19 @@ export class Spawn {
     // The feed isn't part of what the screen waits for: an empty tile is
     // better than a screen waiting on the network to show its button.
     void this.news.load().catch(() => {});
+
+    // The server panel: probed right away, then every thirty seconds for
+    // as long as this page stays mounted. Not routed through
+    // `incidents.guard` — that overlay blocks the whole screen, which is
+    // the wrong reaction to a background poll, and the command it calls
+    // doesn't reject on an unreachable server anyway.
+    void this.serverService.refresh().catch(() => {});
+    const interval = setInterval(() => {
+      void this.serverService.refresh().catch(() => {});
+    }, SERVER_REFRESH_MS);
+    // Without this, a second mount of Spawn — or a route that comes and
+    // goes — would leave the previous timer running forever, each one
+    // still probing on its own schedule.
+    this.destroyRef.onDestroy(() => clearInterval(interval));
   }
 }
