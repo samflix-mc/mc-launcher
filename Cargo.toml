@@ -3,6 +3,7 @@ resolver = "3"
 members = [
     "crates/mc-chemins",
     "crates/mc-reglages",
+    "crates/mc-nouvelles",
     "crates/mc-auth",
     "crates/mc-dl",
     "crates/mc-essais",
@@ -39,6 +40,7 @@ members = [
 default-members = [
     "crates/mc-chemins",
     "crates/mc-reglages",
+    "crates/mc-nouvelles",
     "crates/mc-auth",
     "crates/mc-dl",
     "crates/mc-essais",

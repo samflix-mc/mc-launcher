@@ -2670,6 +2670,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mc-nouvelles"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mc-dl",
+ "mc-essais",
+ "mutants",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "mc-pack"
 version = "0.1.0"
 dependencies = [

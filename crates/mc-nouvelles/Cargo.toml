@@ -1,0 +1,20 @@
+[package]
+name = "mc-nouvelles"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Le fil de nouvelles du réseau, analysé en arbre typé"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+mutants.workspace = true
+# La moitié réseau. Ce n'est donc PAS un crate feuille : il tire reqwest par
+# celui-ci, et seule sa moitié pure remonte le ratio de couverture.
+mc-dl = { path = "../mc-dl" }
+
+[dev-dependencies]
+mc-essais = { path = "../mc-essais" }
+tokio = { workspace = true }
