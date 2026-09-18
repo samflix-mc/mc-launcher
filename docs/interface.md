@@ -192,10 +192,12 @@ bouton de légende.
 | `/configuration` | Apparence, Fenêtre du jeu, Vidéo, Java, Avancé | aucune |
 
 **Le rail de la Configuration ne met rien dans l'URL.** Ses entrées étaient des
-ancres `#reglages-…` ; avec `withHashLocation()` le dièse appartient au ROUTEUR,
-si bien que cliquer écrivait une URL qu'il essayait de résoudre comme une route
-— et la navigation partait vers `/spawn` par la route de repli. Ce sont des
-boutons qui font défiler, ce que le design system décrit d'ailleurs ainsi.
+ancres `#reglages-…` et ne fonctionnaient pas : du temps de
+`withHashLocation()`, le dièse appartenait au routeur. Ce sont des boutons qui
+font défiler — ce qui reste juste depuis que le fragment a disparu, parce que
+faire défiler dans une page n'est pas naviguer, et qu'une ancre y laisserait une
+entrée d'historique que le bouton « précédent » relirait comme un changement de
+page.
 
 **Les réglages se règlent en deux temps.** Les contrôles lisent un brouillon
 local ; `(input)` ne met à jour que lui, `(change)` — le relâchement — écrit.
@@ -213,7 +215,24 @@ navigation, ni bouton de jeu, ni badge joueur. Montrer un menu et un bouton « s
 déconnecter » à quelqu'un qui n'est pas connecté était le premier reproche de la
 recette.
 
-Toutes en `loadComponent`, et l'historique en `withHashLocation()`.
+Toutes en `loadComponent`, et l'historique en chemins RÉELS — `/spawn`, pas
+`#/spawn`.
+
+Le fragment a été employé un temps, par prudence : ne rien devoir au repli SPA
+du protocole d'actifs de Tauri, qu'on tenait pour un détail d'implémentation.
+Il coûtait plus qu'il ne protégeait — le dièse appartient au routeur dès qu'il
+est en jeu, et aucune ancre ne peut plus servir à autre chose dans la page.
+
+Le repli est bien là, et vérifié dans les sources de la version épinglée :
+`tauri-2.11.5/src/manager/mod.rs` enchaîne quatre tentatives pour un actif
+introuvable — `<chemin>.html`, `<chemin>/index.html`, puis `index.html`. Et
+`ng serve` fait la même chose. Les deux environnements où ce launcher tourne
+servent donc `index.html` pour une route inconnue.
+
+Si la fenêtre s'ouvrait blanche un jour, deux choses à vérifier dans cet ordre :
+cette quatrième tentative, et `<base href="/">` dans `index.html`, sans lequel
+les actifs se résoudraient contre `/spawn/`. Le greffon de navigation, lui, n'y
+est pour rien : son prédicat porte sur l'ORIGINE, jamais sur le chemin.
 
 **Les deux gardes lisent le même prédicat**, `jouable()`. Deux prédicats
 différents feraient rebondir sans fin un compte connecté mais sans licence

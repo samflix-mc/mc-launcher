@@ -58,12 +58,16 @@ const MEMOIRE_MAX_GO = 64;
  *
  * ## Le rail ne met rien dans l'URL
  *
- * Les liens étaient des ancres `#reglages-…`. Avec `withHashLocation()`, le
- * dièse appartient au ROUTEUR : cliquer y écrivait une URL que le routeur
- * essayait de résoudre comme une route, et la navigation partait vers `/spawn`
- * par la route de repli. Ce sont maintenant des boutons qui font défiler, ce
- * que le design system décrit d'ailleurs ainsi — « les liens du rail font
- * défiler jusqu'au groupe et marquent celui qui est en vue ».
+ * Les entrées étaient des ancres `#reglages-…`, et elles ne fonctionnaient pas :
+ * du temps de `withHashLocation()`, le dièse appartenait au ROUTEUR, si bien
+ * que cliquer écrivait une URL qu'il essayait de résoudre comme une route — la
+ * navigation repartait vers `/spawn`.
+ *
+ * Le fragment a disparu depuis, mais les boutons restent, et pour une raison
+ * qui lui survit : faire défiler dans une page n'est pas naviguer. Une ancre y
+ * laisserait une entrée d'historique que le bouton « précédent » relirait comme
+ * un changement de page. C'est d'ailleurs ce que le design system décrit — « les
+ * liens du rail font défiler jusqu'au groupe et marquent celui qui est en vue ».
  *
  * ## La correspondance des groupes, qui ne va pas de soi
  *

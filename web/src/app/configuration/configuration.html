@@ -7,11 +7,13 @@
 
     @for (groupe of groupes; track groupe.ancre) {
       <!--
-        Un BOUTON et non une ancre. Avec `withHashLocation()`, le dièse
-        appartient au routeur : un `href="#reglages-…"` écrivait une URL que le
-        routeur essayait de résoudre comme une route, et la navigation partait
-        vers `/spawn` par la route de repli. Rien n'a besoin d'être dans l'URL
-        pour faire défiler.
+        Un BOUTON et non une ancre. Rien n'a besoin d'être dans l'URL pour
+        faire défiler dans une page, et une ancre y laisserait une trace que le
+        bouton « précédent » relirait comme une navigation.
+
+        C'est aussi ce qui a coûté le fragment : du temps de `withHashLocation()`
+        le dièse appartenait au routeur, et `href="#reglages-video"` écrivait une
+        URL qu'il essayait de résoudre comme une route.
       -->
       <button
         type="button"
