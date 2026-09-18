@@ -1,17 +1,20 @@
-//! Résoudre les mods, puis les poser dans l'instance.
+//! Resolve the mods, then place them in the instance.
 
-mod deploiement;
+mod deployment;
 
 use std::path::Path;
 
 use anyhow::Result;
 
+use std::sync::Arc;
+
+use crate::Options;
 use crate::lockfile::Lockfile;
 use crate::manifest::Manifest;
-use crate::{Options, Progress};
+use crate::progress::Report;
 
-/// Ce que l'étape « mods » laisse derrière elle.
-pub(super) struct Pose {
+/// What the "mods" step leaves behind.
+pub(super) struct Placement {
     pub plan: mc_mods::Plan,
     pub instance: mc_instance::Instance,
     pub server_dir: std::path::PathBuf,
@@ -21,7 +24,7 @@ pub(super) struct Pose {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(super) async fn poser(
+pub(super) async fn place(
     manifest: &Manifest,
     previous: Option<&Lockfile>,
     options: &Options,
@@ -29,43 +32,50 @@ pub(super) async fn poser(
     java: &Path,
     neoforge_version: &str,
     dl: &mc_dl::Downloader,
-    log: Progress<'_>,
-) -> Result<Pose> {
+    report: &Arc<dyn Report>,
+) -> Result<Placement> {
     let layout = &options.layout;
-    let registry = mc_mods::Registry::new(layout.cache().join("mods"))?;
+    // The registry sets up its own HTTP client: without this observer, mods
+    // would be the only step to run silently, and it's the longest one
+    // after assets.
+    let registry =
+        mc_mods::Registry::observed(layout.cache().join("mods"), super::observer(report))?
+            // And it also reports where the RESOLUTION stands: that's the
+            // part that takes time, and it barely reports anything.
+            .announcing(announcer(report));
     let requests = if replay {
-        let lock = previous.expect("vérifié plus haut");
+        let lock = previous.expect("checked above");
         tracing::info!(
             builds = lock.mods.len(),
-            "Rejeu du verrou : {} builds épinglés",
+            "Lock replay: {} pinned builds",
             lock.mods.len()
         );
-        log(&format!(
-            "Mods : {} builds rejoués depuis le verrou",
+        report.note(&format!(
+            "Mods: {} builds replayed from the lock",
             lock.mods.len()
         ));
         lock.requests()
     } else {
         tracing::info!(
-            demandes = manifest.mods.len(),
-            "Résolution de {} mods demandés",
+            requested = manifest.mods.len(),
+            "Resolving {} requested mods",
             manifest.mods.len()
         );
-        log("Résolution des mods…");
+        report.note("Resolving mods…");
         manifest.requests()?
     };
 
     let plan = mc_mods::resolve(&registry, &requests, &manifest.minecraft, "neoforge").await?;
-    let added = ajoutes_par_dependance(plan.mods.iter().map(|m| &m.reason));
+    let added = added_by_dependency(plan.mods.iter().map(|m| &m.reason));
     tracing::info!(
         total = plan.mods.len(),
-        ajoutes = added,
-        non_resolus = plan.unresolved.len(),
-        "{} mods résolus, dont {added} ajoutés par dépendance",
+        added,
+        unresolved = plan.unresolved.len(),
+        "{} mods resolved, {added} added by dependency",
         plan.mods.len()
     );
-    log(&format!(
-        "  {} mods, dont {added} ajoutés par résolution des dépendances",
+    report.note(&format!(
+        "  {} mods, {added} added by dependency resolution",
         plan.mods.len()
     ));
     for entry in plan
@@ -73,23 +83,32 @@ pub(super) async fn poser(
         .iter()
         .filter(|m| matches!(m.reason, mc_mods::Reason::Implicit { .. }))
     {
-        log(&format!(
+        report.note(&format!(
             "  · {} — {}",
             entry.candidate.slug,
             entry.reason.describe()
         ));
     }
-    deploiement::deployer(plan, options, manifest, java, neoforge_version, dl, log).await
+    deployment::deploy(
+        plan,
+        options,
+        manifest,
+        java,
+        neoforge_version,
+        dl,
+        report.as_ref(),
+    )
+    .await
 }
 
-/// Combien de mods le pack a gagnés sans que le manifeste les demande.
+/// How many mods the pack gained without the manifest requesting them.
 ///
-/// C'est le chiffre qui explique qu'un manifeste de trente lignes installe
-/// cent mods : le reste vient des dépendances. Compter les autres — ceux que
-/// le manifeste nomme — annoncerait le contraire, et ferait croire à une
-/// résolution qui n'a rien trouvé.
-fn ajoutes_par_dependance<'a>(raisons: impl Iterator<Item = &'a mc_mods::Reason>) -> usize {
-    raisons
+/// This is the number that explains how a thirty-line manifest installs a
+/// hundred mods: the rest comes from dependencies. Counting the others —
+/// the ones the manifest names — would say the opposite, and suggest a
+/// resolution that found nothing.
+fn added_by_dependency<'a>(reasons: impl Iterator<Item = &'a mc_mods::Reason>) -> usize {
+    reasons
         .filter(|reason| **reason != mc_mods::Reason::Explicit)
         .count()
 }
@@ -97,3 +116,12 @@ fn ajoutes_par_dependance<'a>(raisons: impl Iterator<Item = &'a mc_mods::Reason>
 #[cfg(test)]
 #[path = "mods.test.rs"]
 mod tests;
+
+/// The thread that carries resolution progress to the report.
+///
+/// Twin of `super::observer`, for the other half of the time spent in the
+/// Mods step: the part where APIs are queried rather than bytes downloaded.
+fn announcer(report: &Arc<dyn Report>) -> mc_mods::Progress {
+    let report = Arc::clone(report);
+    Arc::new(move |done, total| report.resolution(done, total))
+}

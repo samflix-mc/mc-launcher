@@ -1,19 +1,67 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/mc-paths",
+    "crates/mc-settings",
+    "crates/mc-news",
     "crates/mc-auth",
     "crates/mc-dl",
-    "crates/mc-essais",
+    "crates/mc-testkit",
     "crates/mc-log",
     "crates/mc-java",
     "crates/mc-mods",
     "crates/mc-instance",
     "crates/mc-pack",
+    "crates/mc-ping",
+    # L'application : elle n'ajoute aucune logique de launcher, elle appelle
+    # les crates ci-dessus et les rend visibles dans une fenêtre.
+    "crates/mc-app",
+]
+
+# Ce que « cargo build », « cargo test » ou « cargo mutants » prennent quand on
+# ne leur nomme rien. La liste vaut « members » moins mc-app, et c'est le seul
+# levier qui agisse sur un appelant qu'on ne contrôle pas : release.yml délègue
+# à samflix-mc/.github, qui lance un « cargo build » nu. Sans cette ligne, ce
+# build-là compilerait l'application — sans WebKitGTK sur son runner, et sans
+# jamais empaqueter ce qu'il aurait produit.
+#
+# Il agit du même coup sur cargo-mutants, invoqué sans « --workspace » dans
+# mutation.yml : mc-app sort du périmètre de mutation parce qu'il n'ajoute
+# aucune logique — chaque étape qu'il montre est déjà mutée dans le crate qui
+# la porte. Ne pas ajouter « --workspace » à mutation.yml par réflexe
+# d'uniformité : ce serait défaire l'arbitrage sans le dire.
+#
+# Contrepartie, à tenir : « --workspace » devient explicite LÀ OÙ L'ON VEUT
+# VOIR mc-app — le clippy de ci.yml et le llvm-cov de qualite.yml.
+#
+# Piège, et c'est le seul dont le symptôme est l'absence de symptôme : Cargo
+# refuse un paquet listé ici qui ne serait pas membre, et ne dit RIEN d'un
+# membre absent d'ici. Un crate neuf oublié sortirait en silence de tout ce qui
+# précède. ci.yml compare donc les deux listes à chaque exécution.
+default-members = [
+    "crates/mc-paths",
+    "crates/mc-settings",
+    "crates/mc-news",
+    "crates/mc-auth",
+    "crates/mc-dl",
+    "crates/mc-testkit",
+    "crates/mc-log",
+    "crates/mc-java",
+    "crates/mc-mods",
+    "crates/mc-instance",
+    "crates/mc-pack",
+    "crates/mc-ping",
 ]
 
 [workspace.package]
 edition = "2024"
 license = "MIT"
+# Une seule version pour tout le dépôt, et c'est celle que porte le tag.
+# tauri.conf.json ne la déclare plus : privé de clé « version », Tauri va la
+# lire dans le Cargo.toml du crate, qui la tient d'ici. Un seul endroit à
+# changer, donc aucun endroit où elle puisse diverger — et le job « coherence »
+# de release.yml oppose le tag à cette ligne avant toute compilation.
+version = "0.1.0"
 
 [workspace.dependencies]
 anyhow = "1"
@@ -30,7 +78,14 @@ serde_json = "1"
 mutants = "0.0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "process"] }
 md-5 = "0.10"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# `stream` pour lire un corps morceau par morceau : c'est ce qui rend un débit
+# et un temps restant observables, là où `bytes()` ne rend la main qu'une fois
+# le fichier entier en mémoire.
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+    "stream",
+] }
 futures-util = "0.3"
 sha1 = "0.10"
 sha2 = "0.10"
@@ -59,3 +114,12 @@ sentry = { version = "0.49", default-features = false, features = [
     "logs",
 ] }
 sentry-tracing = { version = "0.49", features = ["logs"] }
+
+# L'application. Tauri 2 et non 3 : au 17/09/2026 la 3.x est en alpha, sans
+# guide de migration, et ne change rien au rendu WebKitGTK sous Linux — voir
+# docs/interface.md.
+tauri = { version = "2.11", features = [] }
+tauri-build = "2.6"
+tauri-plugin-opener = "2"
+# Le trousseau du système, où vit la session du joueur.
+keyring = "4"

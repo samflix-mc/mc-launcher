@@ -1,0 +1,204 @@
+/*
+ * The global sheet: fonts, the design system, and the launcher's base.
+ *
+ * ## The order of the three imports is a contract
+ *
+ * Fonts first — an `@font-face` must exist before a rule names it,
+ * otherwise the first render happens with the fallback font and text jumps
+ * visibly. Tokens next, components after: `helm.css` doesn't contain a
+ * single value that isn't sourced from `tokens.css`, and reversing the
+ * order would leave every `var()` unresolved.
+ *
+ * ## What this sheet is allowed to contain, after the imports
+ *
+ * Anything that applies to elements NO component owns: `html`, `body`, the
+ * root. Everything else belongs to the component that draws it, in its own
+ * `styleUrl`, and the design system's classes are used there as-is —
+ * Angular's emulated encapsulation only rewrites the selectors of styles a
+ * component declares, never those of a global sheet.
+ *
+ * ## Why there's no more Tailwind or daisyUI
+ *
+ * The design system is complete: it carries its own base (`box-sizing`,
+ * `body`'s margins, the base family and size), its tokens, and six hundred
+ * and twenty lines of components. Making two systems coexist cost twice
+ * over: once in bytes, and once in inconsistencies — a daisyUI button next
+ * to a `.hm-btn` don't look alike, and that's exactly what gave the
+ * interface its unfinished feel.
+ *
+ * There was also a cascade trap: `@import "tailwindcss"` files its
+ * utilities into a layer, and CSS WITHOUT a layer beats any layer,
+ * regardless of specificity. A utility set on an element that `helm.css`
+ * describes would therefore have been ignored SILENTLY.
+ *
+ * ## The CSP, and what loosened it
+ *
+ * `style-src` carries `'unsafe-inline'`, which allows components'
+ * `styleUrl`s. This loosening holds on one condition only: no markup comes
+ * from anywhere but the Angular compiler. It's checked by `pnpm
+ * invariants`, not by good faith. `script-src` stays strict.
+ */
+
+/* --- Fonts, shipped with the bundle -----------------------------------------
+
+   The design system pulls them from Google Fonts. We can't: `default-src
+   'self'` would refuse the request, and an offline window — which happens
+   to a launcher — would end up with no font no matter what.
+
+   The subsets are `latin` and `latin-ext`, and no more: the launcher is in
+   English, and Cyrillic or Greek would be two hundred kilobytes no screen
+   displays.
+
+   The weights are exactly those `helm.css` names. Adding one that no rule
+   asks for adds a file to the bundle and nothing to the screen. */
+
+@import '@fontsource/manrope/latin-400.css';
+@import '@fontsource/manrope/latin-500.css';
+@import '@fontsource/manrope/latin-600.css';
+@import '@fontsource/manrope/latin-700.css';
+@import '@fontsource/manrope/latin-ext-400.css';
+@import '@fontsource/manrope/latin-ext-600.css';
+
+/* Pixelify Sans: a single weight, 500, and never below twenty-two pixels.
+   Below that, the pixel face stops being a letter and becomes a texture. */
+@import '@fontsource/pixelify-sans/latin-500.css';
+@import '@fontsource/pixelify-sans/latin-ext-500.css';
+
+/* JetBrains Mono: anything that updates — a percentage, a rate, a counter —
+   and the device code. */
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-500.css';
+
+/* --- The design system ------------------------------------------------------
+
+   Two copies, replaceable with a `cp` from `docs/helm-design-system.zip`.
+   See their headers for what was changed and why. */
+
+@import './design/tokens.css';
+@import './design/helm.css';
+
+/* --- The base, and nothing else ---------------------------------------------
+
+   Everything below applies to elements NO component owns. */
+
+:root {
+  color-scheme: dark;
+
+  /* The scrim between the image and the interface, set by the settings
+     service ON THIS ELEMENT.
+
+     A component style CANNOT declare it here: Angular's emulated
+     encapsulation would rewrite `:root` into `:root[_ngcontent-…]`, which
+     designates nothing.
+
+     It's NO LONGER what holds the contrast — see `--glass-base` right
+     below, and `SCRIM_FLOOR` on the Rust side. It's a preference, and it
+     can therefore go down to zero without breaking anything. */
+  --scrim: 0.3;
+
+  /* --- Compensating the glass -------------------------------------------------
+
+     This is the countermeasure the design system prescribes, and it's
+     automatic here: "on a bright image, raise the glass base to 60% of the
+     background on the window root rather than darkening the text".
+
+     The reasoning fits in one sentence: what needs to stay readable is the
+     PANELS, not the image. Darkening the image to save the text also darkens
+     the middle of the screen, which the design system leaves empty on
+     purpose so the image shows there — i.e. you'd be paying for readability
+     at the exact spot where there's nothing to read.
+
+     The glass base thickens as the scrim thins: 46% of the background — the
+     design system's value — when the scrim is at 0.44 or above, up to 72%
+     when it's zero. At 72%, on a WHITE image, `ink-3` — the lightest hue the
+     design system allows for text — still holds 4.5:1 on a panel.
+
+     `clamp` at both ends: without it, a scrim of 1 would produce an 18%
+     glass, i.e. nearly transparent panels laid over an already black image —
+     the exact opposite of what's wanted. */
+
+  /* A COLOR, not a percentage: `--glass-base` is consumed as a background
+     (`background: var(--glass-face), var(--glass-base)`), and a percentage
+     value would be invalid there — the panel would then render
+     transparent, with no error. The percentage is only the mix's opacity. */
+  --glass-thickness: clamp(46%, calc(46% + (0.44 - var(--scrim)) * 59%), 72%);
+  --glass-base: color-mix(in srgb, var(--bg) var(--glass-thickness), transparent);
+}
+
+html,
+body {
+  height: 100%;
+  /* An application window doesn't scroll: its panels do, each within its
+     own area. */
+  overflow: hidden;
+}
+
+body {
+  /* Nothing to select in an application window, except what you copy. The
+     exceptions carry `.hm-selectionnable`, declared in `helm.css`. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+/* Angular's host occupies the window: without this it would be `inline`,
+   and the shell's height would have nothing to compute against. */
+app-root {
+  display: block;
+  height: 100%;
+}
+
+/* --- Backdrop images ---------------------------------------------------------
+
+   They're set on `.hm-stage__art`, inside the shell, and not on `body`: the
+   design system's scene carries the readability gradient that keeps the
+   bottom bar legible and shows the image in the middle. A backdrop set on
+   `body` would pass under that gradient and cancel it out.
+
+   The attribute is set on `<html>` by the settings service, which only
+   knows identifiers — never a path. */
+
+html[data-backdrop='spawn'] .hm-stage__art {
+  background-image: url('/backdrops/spawn.webp');
+}
+
+html[data-backdrop='nether'] .hm-stage__art {
+  background-image: url('/backdrops/nether.webp');
+}
+
+html[data-backdrop='end'] .hm-stage__art {
+  background-image: url('/backdrops/end.webp');
+}
+
+/* "plain" has no image: the design system's fallback gradient, for anyone
+   who finds the photos noisy or has a slow screen. It's already written,
+   on `.hm-stage__art--fallback`; the attribute recalls it here so the page
+   doesn't have to pick its class based on a setting. */
+html[data-backdrop='plain'] .hm-stage__art {
+  background-image:
+    radial-gradient(
+      60% 55% at 78% 22%,
+      color-mix(in srgb, var(--gold) 26%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      70% 60% at 18% 80%,
+      color-mix(in srgb, var(--info) 22%, transparent) 0%,
+      transparent 70%
+    ),
+    linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg) 100%);
+}
+
+/* The scrim, between the image and the interface.
+
+   On the scene and not on a div mounted in the tree: it can then never end
+   up in the wrong spot in the stacking order. It adds to the gradient
+   `.hm-stage__art::after` already carries — that one holds the bottom
+   bar's readability, this one is the player's setting. */
+.hm-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) calc(var(--scrim) * 100%), transparent);
+  pointer-events: none;
+}

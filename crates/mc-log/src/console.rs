@@ -1,51 +1,53 @@
-//! La couche console : ce qu'un utilisateur voit pendant qu'il attend.
+//! The console layer: what a user sees while waiting.
 
 mod format;
 
 use tracing_subscriber::{EnvFilter, Layer};
 
 use crate::BoxedLayer;
-use crate::fichier::Redacting;
+use crate::file::Redacting;
 use format::ConsoleFormat;
 
-/// La console montre l'essentiel ; le fichier garde tout.
+/// The console shows the essentials; the file keeps everything.
 ///
-/// `RUST_LOG` règle la première sans toucher au second, pour qu'un utilisateur
-/// qui augmente la verbosité n'ait pas à relancer l'opération qui a échoué.
+/// `RUST_LOG` tunes the former without touching the latter, so that a user
+/// raising verbosity doesn't have to rerun the operation that failed.
 pub(crate) fn layer() -> BoxedLayer {
-    let filtre = filtre(std::env::var("RUST_LOG").ok().as_deref());
+    let filter = filter(std::env::var("RUST_LOG").ok().as_deref());
 
     tracing_subscriber::fmt::layer()
         .with_target(false)
-        // Le temps écoulé depuis le démarrage, pas l'heure absolue. Une
-        // commande dure quelques secondes : savoir qu'une étape a pris
-        // 4,2 s renseigne, savoir qu'il était 01:18:38 non.
-        // Les champs du span racine seraient répétés à chaque ligne —
-        // « commande{nom=lock manifeste=… environnement=local} » sept fois
-        // de suite noie ce qu'on cherche à lire. Le fichier les garde.
+        // Time elapsed since startup, not the absolute time. A command runs
+        // for a few seconds; knowing a step took 4.2s is informative,
+        // knowing it was 01:18:38 isn't.
+        // The root span's fields would be repeated on every line —
+        // "command{name=lock manifest=… environment=local}" seven times in
+        // a row drowns out what one is trying to read. The file keeps them.
         .event_format(ConsoleFormat::new())
         .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
         .with_writer(Redacting(std::io::stderr as fn() -> std::io::Stderr))
-        .with_filter(filtre)
+        .with_filter(filter)
         .boxed()
 }
 
-/// Ce que `RUST_LOG` vaut, une fois écartés les deux cas qui rendraient la
-/// console muette sans le dire.
-fn filtre(brut: Option<&str>) -> EnvFilter {
-    // Une RUST_LOG posée mais vide vaut une RUST_LOG absente : recopier le
-    // « .env » d'exemple tel quel la pose ainsi, et `try_from_default_env`
-    // rendrait alors un filtre sans la moindre directive — console muette,
-    // défaut compris, sans que rien ne l'explique.
-    brut.filter(|niveau| !niveau.trim().is_empty())
-        .and_then(|niveau| match EnvFilter::try_new(niveau) {
-            Ok(filtre) => Some(filtre),
-            // Le souscripteur n'est pas encore posé : ce message ne peut passer
-            // que par la sortie d'erreur. Le taire rendrait une RUST_LOG mal
-            // écrite indiscernable d'une RUST_LOG absente — soit exactement le
-            // silence inexpliqué que le cas précédent corrige.
-            Err(erreur) => {
-                eprintln!("RUST_LOG ignorée ({erreur}) : « {niveau} » — filtre par défaut.");
+/// What `RUST_LOG` amounts to, once the two cases that would silently mute
+/// the console are ruled out.
+fn filter(raw: Option<&str>) -> EnvFilter {
+    // A RUST_LOG that's set but empty is as good as one that's absent:
+    // copying the example ".env" as-is sets it that way, and
+    // `try_from_default_env` would then yield a filter with no directive at
+    // all — a muted console, default included, with nothing to explain it.
+    raw.filter(|level| !level.trim().is_empty())
+        .and_then(|level| match EnvFilter::try_new(level) {
+            Ok(filter) => Some(filter),
+            // The subscriber isn't set up yet: this message can only go
+            // through standard error. Silencing it would make a
+            // malformed RUST_LOG indistinguishable from an absent one —
+            // exactly the unexplained silence the previous case fixes.
+            Err(error) => {
+                eprintln!(
+                    "RUST_LOG ignored ({error}): \"{level}\" — falling back to default filter."
+                );
                 None
             }
         })

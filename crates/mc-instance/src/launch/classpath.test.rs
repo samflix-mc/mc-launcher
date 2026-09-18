@@ -1,175 +1,157 @@
 use super::classpath;
-use crate::essais::{Arbre, NEOFORGE, VANILLA};
-use crate::launch::descripteur::resolve_chain;
+use crate::fixtures::{NEOFORGE, Tree, VANILLA};
+use crate::launch::descriptor::resolve_chain;
 
 const OS: &str = "linux";
 const ARCH: &str = "x86_64";
 
-/// NeoForge remplace certaines bibliothèques de Mojang. Sa version doit passer
-/// devant, sinon la JVM charge celle de Mojang et le chargeur échoue sur une
-/// méthode absente.
+/// NeoForge replaces some of Mojang's libraries. Its version has to come
+/// first, otherwise the JVM loads Mojang's and the loader fails on a
+/// missing method.
 #[test]
-fn la_bibliotheque_du_chargeur_remplace_celle_du_jeu() {
-    let arbre = Arbre::neuf("cp-remplacement");
-    arbre
-        .version("1.21.1", VANILLA)
+fn the_loaders_library_replaces_the_games() {
+    let tree = Tree::new("cp-replacement");
+    tree.version("1.21.1", VANILLA)
         .client("1.21.1")
         .version("neoforge-21.1.250", NEOFORGE)
-        .bibliotheque("com/google/guava/guava/33.0.0-jre/guava-33.0.0-jre.jar")
-        .bibliotheque("net/neoforged/fancymodloader/loader/4.0.24/loader-4.0.24.jar");
+        .library("com/google/guava/guava/33.0.0-jre/guava-33.0.0-jre.jar")
+        .library("net/neoforged/fancymodloader/loader/4.0.24/loader-4.0.24.jar");
 
-    let chaine = resolve_chain(&arbre.shared(), "neoforge-21.1.250").unwrap();
-    let (chemins, texte) = classpath(&chaine, &arbre.shared(), OS, ARCH, ":").unwrap();
+    let chain = resolve_chain(&tree.shared(), "neoforge-21.1.250").unwrap();
+    let (paths, text) = classpath(&chain, &tree.shared(), OS, ARCH, ":").unwrap();
 
-    let noms: Vec<String> = chemins
+    let names: Vec<String> = paths
         .iter()
         .map(|p| p.file_name().unwrap().to_string_lossy().to_string())
         .collect();
     assert!(
-        noms.contains(&"guava-33.0.0-jre.jar".to_string()),
-        "{noms:?}"
+        names.contains(&"guava-33.0.0-jre.jar".to_string()),
+        "{names:?}"
     );
     assert!(
-        !noms.contains(&"guava-32.1.2-jre.jar".to_string()),
-        "les deux guava sont au classpath : {noms:?}"
+        !names.contains(&"guava-32.1.2-jre.jar".to_string()),
+        "both guavas are on the classpath: {names:?}"
     );
-    assert_eq!(texte.split(':').count(), chemins.len());
+    assert_eq!(text.split(':').count(), paths.len());
 }
 
-/// Sous un chargeur, l'installateur a produit sa propre découpe du client.
-/// Ajouter `1.21.1.jar` par-dessus donne deux modules qui exportent les mêmes
-/// paquets, et la JVM s'arrête avant le premier écran.
+/// Under a loader, the installer has produced its own split of the client.
+/// Adding `1.21.1.jar` on top yields two modules exporting the same
+/// packages, and the JVM stops before the first screen.
 #[test]
-fn le_client_vanilla_reste_hors_du_classpath_sous_un_chargeur() {
-    let arbre = Arbre::neuf("cp-client-charge");
-    arbre
-        .version("1.21.1", VANILLA)
+fn the_vanilla_client_stays_off_the_classpath_under_a_loader() {
+    let tree = Tree::new("cp-loaded-client");
+    tree.version("1.21.1", VANILLA)
         .client("1.21.1")
         .version("neoforge-21.1.250", NEOFORGE)
-        .bibliotheque("com/google/guava/guava/33.0.0-jre/guava-33.0.0-jre.jar")
-        .bibliotheque("net/neoforged/fancymodloader/loader/4.0.24/loader-4.0.24.jar");
+        .library("com/google/guava/guava/33.0.0-jre/guava-33.0.0-jre.jar")
+        .library("net/neoforged/fancymodloader/loader/4.0.24/loader-4.0.24.jar");
 
-    let chaine = resolve_chain(&arbre.shared(), "neoforge-21.1.250").unwrap();
-    let (chemins, _) = classpath(&chaine, &arbre.shared(), OS, ARCH, ":").unwrap();
+    let chain = resolve_chain(&tree.shared(), "neoforge-21.1.250").unwrap();
+    let (paths, _) = classpath(&chain, &tree.shared(), OS, ARCH, ":").unwrap();
 
     assert!(
-        !chemins.iter().any(|p| p.ends_with("1.21.1.jar")),
-        "le client vanilla est au classpath : {chemins:?}"
+        !paths.iter().any(|p| p.ends_with("1.21.1.jar")),
+        "the vanilla client is on the classpath: {paths:?}"
     );
 }
 
-/// En vanilla pur, en revanche, c'est lui qui porte le jeu.
+/// In pure vanilla, on the other hand, it's the one carrying the game.
 #[test]
-fn le_client_vanilla_rejoint_le_classpath_sans_chargeur() {
-    let arbre = Arbre::neuf("cp-client-nu");
-    arbre
-        .version("1.21.1", VANILLA)
+fn the_vanilla_client_joins_the_classpath_without_a_loader() {
+    let tree = Tree::new("cp-bare-client");
+    tree.version("1.21.1", VANILLA)
         .client("1.21.1")
-        .bibliotheque("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar");
+        .library("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar");
 
-    let chaine = resolve_chain(&arbre.shared(), "1.21.1").unwrap();
-    let (chemins, _) = classpath(&chaine, &arbre.shared(), OS, ARCH, ":").unwrap();
+    let chain = resolve_chain(&tree.shared(), "1.21.1").unwrap();
+    let (paths, _) = classpath(&chain, &tree.shared(), OS, ARCH, ":").unwrap();
 
-    assert!(
-        chemins.iter().any(|p| p.ends_with("1.21.1.jar")),
-        "{chemins:?}"
-    );
+    assert!(paths.iter().any(|p| p.ends_with("1.21.1.jar")), "{paths:?}");
 }
 
-/// Une bibliothèque réservée à un autre système n'a pas à être téléchargée ni
-/// exigée : les deux tiers du classpath vanilla sont sans règle, le reste
-/// dépend du système.
+/// A library reserved for another system doesn't need to be downloaded or
+/// required: two thirds of the vanilla classpath carry no rule, the rest
+/// depends on the system.
 #[test]
-fn une_bibliotheque_d_un_autre_systeme_est_ignoree() {
-    let arbre = Arbre::neuf("cp-autre-systeme");
-    arbre
-        .version("1.21.1", VANILLA)
+fn a_library_for_another_system_is_ignored() {
+    let tree = Tree::new("cp-other-system");
+    tree.version("1.21.1", VANILLA)
         .client("1.21.1")
-        .bibliotheque("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar");
+        .library("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar");
 
-    let chaine = resolve_chain(&arbre.shared(), "1.21.1").unwrap();
-    let (chemins, _) = classpath(&chaine, &arbre.shared(), OS, ARCH, ":").unwrap();
+    let chain = resolve_chain(&tree.shared(), "1.21.1").unwrap();
+    let (paths, _) = classpath(&chain, &tree.shared(), OS, ARCH, ":").unwrap();
 
     assert!(
-        !chemins
-            .iter()
-            .any(|p| p.to_string_lossy().contains("lwjgl")),
-        "une bibliothèque macOS a été retenue sous linux : {chemins:?}"
+        !paths.iter().any(|p| p.to_string_lossy().contains("lwjgl")),
+        "a macOS library was retained under linux: {paths:?}"
     );
 }
 
-/// Une bibliothèque manquante fait échouer le démarrage de toute façon ; le
-/// dire ici, avec le nom du premier fichier absent, épargne une trace Java.
+/// A missing library fails the startup anyway; saying so here, with the
+/// name of the first missing file, spares a Java stack trace.
 #[test]
-fn une_bibliotheque_manquante_est_nommee() {
-    let arbre = Arbre::neuf("cp-manquante");
-    arbre.version("1.21.1", VANILLA).client("1.21.1");
+fn a_missing_library_is_named() {
+    let tree = Tree::new("cp-missing");
+    tree.version("1.21.1", VANILLA).client("1.21.1");
 
-    let chaine = resolve_chain(&arbre.shared(), "1.21.1").unwrap();
-    let erreur = classpath(&chaine, &arbre.shared(), OS, ARCH, ":").expect_err("guava est absent");
+    let chain = resolve_chain(&tree.shared(), "1.21.1").unwrap();
+    let error = classpath(&chain, &tree.shared(), OS, ARCH, ":").expect_err("guava is missing");
 
-    let texte = format!("{erreur:#}");
-    assert!(texte.contains("guava"), "{texte}");
-    assert!(texte.contains("relancer l'installation"), "{texte}");
+    let text = format!("{error:#}");
+    assert!(text.contains("guava"), "{text}");
+    assert!(text.contains("reinstall"), "{text}");
 }
 
 #[test]
-fn un_client_absent_est_dit_tel_quel() {
-    let arbre = Arbre::neuf("cp-sans-client");
-    arbre
-        .version("1.21.1", VANILLA)
-        .bibliotheque("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar");
+fn a_missing_client_is_reported_as_such() {
+    let tree = Tree::new("cp-no-client");
+    tree.version("1.21.1", VANILLA)
+        .library("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar");
 
-    let chaine = resolve_chain(&arbre.shared(), "1.21.1").unwrap();
-    let erreur = classpath(&chaine, &arbre.shared(), OS, ARCH, ":").expect_err("aucun client");
+    let chain = resolve_chain(&tree.shared(), "1.21.1").unwrap();
+    let error = classpath(&chain, &tree.shared(), OS, ARCH, ":").expect_err("no client");
+
+    assert!(format!("{error:#}").contains("missing client"), "{error:#}");
+}
+
+/// A library with no `downloads` falls back to the Maven path derived from
+/// its name — the norm for the ones NeoForge adds.
+#[test]
+fn a_library_without_a_download_falls_back_to_its_maven_path() {
+    let tree = Tree::new("cp-maven");
+    tree.version(
+        "1.21.1",
+        r#"{"id":"1.21.1","mainClass":"M","assetIndex":{"id":"17"},
+            "libraries":[{"name":"net.neoforged:mergetool:2.0.0"}]}"#,
+    )
+    .client("1.21.1")
+    .library("net/neoforged/mergetool/2.0.0/mergetool-2.0.0.jar");
+
+    let chain = resolve_chain(&tree.shared(), "1.21.1").unwrap();
+    let (paths, _) = classpath(&chain, &tree.shared(), OS, ARCH, ":").unwrap();
 
     assert!(
-        format!("{erreur:#}").contains("client absent"),
-        "{erreur:#}"
+        paths.iter().any(|p| p.ends_with("mergetool-2.0.0.jar")),
+        "{paths:?}"
     );
 }
 
-/// Une bibliothèque sans `downloads` retombe sur le chemin Maven déduit de son
-/// nom — systématique pour celles qu'ajoute NeoForge.
+/// A name that doesn't look like anything yields no path: better to stop
+/// than to silently assemble an incomplete classpath.
 #[test]
-fn une_bibliotheque_sans_telechargement_passe_par_son_chemin_maven() {
-    let arbre = Arbre::neuf("cp-maven");
-    arbre
-        .version(
-            "1.21.1",
-            r#"{"id":"1.21.1","mainClass":"M","assetIndex":{"id":"17"},
-                "libraries":[{"name":"net.neoforged:mergetool:2.0.0"}]}"#,
-        )
-        .client("1.21.1")
-        .bibliotheque("net/neoforged/mergetool/2.0.0/mergetool-2.0.0.jar");
+fn an_unusable_library_name_stops_the_assembly() {
+    let tree = Tree::new("cp-broken-name");
+    tree.version(
+        "1.21.1",
+        r#"{"id":"1.21.1","mainClass":"M","assetIndex":{"id":"17"},
+            "libraries":[{"name":"notwocolons"}]}"#,
+    )
+    .client("1.21.1");
 
-    let chaine = resolve_chain(&arbre.shared(), "1.21.1").unwrap();
-    let (chemins, _) = classpath(&chaine, &arbre.shared(), OS, ARCH, ":").unwrap();
+    let chain = resolve_chain(&tree.shared(), "1.21.1").unwrap();
+    let error = classpath(&chain, &tree.shared(), OS, ARCH, ":").expect_err("unusable name");
 
-    assert!(
-        chemins.iter().any(|p| p.ends_with("mergetool-2.0.0.jar")),
-        "{chemins:?}"
-    );
-}
-
-/// Un nom qui ne ressemble à rien ne donne aucun chemin : mieux vaut s'arrêter
-/// que composer un classpath silencieusement incomplet.
-#[test]
-fn un_nom_de_bibliotheque_inexploitable_arrete_l_assemblage() {
-    let arbre = Arbre::neuf("cp-nom-casse");
-    arbre
-        .version(
-            "1.21.1",
-            r#"{"id":"1.21.1","mainClass":"M","assetIndex":{"id":"17"},
-                "libraries":[{"name":"sansdeuxpoints"}]}"#,
-        )
-        .client("1.21.1");
-
-    let chaine = resolve_chain(&arbre.shared(), "1.21.1").unwrap();
-    let erreur = classpath(&chaine, &arbre.shared(), OS, ARCH, ":").expect_err("nom inexploitable");
-
-    assert!(
-        format!("{erreur:#}").contains("sans chemin exploitable"),
-        "{erreur:#}"
-    );
+    assert!(format!("{error:#}").contains("no usable path"), "{error:#}");
 }

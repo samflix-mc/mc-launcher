@@ -1,11 +1,12 @@
 [package]
 name = "mc-auth"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Chaîne d'authentification Microsoft → Xbox Live → XSTS → Minecraft"
 
 [dependencies]
+mc-paths = { path = "../mc-paths" }
 anyhow.workspace = true
 tracing.workspace = true
 mc-log = { path = "../mc-log" }
@@ -14,6 +15,10 @@ serde_json.workspace = true
 tokio.workspace = true
 md-5.workspace = true
 mutants.workspace = true
+
+# Le trousseau du système, où va le jeton de rafraîchissement.
+# Voir `stockage.rs` pour ce qui se passe quand la machine n'en a pas.
+keyring.workspace = true
 
 # S'authentifier comme le launcher officiel : voir la section « Authentification »
 # du README pour ce que ce choix implique.
@@ -35,7 +40,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-mc-essais = { path = "../mc-essais" }
+mc-testkit = { path = "../mc-testkit" }
 
 [[bin]]
 name = "mc-auth"

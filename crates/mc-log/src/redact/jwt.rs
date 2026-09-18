@@ -1,17 +1,17 @@
-//! Les jetons qui se reconnaissent à leur seule forme.
+//! Tokens recognizable by shape alone.
 
 use super::MASK;
-use super::curseur::is_token_char;
+use super::cursor::is_token_char;
 
-/// Masque les jetons au format JWT.
+/// Masks JWT-shaped tokens.
 ///
-/// Les jetons Microsoft et Minecraft en sont : trois segments base64url
-/// séparés par des points, commençant par `eyJ` — soit `{"` encodé. Ce préfixe
-/// suffit à les reconnaître sans se soucier du contexte, ce qui attrape aussi
-/// les jetons qu'aucun mot-clé n'introduit.
+/// Microsoft and Minecraft tokens are among them: three base64url
+/// segments separated by dots, starting with `eyJ` — the encoding of
+/// `{"`. That prefix is enough to recognize them without regard to
+/// context, which also catches tokens that no keyword introduces.
 pub(super) fn redact_jwt(text: &str) -> String {
-    // Pas de jeton sans ce préfixe : l'écarter d'abord évite de recopier chaque
-    // ligne du journal dans un `Vec<char>` pour n'y rien trouver.
+    // No token without this prefix: ruling it out first avoids copying
+    // every line of the log into a `Vec<char>` to find nothing.
     if !text.contains("eyJ") {
         return text.to_string();
     }
@@ -25,8 +25,8 @@ pub(super) fn redact_jwt(text: &str) -> String {
             while end < chars.len() && is_token_char(chars[end]) {
                 end += 1;
             }
-            // Un identifiant qui commence par « eyJ » sans être un jeton est
-            // trop court pour l'être : un JWT dépasse toujours largement.
+            // An identifier starting with "eyJ" without being a token is
+            // too short to be one: a JWT is always considerably longer.
             if end - i >= 24 {
                 out.push_str(MASK);
                 i = end;

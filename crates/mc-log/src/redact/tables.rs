@@ -1,6 +1,6 @@
-//! Ce qui annonce un secret, et ce qui annonce seulement son annonce.
+//! What announces a secret, and what only announces its announcement.
 
-/// Mots qui annoncent une valeur sensible juste après.
+/// Words that announce a sensitive value right after them.
 pub(super) const KEYWORDS: &[&str] = &[
     "access_token",
     "refresh_token",
@@ -18,15 +18,15 @@ pub(super) const KEYWORDS: &[&str] = &[
     "token",
 ];
 
-/// Schémas d'authentification HTTP : le mot annonce la valeur, il n'est pas la
-/// valeur.
+/// HTTP authentication schemes: the word announces the value, it isn't
+/// the value.
 ///
-/// Sans cette liste, seul « Bearer » était reconnu. Les autres schémas étaient
-/// pris pour le secret lui-même : c'est le nom du schéma qui se faisait masquer,
-/// et l'identifiant qui le suit partait en clair.
+/// Without this list, only "Bearer" was recognized. Other schemes were
+/// mistaken for the secret itself: the scheme name got masked, and the
+/// identifier following it went out in the clear.
 ///
-/// Un schéma n'est reconnu que s'il forme un mot à part *et* s'il introduit
-/// réellement quelque chose ; sinon c'est lui, la valeur. Sans ces deux
-/// conditions, « token=basicXXXX » laissait passer « basic » en clair, et
-/// « password: digest » ne masquait plus rien du tout.
+/// A scheme is only recognized if it forms a word on its own *and*
+/// actually introduces something; otherwise it is the value. Without
+/// both conditions, "token=basicXXXX" let "basic" through in the clear,
+/// and "password: digest" masked nothing at all.
 pub(super) const SCHEMES: &[&str] = &["bearer", "basic", "digest", "negotiate", "token", "dpop"];

@@ -4,14 +4,27 @@
 # chose qui vaille dans un fichier d'exclusions.
 
 exclude_globs = [
-    # mc-essais est l'outillage des suites : un serveur HTTP local, de faux
+    # mc-testkit est l'outillage des suites : un serveur HTTP local, de faux
     # runtimes, des archives fabriquées. Le muter reviendrait à demander
     # qu'un test vérifie le harnais d'un autre test — et le résultat serait
     # un survivant par méthode, indéfiniment, sur du code que `publish =
     # false` interdit d'embarquer dans un binaire. Ce qui compte pour ce
     # crate, c'est que les suites qui s'en servent tombent quand il ment ;
     # c'est déjà ce qu'elles font.
-    "crates/mc-essais/**",
+    "crates/mc-testkit/**",
+
+    # mc-app n'ajoute aucune logique de launcher : c'est une fenêtre, sept
+    # commandes qui enveloppent des appels, et une cinématique dont chaque
+    # étape est déjà mutée dans le crate qui la porte. Muter l'enveloppe
+    # demanderait à un test de vérifier une délégation, ce que seul un test de
+    # bout en bout — avec un serveur d'affichage — pourrait faire.
+    #
+    # Ce n'est PAS cette ligne qui l'écarte : le mécanisme est
+    # « default-members » dans le Cargo.toml racine, puisque mutation.yml
+    # invoque cargo mutants sans « --workspace ». Elle est ici pour qu'on lise
+    # l'intention à l'endroit où l'on cherche les exclusions, et elle devient
+    # le filet si quelqu'un ajoute un jour « --workspace » au workflow.
+    "crates/mc-app/**",
 ]
 
 # Les suites vivent dans des fichiers « <module>.test.rs » compilés sous
@@ -32,30 +45,62 @@ exclude_re = [
     # drapeaux distincts. Le « ou exclusif » ne s'en écarte que si les deux
     # bits sont posés ensemble, ce qui ne peut pas arriver entre deux
     # constantes différentes. Même valeur, donc même comportement.
-    "couche\\.rs.*replace \\| with \\^",
+    "mc-log/src/incidents/layer\\.rs.*replace \\| with \\^",
 
     # `hash[6] = (hash[6] & 0x0f) | 0x30` — le masque met à zéro les bits que
     # la constante rajoute. Sur des bits à zéro, « ou » et « ou exclusif »
     # donnent le même résultat. C'est la version 3 de l'UUID, et elle sort
     # identique dans les deux cas.
-    "hors_ligne\\.rs.*replace \\| with \\^",
+    "mc-auth/src/offline\\.rs.*replace \\| with \\^",
 
     # `age > limit` en `>=` — la différence se joue sur un journal dont l'âge
     # vaut la limite à la nanoseconde près. Un test qui prétendrait la
     # provoquer mesurerait l'ordonnanceur, pas la purge.
-    "journal\\.rs.*replace > with >= in purge_old_logs",
+    "mc-log/src/guard/log\\.rs.*replace > with >= in purge_old_logs",
 
     # `Some(home) if text.contains(home)` — la garde n'est qu'un raccourci :
     # `text.replace(home, "~")` sur un texte qui ne contient pas `home` rend
     # ce texte inchangé. Forcer la garde à vraie donne la même sortie, pour un
     # peu plus de travail.
-    "home\\.rs.*replace match guard text.contains\\(home\\) with true",
+    "mc-log/src/redact/home\\.rs.*replace match guard text.contains\\(home\\) with true",
 
     # `while i < text.len()` en `<=` — au tour de trop, `lower[i..]` est vide,
     # aucun mot-clé n'y commence, et `text[i..].chars().next()` rend `None`,
     # donc la boucle sort par son `break`. Une itération de plus qui ne fait
     # rien et n'écrit rien.
-    "mot_cle\\.rs.*replace < with <= in redact_after_keywords",
+    "mc-log/src/redact/keyword\\.rs.*replace < with <= in redact_after_keywords",
+
+    # `if reglages.schema != SCHEMA` en `==` — la branche n'écrit qu'une ligne
+    # de journal, et ne change RIEN à ce que `charger` rend : `#[serde(default)]`
+    # fait que les champs d'un schéma voisin se relisent de toute façon. Le
+    # mutant déplace donc une ligne d'information d'un cas vers l'autre, et
+    # aucun test ne peut distinguer les deux sans capturer la sortie de
+    # `tracing` — c'est-à-dire sans ajouter une dépendance pour éprouver un
+    # message.
+    #
+    # La comparaison a été traitée AUTREMENT là où elle comptait : dans
+    # `mc-news`, un fil servi sous un autre schéma entre dans `ecartes`,
+    # que la page affiche. Le fait y est observable, donc il y est testé. Ici,
+    # les réglages n'ont pas de compte rendu, et leur en donner un pour ce seul
+    # message coûterait plus que la ligne ne rapporte.
+    "mc-settings/src/reading\\.rs.*replace != with == in load",
+
+    # `borner` : `if valeur < bas { bas } else if valeur > haut { haut } else
+    # { valeur }`. Les deux comparaisons se laissent muter en `<=` et `>=`, et
+    # les deux mutants sont ÉQUIVALENTS — la démonstration tient en une ligne :
+    # à la borne, `valeur == bas`, donc rendre `bas` ou rendre `valeur` rend la
+    # MÊME valeur. Il n'existe pas d'entrée qui distingue les deux branches,
+    # puisqu'elles sont égales exactement là où le mutant change de chemin.
+    #
+    # Ce n'est pas une dispense : les bornes SONT éprouvées, et de part et
+    # d'autre — voir `borner_rend_la_valeur_a_la_borne_exacte`. Ce que la
+    # mutation demande ici, aucun test ne peut le fournir.
+    #
+    # Le réflexe appliqué ailleurs — réécrire pour qu'il n'y ait plus rien à
+    # muter, comme l'encodeur base64 de mc-news devenu `from_be_bytes` —
+    # ne s'applique pas : la comparaison EST la fonction. La supprimer
+    # supprimerait ce qu'on veut.
+    "mc-settings/src/bounds\\.rs.*replace [<>] with [<>]= in clamp",
 ]
 
 # Le temps par mutant se déduit de la suite non mutée. Le multiplicateur par

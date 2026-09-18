@@ -1,31 +1,30 @@
-//! Ce qu'un jar déclare vraiment, lu dans le jar et non dans une API.
+//! What a jar truly declares, read from the jar and not from an API.
 //!
-//! Les dépendances annoncées par Modrinth ou CurseForge sont saisies à la main
-//! par l'auteur au moment de la publication. Elles sont souvent incomplètes :
-//! une bibliothèque ajoutée entre deux versions, une dépendance considérée
-//! comme évidente, un envoi automatisé qui ne remplit pas le champ. Le jeu, lui,
-//! ne lit que `META-INF/neoforge.mods.toml` — et s'arrête au démarrage dès
-//! qu'une dépendance obligatoire y manque.
+//! The dependencies announced by Modrinth or CurseForge are entered by hand
+//! by the author at publish time. They're often incomplete: a library added
+//! between two versions, a dependency considered obvious, an automated
+//! upload that leaves the field blank. The game itself only reads
+//! `META-INF/neoforge.mods.toml` — and stops at startup as soon as a
+//! required dependency is missing from it.
 //!
-//! On lit donc la même source que NeoForge. Deux détails décident de la
-//! justesse du résultat :
+//! So we read the same source NeoForge does. Two details decide the
+//! correctness of the result:
 //!
-//! - **JarJar** : un mod peut embarquer ses bibliothèques dans
-//!   `META-INF/jarjar/`. Elles fournissent leur `modId` sans exister comme
-//!   fichier séparé. Les ignorer ferait conclure à une dépendance manquante et
-//!   installerait un doublon — deux versions du même mod, ce que NeoForge
-//!   refuse. Mais elles restent **séparées de l'identité du mod** : les
-//!   confondre coûtait plus cher encore, deux mods qui embarquent la même
-//!   bibliothèque passant alors pour un doublon. Sodium et Iris partagent
-//!   quatre shims Fabric, et le résolveur en supprimait un des deux en
-//!   silence ;
-//! - **le `side` d'une dépendance** : une dépendance déclarée `side = "CLIENT"`
-//!   n'a rien à faire dans le dossier `mods` du serveur.
+//! - **JarJar**: a mod can bundle its libraries in `META-INF/jarjar/`. They
+//!   supply their `modId` without existing as a separate file. Ignoring them
+//!   would conclude a dependency is missing and install a duplicate — two
+//!   versions of the same mod, which NeoForge refuses. But they stay
+//!   **separate from the mod's identity**: confusing the two cost even
+//!   more, since two mods bundling the same library would then look like a
+//!   duplicate. Sodium and Iris share four Fabric shims, and the resolver
+//!   was silently dropping one of the two;
+//! - **a dependency's `side`**: a dependency declared `side = "CLIENT"` has
+//!   no business in the server's `mods` folder.
 
-pub(crate) mod cote;
-mod descripteur;
-mod lecture;
+mod descriptor;
+mod reading;
+pub(crate) mod side;
 
-pub use cote::Side;
-pub use descripteur::{JarInfo, PLATFORM_IDS, Requirement, is_platform, parse_descriptor};
-pub use lecture::{inspect, inspect_bytes};
+pub use descriptor::{JarInfo, PLATFORM_IDS, Requirement, is_platform, parse_descriptor};
+pub use reading::{inspect, inspect_bytes};
+pub use side::Side;

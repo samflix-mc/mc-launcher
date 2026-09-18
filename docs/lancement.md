@@ -9,8 +9,16 @@ mc-pack launch --pseudo Sam --afficher   # montre sans lancer
 ```
 
 `launch` ne réinstalle rien : il suppose l'installation faite et le dit si un
-fichier manque. Installer et jouer sont deux gestes distincts — les enchaîner
-ferait attendre huit cents mégaoctets à qui voulait lancer une partie.
+fichier manque. **En ligne de commande, installer et jouer restent deux
+gestes** — c'est un outil d'outilleur, et enchaîner les deux ferait attendre
+huit cents mégaoctets à qui voulait seulement lancer une partie.
+
+**Dans la fenêtre, il n'y en a plus qu'un**, et ce n'est pas une contradiction :
+c'est la résolution du même motif. Le launcher compare l'empreinte du verrou
+publié à celle du verrou posé — une requête, quelques kilooctets — et n'a donc
+plus besoin de faire le choix à l'aveugle. Le bouton dit INSTALLER quand rien
+n'est en place, JOUER ensuite, et rattrape de lui-même ce qui a bougé. Voir
+`mc_pack::jeu::enchainement` et [interface.md](interface.md).
 
 ## Ce qui décide qu'un jeu démarre
 
@@ -41,9 +49,19 @@ l'autre, et les backends du réseau tournent en `online-mode=false`. Voir
 
 ## Le runtime Java
 
-Minecraft 1.21.1 refuse de démarrer sous Java 21. Un joueur n'a aucune raison
+Minecraft 1.21.1 exige Java 21, et refuse de démarrer sous une majeure antérieure. Un joueur n'a aucune raison
 d'en avoir un, et celui qu'il a est souvent un 8 ou un 17 laissé par un vieux
 modpack.
+
+La majeure exigée est **écrite dans le verrou**, et vérifiée à chaque
+lancement. C'est une égalité et non un minimum : un Java plus récent que celui
+avec lequel NeoForge a été installé change le comportement des mixins et le
+format des registres, et le serveur tranche par une éjection qui ne nomme pas
+sa cause. Un poste qui a un Java 22 et un pack qui demande 21 recevra donc un
+Temurin 21 dédié, sans qu'on touche au 22 du système.
+
+Le launcher ne propose aucun choix de version de Java, et c'est délibéré : ce
+n'est pas un réglage, c'est une propriété du pack.
 
 ```bash
 cargo run -p mc-java --release            # détecte, installe au besoin

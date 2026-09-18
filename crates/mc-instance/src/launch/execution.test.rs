@@ -1,10 +1,11 @@
 use super::{Outcome, run};
-use crate::launch::commande::Command;
+use crate::launch::command::Command;
 
-/// `/bin/sh` tient lieu de JVM : ce qu'on vérifie ici n'est pas Minecraft mais
-/// la boucle qui lit sa sortie, la réécrit, et en tire les exceptions.
+/// `/bin/sh` stands in for the JVM: what's checked here isn't Minecraft but
+/// the loop that reads its output, writes it back out, and picks exceptions
+/// out of it.
 #[cfg(unix)]
-fn faux_jeu(script: &str) -> Command {
+fn fake_game(script: &str) -> Command {
     Command {
         java: std::path::PathBuf::from("/bin/sh"),
         args: vec!["-c".into(), script.into()],
@@ -14,71 +15,63 @@ fn faux_jeu(script: &str) -> Command {
 
 #[cfg(unix)]
 #[tokio::test]
-async fn une_partie_qui_se_termine_bien_ne_remonte_rien() {
-    let _atelier = crate::essais::atelier();
-    let rapport = run(&faux_jeu("echo 'Stopping worker threads'"))
+async fn a_session_that_ends_cleanly_reports_nothing() {
+    let _workshop = crate::fixtures::workshop();
+    let report = run(&fake_game("echo 'Stopping worker threads'"))
         .await
-        .expect("le processus démarre");
+        .expect("the process starts");
 
-    assert_eq!(rapport.outcome, Outcome::Normal);
-    assert!(rapport.errors.is_empty(), "{:?}", rapport.errors);
+    assert_eq!(report.outcome, Outcome::Normal);
+    assert!(report.errors.is_empty(), "{:?}", report.errors);
 }
 
-/// Minecraft rattrape beaucoup d'exceptions et continue : ces erreurs-là
-/// n'apparaissent nulle part ailleurs, et ce sont souvent elles qui expliquent
-/// un comportement signalé bien plus tard.
+/// Minecraft catches a lot of exceptions and carries on: those errors don't
+/// show up anywhere else, and they're often the ones that explain a
+/// behavior reported much later.
 #[cfg(unix)]
 #[tokio::test]
-async fn une_exception_relevee_en_cours_de_partie_est_retenue() {
-    let _atelier = crate::essais::atelier();
-    let rapport = run(&faux_jeu(
-        "echo 'java.lang.NullPointerException: rien du tout'; \
+async fn an_exception_raised_during_a_session_is_retained() {
+    let _workshop = crate::fixtures::workshop();
+    let report = run(&fake_game(
+        "echo 'java.lang.NullPointerException: nothing at all'; \
          echo '	at net.minecraft.Foo(Foo.java:1)'; \
-         echo 'la partie continue'",
+         echo 'the session continues'",
     ))
     .await
     .unwrap();
 
-    assert_eq!(rapport.outcome, Outcome::Normal);
-    assert_eq!(rapport.errors.len(), 1, "{:?}", rapport.errors);
-    assert_eq!(
-        rapport.errors[0].exception,
-        "java.lang.NullPointerException"
-    );
+    assert_eq!(report.outcome, Outcome::Normal);
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
+    assert_eq!(report.errors[0].exception, "java.lang.NullPointerException");
 }
 
-/// Les deux flux sont fusionnés : Minecraft écrit sur les deux sans
-/// distinction utile, et une exception passée par la sortie d'erreur compte
-/// autant que les autres.
+/// The two streams are merged: Minecraft writes to both without any
+/// meaningful distinction, and an exception on stderr counts just as much
+/// as the others.
 #[cfg(unix)]
 #[tokio::test]
-async fn la_sortie_d_erreur_est_lue_comme_la_sortie_standard() {
-    let _atelier = crate::essais::atelier();
-    let rapport = run(&faux_jeu(
-        "echo 'java.io.IOException: disque plein' >&2; exit 1",
+async fn stderr_is_read_just_like_stdout() {
+    let _workshop = crate::fixtures::workshop();
+    let report = run(&fake_game(
+        "echo 'java.io.IOException: disk full' >&2; exit 1",
     ))
     .await
     .unwrap();
 
-    assert_eq!(rapport.outcome, Outcome::Failed { code: 1 });
-    assert_eq!(rapport.errors.len(), 1, "{:?}", rapport.errors);
+    assert_eq!(report.outcome, Outcome::Failed { code: 1 });
+    assert_eq!(report.errors.len(), 1, "{:?}", report.errors);
 }
 
 #[cfg(unix)]
 #[tokio::test]
-async fn un_java_introuvable_se_dit_avec_son_chemin() {
-    let _atelier = crate::essais::atelier();
-    let commande = Command {
-        java: std::path::PathBuf::from("/usr/lib/jvm/qui-n-existe-pas/bin/java"),
+async fn a_missing_java_is_reported_with_its_path() {
+    let _workshop = crate::fixtures::workshop();
+    let command = Command {
+        java: std::path::PathBuf::from("/usr/lib/jvm/does-not-exist/bin/java"),
         args: Vec::new(),
         working_dir: std::env::temp_dir(),
     };
 
-    let erreur = run(&commande)
-        .await
-        .expect_err("aucun binaire à cette place");
-    assert!(
-        format!("{erreur:#}").contains("qui-n-existe-pas"),
-        "{erreur:#}"
-    );
+    let error = run(&command).await.expect_err("no binary at that location");
+    assert!(format!("{error:#}").contains("does-not-exist"), "{error:#}");
 }

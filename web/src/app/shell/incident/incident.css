@@ -1,0 +1,24 @@
+/* The host draws nothing: its only child is already `.hm-scrim`, positioned
+   absolute over the window. A `block` host would interpose a box in the
+   shell's frame, which would shift everything by one notch without
+   displaying anything. */
+:host {
+  display: contents;
+}
+
+/* The design system's code well is made for a device code: one line,
+   twenty-six pixels, centered. Here it's an error message, which can run
+   several lines. We keep the well — the recess, the border, the mono face —
+   and give it back a size and a text wrap. */
+.hm-incident__detail {
+  display: block;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow: auto;
+}

@@ -1,0 +1,170 @@
+<!--
+  The BARE dialog: the shell wraps it.
+
+  It gives it a full-window frosted sheet, the wordmark above and a sentence
+  below — see `app.html`. This page therefore knows neither the window it
+  displays in nor its size: it only carries the conversation with Microsoft.
+-->
+<div role="dialog" aria-modal="true" aria-labelledby="signin-title" data-test="signin">
+  <div class="hm-dialog">
+    <div class="hm-auth">
+      @if (step() !== 'no-license') {
+        <!--
+          The three steps. This is the "loading bar" the acceptance test
+          asked for: it says where we are in a sequence that takes time,
+          instead of letting it look like nothing is happening.
+        -->
+        <div class="hm-auth__steps" aria-hidden="true" data-test="step">
+          <span class="hm-auth__step hm-auth__step--done"></span>
+          <span class="hm-auth__step" [class.hm-auth__step--done]="crossed() >= 2"></span>
+          <span class="hm-auth__step" [class.hm-auth__step--done]="crossed() >= 3"></span>
+        </div>
+      }
+
+      @switch (step()) {
+        @case ('no-license') {
+          <!--
+            Signed in, but the account doesn't have the game. A STATE, not a
+            redirect: both router guards read the same predicate so this
+            case doesn't bounce between them.
+          -->
+          <div class="hm-alert hm-alert--warning" data-test="no-license">
+            <lucide-icon
+              class="hm-alert__icon"
+              [img]="TriangleAlert"
+              [size]="20"
+              [strokeWidth]="1.75"
+              aria-hidden="true"
+            />
+            <p class="hm-alert__title" id="signin-title">This account doesn't own Minecraft</p>
+            <p class="hm-alert__text">
+              Sign-in succeeded — <strong>{{ account()?.username }}</strong> is a valid Microsoft
+              account — but it has no Minecraft: Java Edition license. No server online will accept
+              it.
+            </p>
+          </div>
+
+          <p class="hm-field__hint">
+            Nothing was downloaded. There would be no point installing eight hundred megabytes just
+            to find that out afterward.
+          </p>
+
+          <div class="hm-dialog__actions">
+            <button
+              type="button"
+              class="hm-btn"
+              (click)="signOut()"
+              [disabled]="busy()"
+              data-test="switch-account"
+            >
+              Use a different account
+            </button>
+          </div>
+        }
+
+        @case ('done') {
+          <!--
+            The screen the window holds for at least a second and a half,
+            while the main one gets ready behind it. Without it, sign-in
+            succeeds and the window disappears in the same frame — which
+            reads as a crash rather than a success.
+          -->
+          <div>
+            <h2 class="hm-dialog__title" id="signin-title">Signed in</h2>
+            <p class="hm-dialog__text">
+              The launcher is verifying your Minecraft profile and will open in a moment.
+            </p>
+          </div>
+
+          <div class="hm-auth__done" data-test="done">
+            <lucide-icon [img]="Check" [size]="20" [strokeWidth]="2" aria-hidden="true" />
+            <div>
+              <div class="hm-signin__pseudo">{{ account()?.username }}</div>
+              <p class="hm-field__hint">Java Edition · license verified</p>
+            </div>
+          </div>
+        }
+
+        @case ('code') {
+          <div>
+            <h2 class="hm-dialog__title" id="signin-title">Enter this code</h2>
+            <p class="hm-dialog__text">
+              A <strong>microsoft.com/link</strong> page has opened in your browser. Type the code
+              there, then authorize the sign-in.
+            </p>
+          </div>
+
+          @if (code(); as pending) {
+            <!-- Selectable: it's exactly what we're asking you to copy. -->
+            <div class="hm-code hm-selectionnable" data-test="code-well">
+              <span data-test="code">{{ pending.code }}</span>
+              <button
+                type="button"
+                class="hm-btn hm-btn--sm hm-btn--icon"
+                (click)="copy(pending.code)"
+                aria-label="Copy code"
+                title="Copy"
+                data-test="copy-code"
+              >
+                <lucide-icon [img]="Copy" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+              </button>
+            </div>
+
+            <!--
+              The wait is ANNOUNCED. Between authorizing on Microsoft's side
+              and the moment the launcher notices, a polling interval
+              elapses — about four seconds. Without this line, those four
+              seconds look like a failure.
+            -->
+            <div class="hm-auth__wait" data-test="wait">
+              <span class="hm-spinner hm-spinner--sm" aria-hidden="true"></span>
+              Waiting for Microsoft…
+            </div>
+
+            <button
+              type="button"
+              class="hm-btn hm-btn--block"
+              (click)="reopenThePage(pending.directUrl)"
+              data-test="reopen"
+            >
+              <lucide-icon [img]="ExternalLink" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+              Reopen {{ pending.url }}
+            </button>
+          }
+        }
+
+        @default {
+          <div>
+            <h2 class="hm-dialog__title" id="signin-title">Sign in to play</h2>
+            <p class="hm-dialog__text">
+              The launcher uses your Microsoft account to verify your Minecraft license and launch
+              the game under your username. Nothing is kept except the session token.
+            </p>
+          </div>
+
+          <!--
+            The Microsoft button, white, per their own brand guidelines.
+            Their logo is NOT drawn here: the design system doesn't provide
+            it — it has to be taken from their "Sign in with Microsoft" kit
+            and dropped into the assets. Until it is, an empty slot would
+            look like a broken image; the label is enough.
+          -->
+          <button
+            type="button"
+            class="hm-btn hm-btn--lg hm-btn--microsoft hm-btn--block"
+            (click)="signIn()"
+            [disabled]="busy()"
+            [attr.aria-busy]="busy() ? 'true' : null"
+            data-test="sign-in"
+          >
+            Sign in with Microsoft
+          </button>
+
+          <p class="hm-field__hint hm-signin__note">
+            Opens your browser · no password passes through the launcher
+          </p>
+        }
+      }
+    </div>
+  </div>
+</div>

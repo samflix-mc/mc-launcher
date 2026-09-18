@@ -1,100 +1,97 @@
 use super::{extract, single_child};
-use crate::essais::{Arbre, archive_temurin};
+use crate::fixtures::{Tree, temurin_archive};
 
-/// L'archive contient un dossier racine au nom de la version, qu'on ne veut
-/// pas dans le chemin final : c'est lui que `single_child` retrouve.
+/// The archive contains a root folder named after the version, which we
+/// don't want in the final path: it's that folder `single_child` finds.
 #[cfg(unix)]
 #[test]
-fn une_archive_tar_gz_se_depaquette_en_un_seul_repertoire() {
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("tar");
-    let archive = arbre.racine.join("temurin.tar.gz");
-    std::fs::write(&archive, archive_temurin("21.0.5+11")).unwrap();
-    let vers = arbre.racine.join("extraction");
-    std::fs::create_dir_all(&vers).unwrap();
+fn a_tar_gz_archive_unpacks_into_a_single_directory() {
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("tar");
+    let archive = tree.root.join("temurin.tar.gz");
+    std::fs::write(&archive, temurin_archive("21.0.5+11")).unwrap();
+    let target = tree.root.join("extraction");
+    std::fs::create_dir_all(&target).unwrap();
 
-    extract(&archive, &vers).expect("le tar.gz se dépaquette");
+    extract(&archive, &target).expect("the tar.gz unpacks");
 
-    let racine = single_child(&vers).expect("un seul répertoire racine");
-    assert!(racine.join("bin").join("java").is_file());
+    let root = single_child(&target).expect("a single root directory");
+    assert!(root.join("bin").join("java").is_file());
 }
 
 #[test]
-fn deux_entrees_a_la_racine_sont_une_archive_inattendue() {
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("deux-entrees");
-    std::fs::write(arbre.racine.join("une"), b"").unwrap();
-    std::fs::write(arbre.racine.join("deux"), b"").unwrap();
+fn two_entries_at_the_root_is_an_unexpected_archive() {
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("two-entries");
+    std::fs::write(tree.root.join("one"), b"").unwrap();
+    std::fs::write(tree.root.join("two"), b"").unwrap();
 
-    let erreur = single_child(&arbre.racine).expect_err("deux entrées");
-    assert!(format!("{erreur:#}").contains("2 entrées"), "{erreur:#}");
+    let error = single_child(&tree.root).expect_err("two entries");
+    assert!(format!("{error:#}").contains("2 entries"), "{error:#}");
 }
 
 #[test]
-fn une_archive_vide_est_refusee_aussi() {
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("vide");
-    let erreur = single_child(&arbre.racine).expect_err("aucune entrée");
-    assert!(format!("{erreur:#}").contains("0 entrées"), "{erreur:#}");
+fn an_empty_archive_is_refused_too() {
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("empty");
+    let error = single_child(&tree.root).expect_err("no entry");
+    assert!(format!("{error:#}").contains("0 entries"), "{error:#}");
 }
 
-/// Adoptium publie du `.tar.gz` et du `.zip` ; tout autre suffixe signale un
-/// changement de leur côté, qu'il vaut mieux voir tout de suite.
+/// Adoptium publishes `.tar.gz` and `.zip`; any other suffix signals a change
+/// on their end, which is better seen right away.
 #[test]
-fn un_format_inconnu_est_refuse_par_son_nom() {
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("format");
-    let archive = arbre.racine.join("temurin.7z");
+fn an_unknown_format_is_refused_by_its_name() {
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("format");
+    let archive = tree.root.join("temurin.7z");
     std::fs::write(&archive, b"").unwrap();
 
-    let erreur = extract(&archive, &arbre.racine).expect_err("format non géré");
-    assert!(format!("{erreur:#}").contains("temurin.7z"), "{erreur:#}");
+    let error = extract(&archive, &tree.root).expect_err("unsupported format");
+    assert!(format!("{error:#}").contains("temurin.7z"), "{error:#}");
 }
 
 #[test]
-fn un_tar_gz_illisible_est_signale_avec_son_nom() {
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("tar-casse");
-    let archive = arbre.racine.join("temurin.tar.gz");
-    std::fs::write(&archive, b"ceci n'est pas du gzip").unwrap();
+fn an_unreadable_tar_gz_is_reported_with_its_name() {
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("tar-broken");
+    let archive = tree.root.join("temurin.tar.gz");
+    std::fs::write(&archive, b"this is not gzip").unwrap();
 
-    let erreur = extract(&archive, &arbre.racine).expect_err("gzip invalide");
-    assert!(
-        format!("{erreur:#}").contains("temurin.tar.gz"),
-        "{erreur:#}"
-    );
+    let error = extract(&archive, &tree.root).expect_err("invalid gzip");
+    assert!(format!("{error:#}").contains("temurin.tar.gz"), "{error:#}");
 }
 
-/// Une archive ZIP peut contenir des chemins remontants qui écriraient hors du
-/// répertoire cible. Un JDK est du code exécuté avec les droits de
-/// l'utilisateur : l'entrée doit être refusée, pas écrite ailleurs.
+/// A ZIP archive can contain upward paths that would write outside the
+/// target directory. A JDK is code run with the user's privileges: the entry
+/// must be refused, not written elsewhere.
 #[test]
-fn un_zip_valide_se_depaquette_avec_ses_permissions() {
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("zip");
-    let archive = arbre.racine.join("temurin.zip");
+fn a_valid_zip_unpacks_with_its_permissions() {
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("zip");
+    let archive = tree.root.join("temurin.zip");
 
-    let mut ecrivain = zip::ZipWriter::new(std::fs::File::create(&archive).unwrap());
+    let mut writer = zip::ZipWriter::new(std::fs::File::create(&archive).unwrap());
     let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .unix_permissions(0o755);
-    ecrivain.add_directory("jdk-21/bin/", options).unwrap();
-    ecrivain.start_file("jdk-21/bin/java", options).unwrap();
+    writer.add_directory("jdk-21/bin/", options).unwrap();
+    writer.start_file("jdk-21/bin/java", options).unwrap();
     {
         use std::io::Write;
-        ecrivain.write_all(b"#!/bin/sh\n").unwrap();
+        writer.write_all(b"#!/bin/sh\n").unwrap();
     }
-    ecrivain.finish().unwrap();
+    writer.finish().unwrap();
 
-    let vers = arbre.racine.join("extraction");
-    extract(&archive, &vers).expect("le zip se dépaquette");
+    let target = tree.root.join("extraction");
+    extract(&archive, &target).expect("the zip unpacks");
 
-    let pose = vers.join("jdk-21").join("bin").join("java");
-    assert!(pose.is_file());
+    let placed = target.join("jdk-21").join("bin").join("java");
+    assert!(placed.is_file());
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mode = std::fs::metadata(&pose).unwrap().permissions().mode();
-        assert_eq!(mode & 0o111, 0o111, "le binaire n'est pas exécutable");
+        let mode = std::fs::metadata(&placed).unwrap().permissions().mode();
+        assert_eq!(mode & 0o111, 0o111, "the binary is not executable");
     }
 }

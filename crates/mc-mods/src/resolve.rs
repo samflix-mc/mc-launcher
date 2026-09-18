@@ -1,58 +1,57 @@
-//! Du manifeste au dossier `mods` : résolution, téléchargement, rattrapage.
+//! From the manifest to the `mods` folder: resolution, download, catch-up.
 //!
-//! Le cycle est volontairement itératif plutôt que récursif sur les seules
-//! métadonnées :
+//! The cycle is deliberately iterative rather than recursive over metadata
+//! alone:
 //!
 //! ```text
-//!   demandes du manifeste
-//!        ↓  résolution (Modrinth, puis CurseForge)
-//!   candidats + dépendances déclarées
-//!        ↓  téléchargement vérifié
-//!   jars sur le disque
-//!        ↓  lecture des neoforge.mods.toml
-//!   modId fournis / modId exigés
-//!        ↓  écart non vide ? → nouveau tour
-//!   plan stable
+//!   manifest requests
+//!        ↓  resolution (Modrinth, then CurseForge)
+//!   candidates + declared dependencies
+//!        ↓  verified download
+//!   jars on disk
+//!        ↓  reading neoforge.mods.toml
+//!   modId provided / modId required
+//!        ↓  non-empty gap? → another pass
+//!   stable plan
 //! ```
 //!
-//! Le dernier tour est celui qui compte : il attrape les dépendances qu'aucune
-//! API ne déclare. C'est le cas courant — un auteur qui ajoute une bibliothèque
-//! entre deux versions ne revient pas éditer la fiche de publication — et c'est
-//! exactement ce qui fait planter un client au démarrage avec un écran
-//! « Missing or unsupported mods ».
+//! The last pass is the one that matters: it catches the dependencies no
+//! API declares. That's the common case — an author who adds a library
+//! between two versions doesn't go back and edit the publish page — and
+//! it's exactly what crashes a client at startup with a "Missing or
+//! unsupported mods" screen.
 
-mod boucle;
-mod choix;
-mod demande;
-mod deploiement;
-mod doublons;
+mod catchup;
+mod choice;
+mod deployment;
+mod download;
+mod duplicates;
 #[cfg(test)]
-mod essais;
-mod file;
+mod fixtures;
 mod inspection;
 mod options;
 mod plan;
-mod raison;
-mod rattrapage;
-mod registre;
-mod telechargement;
+mod queue;
+mod reason;
+mod registry;
+mod request;
+mod resolution_loop;
 
-pub use boucle::{resolve, resolve_with};
-pub use demande::Request;
-pub use deploiement::{Deployed, deploy};
+pub use deployment::{Deployed, deploy};
 pub use options::Options;
 pub use plan::{Installed, Plan, Unresolved};
-pub use raison::Reason;
-pub use registre::Registry;
+pub use reason::Reason;
+pub use registry::{Progress, Registry};
+pub use request::Request;
+pub use resolution_loop::{resolve, resolve_with};
 
-/// Nombre de tours de rattrapage.
+/// Number of catch-up passes.
 ///
-/// Une chaîne de dépendances implicites dépasse rarement deux niveaux ; la
-/// borne protège d'une boucle si deux mods se réclament mutuellement sans que
-/// la recherche converge.
+/// A chain of implicit dependencies rarely goes past two levels; the bound
+/// guards against a loop if two mods claim each other without the search
+/// converging.
 const MAX_PASSES: usize = 6;
 
-/// Téléchargements simultanés. Modrinth limite le débit par agent : au-delà
-/// d'une poignée de connexions, les 429 coûtent plus de temps qu'ils n'en font
-/// gagner.
+/// Simultaneous downloads. Modrinth rate-limits per agent: beyond a handful
+/// of connections, the 429s cost more time than they save.
 const PARALLEL_DOWNLOADS: usize = 6;

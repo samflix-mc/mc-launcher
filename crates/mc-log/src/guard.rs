@@ -1,80 +1,79 @@
-//! Ce qui tient le journal ouvert aussi longtemps que le programme tourne.
+//! What keeps the log open for as long as the program runs.
 
-mod journal;
+mod log;
 
 use std::path::PathBuf;
 
-pub use journal::log_dir;
-pub(crate) use journal::{current_log_name, purge_old_logs};
+pub use log::log_dir;
+pub(crate) use log::{current_log_name, purge_old_logs};
 
-/// À garder vivant aussi longtemps que le programme tourne.
+/// To be kept alive for as long as the program runs.
 ///
-/// Sa destruction vide la file d'écriture du fichier puis laisse à Sentry le
-/// temps d'envoyer ce qui reste. Le lâcher tout de suite perdrait précisément
-/// les derniers messages — ceux qui décrivent la sortie.
+/// Its destruction flushes the file's write queue, then gives Sentry time
+/// to send what's left. Dropping it right away would lose exactly the last
+/// messages — the ones describing the exit.
 pub struct Guard {
-    // Le fichier se vide avant que Sentry n'attende le réseau : l'ordre des
-    // champs est celui des destructions. L'inverse laissait la fin du journal
-    // dans la file d'écriture pendant les dix secondes d'envoi — et un Ctrl-C
-    // pendant l'attente l'y laissait pour de bon.
+    // The file empties before Sentry waits on the network: the field order
+    // is the destruction order. The reverse left the end of the log stuck
+    // in the write queue during the ten seconds of sending — and a Ctrl-C
+    // during the wait left it there for good.
     _file: Option<tracing_appender::non_blocking::WorkerGuard>,
     _sentry: Option<sentry::ClientInitGuard>,
-    /// Répertoire du journal et nom du composant, pour retrouver le fichier du
-    /// jour à la demande.
-    journal: Option<(PathBuf, String)>,
+    /// Log directory and component name, to find the day's file on demand.
+    log: Option<(PathBuf, String)>,
 }
 
 impl Guard {
-    /// Assemblé par [`crate::init`] seul, une fois les couches posées.
+    /// Assembled by [`crate::init`] alone, once the layers are in place.
     ///
-    /// L'ordre des arguments est celui des champs, donc celui des
-    /// destructions : le fichier d'abord, Sentry ensuite.
+    /// The argument order matches the field order, and therefore the
+    /// destruction order: the file first, Sentry after.
     pub(crate) fn new(
         file: Option<tracing_appender::non_blocking::WorkerGuard>,
         sentry: Option<sentry::ClientInitGuard>,
-        journal: Option<(PathBuf, String)>,
+        log: Option<(PathBuf, String)>,
     ) -> Self {
         Self {
             _file: file,
             _sentry: sentry,
-            journal,
+            log,
         }
     }
 
-    /// Un garde qui ne tient rien.
+    /// A guard that holds nothing.
     ///
-    /// C'est l'état d'une exécution dont le répertoire de journal n'était pas
-    /// inscriptible : le programme tourne, mais [`log_path`] ne désigne rien.
-    /// Exposé parce que les binaires reçoivent un `&Guard` en argument et que
-    /// ce cas-là — celui où l'on ne doit surtout pas renvoyer l'utilisateur
-    /// vers un fichier absent — ne peut être éprouvé autrement.
+    /// This is the state of a run whose log directory wasn't writable: the
+    /// program runs, but [`log_path`] designates nothing. Exposed because
+    /// the binaries receive a `&Guard` argument and this case — the one
+    /// where a player must not be pointed to a missing file — can't be
+    /// exercised any other way.
     ///
     /// [`log_path`]: Guard::log_path
-    pub fn sans_journal() -> Self {
+    pub fn without_log() -> Self {
         Self::new(None, None, None)
     }
 
-    /// Un garde qui désigne un journal sans rien tenir ouvert.
+    /// A guard that designates a log without holding anything open.
     ///
-    /// Complément du précédent : il permet d'éprouver les deux branches de ce
-    /// que [`log_path`] rend, sans poser de souscripteur global — ce que
-    /// [`crate::init`] ne peut faire qu'une fois par processus.
+    /// Complement of the previous one: it makes it possible to exercise both
+    /// branches of what [`log_path`] returns, without setting up a global
+    /// subscriber — something [`crate::init`] can only do once per process.
     ///
     /// [`log_path`]: Guard::log_path
     #[doc(hidden)]
-    pub fn new_pour_essais(dir: PathBuf, component: &str) -> Self {
+    pub fn new_for_fixtures(dir: PathBuf, component: &str) -> Self {
         Self::new(None, None, Some((dir, component.to_string())))
     }
 
-    /// Chemin du journal, à citer quand quelque chose échoue.
+    /// Path to the log, to cite when something fails.
     ///
-    /// Recalculé à chaque appel, jamais figé au démarrage : `rolling::daily`
-    /// change de fichier à minuit UTC, et une partie commencée avant continue
-    /// dans le suivant. Un chemin figé désignerait alors un fichier qui existe
-    /// mais s'arrête avant la panne — plus trompeur qu'un fichier absent,
-    /// puisque rien n'invite à en douter.
+    /// Recomputed on every call, never frozen at startup: `rolling::daily`
+    /// switches files at midnight UTC, and a run that started before
+    /// continues in the next one. A frozen path would then designate a file
+    /// that exists but stops before the failure — more misleading than a
+    /// missing file, since nothing invites doubt about it.
     pub fn log_path(&self) -> Option<PathBuf> {
-        self.journal
+        self.log
             .as_ref()
             .map(|(dir, component)| dir.join(current_log_name(component)))
     }

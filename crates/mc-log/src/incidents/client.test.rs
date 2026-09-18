@@ -1,155 +1,154 @@
 use super::options;
 
-/// Un jeton assez ressemblant pour que la censure le reconnaisse.
-const JETON: &str = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJSMeKKF2QT4f";
+/// A token that looks close enough for scrubbing to recognize it.
+const TOKEN: &str = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJSMeKKF2QT4f";
 
 #[test]
-fn rien_d_identifiant_ne_part_par_defaut() {
+fn nothing_identifying_goes_out_by_default() {
     let options = options();
 
-    // Le processus détient des jetons Microsoft, Xbox Live et Minecraft : la
-    // documentation de Sentry propose l'inverse, et c'est précisément ce qu'on
-    // ne veut pas.
+    // The process holds Microsoft, Xbox Live and Minecraft tokens:
+    // Sentry's own docs suggest the opposite, and that's exactly what we
+    // don't want.
     assert!(
         !options.send_default_pii,
-        "send_default_pii doit rester faux"
+        "send_default_pii must stay false"
     );
 
-    // Sans cette chaîne vide, le SDK renseigne le nom de la machine — sur un
-    // poste de joueur, une donnée identifiante qui n'apprend rien sur la panne.
+    // Without this empty string, the SDK fills in the machine's
+    // hostname — on a player's machine, an identifying piece of data
+    // that says nothing about the crash.
     assert_eq!(options.server_name.as_deref(), Some(""));
 }
 
 #[test]
-fn la_release_nomme_le_launcher_et_non_le_crate_qui_journalise() {
-    // `release_name!()` rendrait « mc-log@… » pour tous les binaires, ce qui
-    // interdirait de distinguer une version de mc-pack d'une autre.
-    let release = options().release.expect("une release est déclarée");
+fn the_release_names_the_launcher_and_not_the_logging_crate() {
+    // `release_name!()` would return "mc-log@…" for every binary, which
+    // would make it impossible to tell one mc-pack version from another.
+    let release = options().release.expect("a release is declared");
     assert!(
         release.starts_with("mc-launcher@"),
-        "release inattendue : {release}"
+        "unexpected release: {release}"
     );
 }
 
 #[test]
-fn l_environnement_est_celui_qui_est_declare() {
-    // Les deux lectures doivent porter sur la même déclaration : sans ce
-    // verrou, la suite de `environment::resolution` peut poser sa valeur entre
-    // elles, et ce test échouerait pour une raison qui ne le concerne pas.
-    let _garde = crate::essais::variables();
+fn the_environment_is_the_one_that_was_declared() {
+    // Both reads must land on the same declaration: without this lock,
+    // the `environment::resolution` suite could set its value between
+    // them, and this test would fail for a reason that isn't its own.
+    let _guard = crate::fixtures::variables();
     assert_eq!(
         options().environment.as_deref(),
         Some(crate::environment::current().as_str())
     );
 }
 
-/// Deux secondes, et pas dix : ce budget est payé par toutes les commandes en
-/// se fermant, y compris un `verify` hors ligne qui n'a rien à envoyer.
+/// Two seconds, not ten: this budget is paid by every command on
+/// shutdown, including an offline `verify` that has nothing to send.
 #[test]
-fn l_attente_de_fermeture_reste_courte() {
+fn the_shutdown_wait_stays_short() {
     assert!(options().shutdown_timeout <= std::time::Duration::from_secs(2));
-    // La trace d'appels est jointe même sans exception — c'est elle qui rend
-    // un `capture_message` exploitable.
+    // The stacktrace is attached even without an exception — it's what
+    // makes a `capture_message` actionable.
     assert!(options().attach_stacktrace);
 }
 
 #[test]
-fn un_evenement_est_censure_avant_de_partir() {
-    let avant = options()
-        .before_send
-        .expect("un filtre before_send est posé");
+fn an_event_is_scrubbed_before_it_goes_out() {
+    let before = options().before_send.expect("a before_send filter is set");
 
     let event = sentry::protocol::Event {
-        message: Some(format!("échec avec access_token={JETON}")),
+        message: Some(format!("failure with access_token={TOKEN}")),
         ..Default::default()
     };
 
-    let sorti = avant(event).expect("l'événement n'est pas jeté, seulement censuré");
-    let message = sorti.message.expect("le message survit");
-    assert!(!message.contains("eyJhbGci"), "jeton en clair : {message}");
-    assert!(message.contains("échec avec"), "le contexte est perdu");
+    let sent = before(event).expect("the event isn't dropped, only scrubbed");
+    let message = sent.message.expect("the message survives");
+    assert!(!message.contains("eyJhbGci"), "token in clear: {message}");
+    assert!(message.contains("failure with"), "context is lost");
 }
 
 #[test]
-fn un_fil_d_ariane_est_censure_lui_aussi() {
-    let avant = options()
+fn a_breadcrumb_is_scrubbed_too() {
+    let before = options()
         .before_breadcrumb
-        .expect("un filtre before_breadcrumb est posé");
+        .expect("a before_breadcrumb filter is set");
 
     let mut crumb = sentry::protocol::Breadcrumb {
-        message: Some(format!("requête avec access_token={JETON}")),
+        message: Some(format!("request with access_token={TOKEN}")),
         ..Default::default()
     };
     crumb.data.insert(
-        "entete".into(),
-        sentry::protocol::Value::String(format!("Bearer {JETON}")),
+        "header".into(),
+        sentry::protocol::Value::String(format!("Bearer {TOKEN}")),
     );
 
-    let sorti = avant(crumb).expect("le fil d'Ariane n'est pas jeté");
-    assert!(!sorti.message.unwrap().contains("eyJhbGci"));
-    let entete = sorti.data.get("entete").unwrap().as_str().unwrap();
-    assert!(!entete.contains("eyJhbGci"), "en-tête en clair : {entete}");
+    let sent = before(crumb).expect("the breadcrumb isn't dropped");
+    assert!(!sent.message.unwrap().contains("eyJhbGci"));
+    let header = sent.data.get("header").unwrap().as_str().unwrap();
+    assert!(!header.contains("eyJhbGci"), "header in clear: {header}");
 }
 
-/// Les journaux structurés empruntent un canal distinct : `before_send` ne les
-/// voit pas. Sans ce second filtre, la censure serait contournée par la voie la
-/// plus bavarde de toutes.
+/// Structured logs travel a separate channel: `before_send` never sees
+/// them. Without this second filter, scrubbing would be bypassed by the
+/// chattiest channel of all.
 #[test]
-fn un_journal_structure_est_censure_et_perd_le_nom_de_la_machine() {
-    let avant = options()
+fn a_structured_log_is_scrubbed_and_loses_the_machines_hostname() {
+    let before = options()
         .before_send_log
-        .expect("un filtre before_send_log est posé");
+        .expect("a before_send_log filter is set");
 
     let mut attributes = sentry::protocol::Map::new();
     attributes.insert(
         "server.address".into(),
-        sentry::protocol::LogAttribute::from("poste-de-sam"),
+        sentry::protocol::LogAttribute::from("sams-machine"),
     );
     attributes.insert(
-        "jeton".into(),
-        sentry::protocol::LogAttribute::from(JETON.to_string()),
+        "token".into(),
+        sentry::protocol::LogAttribute::from(TOKEN.to_string()),
     );
-    attributes.insert("essais".into(), sentry::protocol::LogAttribute::from(3));
+    attributes.insert("attempts".into(), sentry::protocol::LogAttribute::from(3));
 
     let log = sentry::protocol::Log {
         level: sentry::protocol::LogLevel::Info,
-        body: format!("échange abouti access_token={JETON}"),
+        body: format!("exchange succeeded access_token={TOKEN}"),
         trace_id: None,
         timestamp: std::time::SystemTime::UNIX_EPOCH,
         severity_number: None,
         attributes,
     };
 
-    let sorti = avant(log).expect("le journal n'est pas jeté");
-    assert!(!sorti.body.contains("eyJhbGci"), "corps : {}", sorti.body);
+    let sent = before(log).expect("the log isn't dropped");
+    assert!(!sent.body.contains("eyJhbGci"), "body: {}", sent.body);
     assert!(
-        !sorti.attributes.contains_key("server.address"),
-        "le nom de la machine du joueur est parti avec le journal"
+        !sent.attributes.contains_key("server.address"),
+        "the player's machine hostname went out with the log"
     );
-    let jeton = &sorti.attributes.get("jeton").unwrap().0;
-    assert!(!jeton.as_str().unwrap().contains("eyJhbGci"));
-    // Les nombres restent intacts : ils servent au tri et ne portent rien.
-    assert_eq!(sorti.attributes.get("essais").unwrap().0, 3);
+    let token = &sent.attributes.get("token").unwrap().0;
+    assert!(!token.as_str().unwrap().contains("eyJhbGci"));
+    // Numbers stay intact: they're used for sorting and carry nothing.
+    assert_eq!(sent.attributes.get("attempts").unwrap().0, 3);
 }
 
-/// Le client ne s'ouvre que si la télémétrie est active — mais alors il doit
-/// s'ouvrir pour de bon. Rendre `None` ici couperait la remontée sans rien
-/// dire : le launcher continuerait, les journaux seraient écrits, et pas un
-/// incident n'arriverait jamais.
+/// The client only opens if telemetry is active — but then it must
+/// actually open. Returning `None` here would silently cut off
+/// reporting: the launcher would keep going, logs would be written, and
+/// not a single incident would ever arrive.
 #[test]
-fn un_dsn_declare_ouvre_un_client() {
-    let vars = crate::essais::variables();
-    vars.retirer("SAMFLIX_TELEMETRY");
-    // Un DSN syntaxiquement valable qui ne mène nulle part : le client
-    // s'ouvre, et ce qu'il tente d'envoyer n'ira pas plus loin que le réseau.
-    vars.poser("SENTRY_DSN", "https://cle@exemple.invalid/7");
+fn a_declared_dsn_opens_a_client() {
+    let vars = crate::fixtures::variables();
+    vars.unset("SAMFLIX_TELEMETRY");
+    // A syntactically valid DSN that goes nowhere: the client opens, and
+    // whatever it tries to send won't get past the network.
+    vars.set("SENTRY_DSN", "https://key@example.invalid/7");
 
-    let garde = super::init_sentry("mc-essai");
-    assert!(garde.is_some(), "aucun client ouvert pour un DSN déclaré");
+    let guard = super::init_sentry("mc-test");
+    assert!(guard.is_some(), "no client opened for a declared DSN");
 
-    // Et rien ne s'ouvre quand l'opt-out est posé : les deux moitiés de la
-    // décision se vérifient ensemble, sinon l'une couvre l'autre.
-    drop(garde);
-    vars.poser("SAMFLIX_TELEMETRY", "0");
-    assert!(super::init_sentry("mc-essai").is_none());
+    // And nothing opens when the opt-out is set: both halves of the
+    // decision are checked together, otherwise one could mask the other.
+    drop(guard);
+    vars.set("SAMFLIX_TELEMETRY", "0");
+    assert!(super::init_sentry("mc-test").is_none());
 }

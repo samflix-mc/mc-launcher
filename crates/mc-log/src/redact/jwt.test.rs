@@ -1,35 +1,36 @@
 use crate::redact::{MASK, redact};
 
 #[test]
-fn un_jwt_est_masque_meme_sans_mot_cle() {
+fn a_jwt_is_masked_even_without_a_keyword() {
     let jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijk";
-    let sortie = redact(&format!("échec avec {jwt} en tête"));
-    assert!(!sortie.contains("eyJhbGci"));
-    assert!(sortie.contains(MASK));
-    assert!(sortie.contains("échec avec"));
+    let output = redact(&format!("failure with {jwt} up front"));
+    assert!(!output.contains("eyJhbGci"));
+    assert!(output.contains(MASK));
+    assert!(output.contains("failure with"));
 }
 
 #[test]
-fn une_empreinte_n_est_pas_prise_pour_un_secret() {
-    // Les SHA-1 sont utiles au diagnostic et ne révèlent rien.
-    let texte = "empreinte 88ee316e68900080b017f60c12162e2731924cf8 attendue";
-    assert_eq!(redact(texte), texte);
+fn a_digest_is_not_mistaken_for_a_secret() {
+    // SHA-1 digests are useful for diagnostics and reveal nothing.
+    let text = "digest 88ee316e68900080b017f60c12162e2731924cf8 expected";
+    assert_eq!(redact(text), text);
 }
 
 #[test]
-fn un_identifiant_court_commencant_par_ey_survit() {
-    // « eyZ2YBGT » est un identifiant de version Modrinth, pas un jeton.
-    let texte = "build épinglé eyZ2YBGT introuvable";
-    assert_eq!(redact(texte), texte);
+fn a_short_identifier_starting_with_ey_survives() {
+    // "eyZ2YBGT" is a Modrinth version identifier, not a token.
+    let text = "pinned build eyZ2YBGT not found";
+    assert_eq!(redact(text), text);
 }
 
-/// C'est la **longueur** du mot qui décide, et non l'endroit où il tombe dans
-/// la ligne. Un identifiant court qui commence par « eyJ » — le préfixe exact
-/// d'un JWT — doit survivre aussi loin soit-il du début : dans le cas
-/// contraire, la censure dépendrait de ce qui a été écrit avant, et un même
-/// message serait masqué ou non selon la longueur de son préambule.
+/// It's the word's **length** that decides, not where it falls in the
+/// line. A short identifier starting with "eyJ" — the exact prefix of a
+/// JWT — must survive no matter how far from the start it appears:
+/// otherwise scrubbing would depend on what was written before it, and
+/// the same message would be masked or not depending on the length of
+/// its preamble.
 #[test]
-fn un_court_eyj_ne_se_masque_pas_parce_qu_il_arrive_tard() {
-    let texte = "configuration lue depuis eyJcfg42";
-    assert_eq!(redact(texte), texte);
+fn a_short_eyj_does_not_get_masked_just_because_it_appears_late() {
+    let text = "configuration read from eyJcfg42";
+    assert_eq!(redact(text), text);
 }

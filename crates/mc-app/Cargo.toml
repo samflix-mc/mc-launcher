@@ -1,0 +1,61 @@
+[package]
+name = "mc-app"
+version.workspace = true
+description = "L'application : la fenêtre du launcher samflix-mc"
+edition.workspace = true
+license.workspace = true
+
+[lib]
+# Un nom distinct de celui du paquet : sur mobile, Tauri charge la
+# bibliothèque, et elle ne peut pas porter le nom du binaire.
+name = "mc_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# Le serveur de développement, et la garantie qu'il ne part pas en production.
+#
+# Non activée par défaut, donc `cargo tauri build` ne la voit jamais : le code
+# du serveur n'est pas « désactivé » dans le binaire du launcher, il n'y est
+# pas. Le binaire qui la porte est déclaré plus bas avec `required-features`.
+[features]
+dev-server = []
+
+# Le launcher sans sa fenêtre, servi sur HTTP — pour travailler l'interface
+# dans un navigateur ordinaire, avec le rechargement à chaud.
+[[bin]]
+name = "mc-dev-server"
+path = "src/bin/dev-server.rs"
+required-features = ["dev-server"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+mc-paths = { path = "../mc-paths" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+tauri-plugin-opener.workspace = true
+tracing.workspace = true
+tokio.workspace = true
+
+# Ce que l'application orchestre. Elle n'ajoute aucune logique de launcher :
+# chaque étape de la cinématique est déjà écrite et testée dans l'une de ces
+# crates, et la fenêtre ne fait que les appeler dans l'ordre et montrer où
+# elles en sont.
+mc-auth = { path = "../mc-auth" }
+mc-dl = { path = "../mc-dl" }
+mc-instance = { path = "../mc-instance" }
+mc-java = { path = "../mc-java" }
+mc-news = { path = "../mc-news" }
+mc-pack = { path = "../mc-pack" }
+# Probes the server the pack declares for this binary's environment — the
+# Spawn page's "Server" panel.
+mc-ping = { path = "../mc-ping" }
+# Ce que le joueur règle. mc-pack n'en dépend PAS : la bibliothèque
+# d'installation n'a pas à savoir qu'une interface existe, et le CLI garde ses
+# propres drapeaux. C'est l'application qui lit le fichier et passe les VALEURS.
+mc-settings = { path = "../mc-settings" }
+# Pour la censure des jetons : tout ce que ce binaire journalise passe par
+# elle, fenêtre graphique comprise.
+mc-log = { path = "../mc-log" }

@@ -1,0 +1,44 @@
+/* The boot screen occupies the content area, and nothing more: the title bar
+   stays above it, so the window keeps its buttons during the wait. */
+:host {
+  display: block;
+  position: absolute;
+  inset: var(--space-10) 0 0;
+  z-index: var(--z-page);
+}
+
+.hm-splash {
+  height: 100%;
+  /* No opaque background here: the image is already behind it, and covering
+     it would produce a dark rectangle at the exact moment the window shows
+     itself. `.hm-splash` sets `bg-raised` for Tauri's window, which has no
+     scene; here, it's left visible. */
+  background: transparent;
+}
+
+/* The wordmark can be long — `MC_LAUNCHER_NOM` is configurable at build
+   time. Without this bound, a twenty-character name would overflow the
+   window instead of shrinking. */
+.hm-wordmark {
+  max-width: 100%;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* A gentle entrance, but only for those who want it. */
+@media (prefers-reduced-motion: no-preference) {
+  .hm-splash {
+    animation: boot-fade-in 220ms var(--ease-out);
+  }
+}
+
+@keyframes boot-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

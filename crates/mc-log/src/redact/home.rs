@@ -1,10 +1,10 @@
-//! Le répertoire personnel, qui porte un nom de compte.
+//! The home directory, which carries an account name.
 
-/// Remplace le répertoire personnel par `~`.
+/// Replaces the home directory with `~`.
 ///
-/// Un chemin absolu porte le nom de compte de l'utilisateur. Ce n'est pas un
-/// secret, mais c'est une donnée personnelle qui n'apprend rien de plus que le
-/// chemin relatif.
+/// An absolute path carries the user's account name. That's not a
+/// secret, but it's personal data that adds nothing over the relative
+/// path.
 pub(super) fn redact_home(text: &str) -> String {
     match HOME.as_deref() {
         Some(home) if text.contains(home) => text.replace(home, "~"),
@@ -12,21 +12,23 @@ pub(super) fn redact_home(text: &str) -> String {
     }
 }
 
-/// Le répertoire personnel, lu une seule fois.
+/// The home directory, read once.
 ///
-/// `redact` voit passer chaque ligne écrite dans le journal : relire
-/// l'environnement à chacune prenait son verrou global — que d'autres fils
-/// écrivent par ailleurs — pour une valeur qui ne change pas de l'exécution.
-/// La racine « / » est écartée : elle préfixe tout.
+/// `redact` sees every line written to the log: re-reading the
+/// environment on each one would take its global lock — which other
+/// threads write to elsewhere — for a value that doesn't change for the
+/// life of the process. The root "/" is rejected: it prefixes
+/// everything.
 static HOME: std::sync::LazyLock<Option<String>> = std::sync::LazyLock::new(|| {
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
-    maison_utilisable(&home.to_string_lossy())
+    usable_home(&home.to_string_lossy())
 });
 
-/// Ce qu'on accepte de remplacer par `~`, lu une seule fois — d'où cette
-/// fonction, seule façon d'éprouver les deux valeurs qu'il faut refuser sans
-/// relancer le processus avec un autre environnement.
-fn maison_utilisable(home: &str) -> Option<String> {
+/// What we're willing to replace with `~`, read once — hence this
+/// function, the only way to exercise the two values that must be
+/// rejected without relaunching the process with a different
+/// environment.
+fn usable_home(home: &str) -> Option<String> {
     (!home.is_empty() && home != "/").then(|| home.to_string())
 }
 

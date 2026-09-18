@@ -1,32 +1,32 @@
-//! Censure des secrets avant qu'un texte ne quitte la machine.
+//! Scrubbing secrets before a text leaves the machine.
 //!
-//! Ce launcher manipule des jetons d'accès Microsoft, des jetons Xbox Live, un
-//! jeton Minecraft et une clé d'API CurseForge. Un rapport d'incident est un
-//! texte libre : message d'erreur, chemin de fichier, URL, trace d'appels. Rien
-//! n'empêche un jeton de s'y retrouver — une URL signée, un `Debug` de
-//! structure, un message d'API qui répète la requête.
+//! This launcher handles Microsoft access tokens, Xbox Live tokens, a
+//! Minecraft token and a CurseForge API key. An incident report is free
+//! text: error message, file path, URL, call stack. Nothing stops a
+//! token from ending up in it — a signed URL, a struct's `Debug`, an API
+//! message echoing the request.
 //!
-//! Le filtre s'applique à **tout** ce qui part vers Sentry, événements comme
-//! fils d'Ariane, et au fichier de journal. Il ne cherche pas à être malin : il
-//! repère un petit nombre de formes connues et les remplace entièrement. Rendre
-//! un incident un peu moins lisible est sans commune mesure avec la publication
-//! d'un jeton qui donne accès à un compte Microsoft.
-mod curseur;
+//! The filter applies to **everything** headed for Sentry, both events
+//! and breadcrumbs, and to the log file. It doesn't try to be clever: it
+//! spots a small number of known shapes and replaces them outright.
+//! Making an incident a bit less readable is nothing next to leaking a
+//! token that gives access to a Microsoft account.
+mod cursor;
 mod home;
 mod jwt;
-mod mot_cle;
+mod keyword;
 mod tables;
 
-/// Ce qui remplace un secret.
+/// What replaces a secret.
 pub(crate) const MASK: &str = "[secret]";
 
-/// Remplace les secrets d'un texte.
+/// Replaces the secrets in a text.
 ///
-/// Trois passes qui ne se recouvrent pas : la forme d'abord — un JWT se
-/// reconnaît seul —, puis ce qu'un mot-clé annonce, puis le chemin personnel.
+/// Three passes that don't overlap: shape first — a JWT is recognized on
+/// its own —, then what a keyword announces, then the home path.
 pub fn redact(text: &str) -> String {
     let text = jwt::redact_jwt(text);
-    let text = mot_cle::redact_after_keywords(&text);
+    let text = keyword::redact_after_keywords(&text);
     home::redact_home(&text)
 }
 

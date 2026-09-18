@@ -1,0 +1,26 @@
+<!--
+  The design system's drawing: the wordmark in the top half, the bar
+  beneath it, the status beneath the bar. No page title, no button — nothing
+  but the wait.
+-->
+<output class="hm-splash" aria-live="polite" data-test="boot">
+  <h1 class="hm-wordmark" data-test="name">
+    {{ brand().name }}<span class="hm-wordmark__dot" aria-hidden="true"></span>
+  </h1>
+
+  <!--
+    Indeterminate: at this point, the boot screen is waiting on the NETWORK,
+    and no one knows how long that takes. A bar climbing at a made-up pace
+    would lie, and that's precisely what a gauge exists not to do.
+  -->
+  <div class="hm-progress hm-progress--lg hm-splash__progress">
+    <div class="hm-progress__track">
+      <div class="hm-progress__fill hm-progress__fill--indeterminate" data-test="progress"></div>
+    </div>
+  </div>
+
+  <div class="hm-splash__status" data-test="phrase">
+    <span class="hm-spinner hm-spinner--sm" aria-hidden="true"></span>
+    {{ phrase() ?? defaultPhrase }}
+  </div>
+</output>

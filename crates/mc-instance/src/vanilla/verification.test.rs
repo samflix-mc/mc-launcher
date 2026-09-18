@@ -1,44 +1,43 @@
 use super::{classpath, verify_assets};
-use crate::essais::{Arbre, NEOFORGE, VANILLA};
+use crate::fixtures::{NEOFORGE, Tree, VANILLA};
 
-fn descripteur(arbre: &Arbre, id: &str) -> std::path::PathBuf {
-    arbre
-        .shared()
+fn descriptor(tree: &Tree, id: &str) -> std::path::PathBuf {
+    tree.shared()
         .join("versions")
         .join(id)
         .join(format!("{id}.json"))
 }
 
-/// Le descripteur que produit NeoForge ne porte ni `assetIndex` ni
-/// `downloads` : le lire avec la structure complète échouerait, alors que ses
-/// bibliothèques comptent autant que celles de Mojang.
+/// The descriptor NeoForge produces carries neither `assetIndex` nor
+/// `downloads`: reading it with the full structure would fail, even though
+/// its libraries matter just as much as Mojang's.
 #[test]
-fn le_descripteur_d_un_chargeur_se_lit_comme_celui_de_mojang() {
-    let arbre = Arbre::neuf("verif-chargeur");
-    arbre.version("neoforge-21.1.250", NEOFORGE);
+fn a_loader_descriptor_reads_like_mojang_s() {
+    let tree = Tree::new("verify-loader");
+    tree.version("neoforge-21.1.250", NEOFORGE);
 
-    let libs = classpath(&descripteur(&arbre, "neoforge-21.1.250"), &arbre.shared()).unwrap();
+    let libs = classpath(&descriptor(&tree, "neoforge-21.1.250"), &tree.shared()).unwrap();
 
     assert_eq!(libs.len(), 2, "{libs:?}");
     assert!(
         libs.iter().any(|p| p.ends_with("guava-33.0.0-jre.jar")),
         "{libs:?}"
     );
-    // Les chemins sont relatifs au dépôt partagé.
+    // Paths are relative to the shared store.
     assert!(
         libs.iter()
-            .all(|p| p.starts_with(arbre.shared().join("libraries")))
+            .all(|p| p.starts_with(tree.shared().join("libraries")))
     );
 }
 
 #[test]
-fn une_bibliotheque_reservee_a_un_autre_systeme_n_est_pas_exigee() {
-    let arbre = Arbre::neuf("verif-systeme");
-    arbre.version("1.21.1", VANILLA);
+fn a_library_reserved_for_another_system_is_not_required() {
+    let tree = Tree::new("verify-system");
+    tree.version("1.21.1", VANILLA);
 
-    let libs = classpath(&descripteur(&arbre, "1.21.1"), &arbre.shared()).unwrap();
+    let libs = classpath(&descriptor(&tree, "1.21.1"), &tree.shared()).unwrap();
 
-    // Sous linux, la native macOS de LWJGL n'a pas à être présente.
+    // On Linux, LWJGL's macOS native doesn't need to be present.
     assert!(
         !libs.iter().any(|p| p.to_string_lossy().contains("lwjgl")),
         "{libs:?}"
@@ -46,66 +45,66 @@ fn une_bibliotheque_reservee_a_un_autre_systeme_n_est_pas_exigee() {
 }
 
 #[test]
-fn un_descripteur_illisible_est_signale_avec_son_chemin() {
-    let arbre = Arbre::neuf("verif-casse");
-    arbre.version("1.21.1", "pas du JSON");
+fn an_unreadable_descriptor_is_reported_with_its_path() {
+    let tree = Tree::new("verify-broken");
+    tree.version("1.21.1", "not JSON");
 
-    let erreur = classpath(&descripteur(&arbre, "1.21.1"), &arbre.shared()).expect_err("cassé");
-    assert!(format!("{erreur:#}").contains("illisible"), "{erreur:#}");
+    let error = classpath(&descriptor(&tree, "1.21.1"), &tree.shared()).expect_err("broken");
+    assert!(format!("{error:#}").contains("unreadable"), "{error:#}");
 }
 
-/// Complément de la vérification rapide, qui ne compare que les tailles : ici
-/// chaque objet est relu et son empreinte recalculée.
+/// Complement to the quick check, which only compares sizes: here every
+/// object is reread and its digest recomputed.
 #[test]
-fn un_asset_intact_est_compte_comme_tel() {
-    let arbre = Arbre::neuf("assets-intacts");
-    let empreintes = vec![arbre.asset(b"un"), arbre.asset(b"deux")];
-    arbre.index_assets("17", &empreintes);
+fn an_intact_asset_is_counted_as_such() {
+    let tree = Tree::new("assets-intact");
+    let digests = vec![tree.asset(b"one"), tree.asset(b"two")];
+    tree.index_assets("17", &digests);
 
-    let rapport = verify_assets(&arbre.shared(), "17").unwrap();
+    let report = verify_assets(&tree.shared(), "17").unwrap();
 
-    assert_eq!(rapport.ok, 2);
-    assert!(rapport.is_clean());
+    assert_eq!(report.ok, 2);
+    assert!(report.is_clean());
 }
 
 #[test]
-fn un_asset_absent_est_nomme_par_son_empreinte() {
-    let arbre = Arbre::neuf("assets-absent");
-    let present = arbre.asset(b"un");
-    let absent = "0000000000000000000000000000000000000000".to_string();
-    arbre.index_assets("17", &[present, absent.clone()]);
+fn a_missing_asset_is_named_by_its_digest() {
+    let tree = Tree::new("assets-missing");
+    let present = tree.asset(b"one");
+    let missing = "0000000000000000000000000000000000000000".to_string();
+    tree.index_assets("17", &[present, missing.clone()]);
 
-    let rapport = verify_assets(&arbre.shared(), "17").unwrap();
+    let report = verify_assets(&tree.shared(), "17").unwrap();
 
-    assert_eq!(rapport.ok, 1);
-    assert_eq!(rapport.missing, vec![absent]);
-    assert!(!rapport.is_clean());
+    assert_eq!(report.ok, 1);
+    assert_eq!(report.missing, vec![missing]);
+    assert!(!report.is_clean());
 }
 
-/// Un objet dont le contenu ne correspond plus à son nom : c'est exactement ce
-/// que la vérification rapide laisse passer, et ce que celle-ci doit voir.
+/// An object whose content no longer matches its name: exactly what the
+/// quick check lets through, and what this one must catch.
 #[test]
-fn un_asset_corrompu_est_distingue_d_un_asset_absent() {
-    let arbre = Arbre::neuf("assets-corrompu");
-    let empreinte = arbre.asset(b"un");
-    let chemin = arbre
+fn a_corrupt_asset_is_distinguished_from_a_missing_one() {
+    let tree = Tree::new("assets-corrupt");
+    let digest = tree.asset(b"one");
+    let path = tree
         .shared()
         .join("assets")
         .join("objects")
-        .join(&empreinte[..2])
-        .join(&empreinte);
-    std::fs::write(&chemin, b"autre chose").unwrap();
-    arbre.index_assets("17", std::slice::from_ref(&empreinte));
+        .join(&digest[..2])
+        .join(&digest);
+    std::fs::write(&path, b"something else").unwrap();
+    tree.index_assets("17", std::slice::from_ref(&digest));
 
-    let rapport = verify_assets(&arbre.shared(), "17").unwrap();
+    let report = verify_assets(&tree.shared(), "17").unwrap();
 
-    assert_eq!(rapport.ok, 0);
-    assert!(rapport.missing.is_empty());
-    assert_eq!(rapport.corrupt, vec![empreinte]);
+    assert_eq!(report.ok, 0);
+    assert!(report.missing.is_empty());
+    assert_eq!(report.corrupt, vec![digest]);
 }
 
 #[test]
-fn un_index_absent_est_une_erreur_et_non_un_rapport_vide() {
-    let arbre = Arbre::neuf("assets-sans-index");
-    assert!(verify_assets(&arbre.shared(), "17").is_err());
+fn a_missing_index_is_an_error_not_an_empty_report() {
+    let tree = Tree::new("assets-no-index");
+    assert!(verify_assets(&tree.shared(), "17").is_err());
 }

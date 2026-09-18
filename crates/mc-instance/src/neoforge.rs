@@ -1,21 +1,20 @@
-//! Installation de NeoForge, par son installateur officiel.
+//! Installing NeoForge, through its official installer.
 //!
-//! Le descripteur de version de NeoForge ne suffit pas à installer le
-//! chargeur : une partie des bibliothèques n'existe pas telle quelle sur un
-//! dépôt Maven, elle est *fabriquée* au moment de l'installation par une suite
-//! de traitements — application de patchs binaires au client vanilla,
-//! découpage du jar, renommage des symboles. Ces traitements sont des jars
-//! livrés avec l'installateur, et leur enchaînement change d'une version à
-//! l'autre.
+//! NeoForge's version descriptor isn't enough to install the loader: some
+//! of the libraries don't exist as such on a Maven repository, they are
+//! *produced* during installation by a chain of processing steps — applying
+//! binary patches to the vanilla client, splitting the jar, renaming
+//! symbols. These steps are jars shipped with the installer, and their
+//! sequence changes from one version to the next.
 //!
-//! Les réimplémenter reviendrait à suivre indéfiniment un format interne. On
-//! exécute donc l'installateur publié, avec le Java que le launcher vient de
-//! garantir. Il est idempotent, ce qui permet de le relancer sans risque.
+//! Reimplementing them would mean chasing an internal format forever. So we
+//! run the published installer instead, with the Java the launcher has just
+//! guaranteed. It's idempotent, which makes it safe to rerun.
 
-mod installateur;
+mod installer;
 mod versions;
 
-pub use installateur::{install_client, install_server, version_id};
+pub use installer::{install_client, install_server, version_id};
 pub use versions::{latest_for, series_for};
 
 pub(crate) const MAVEN: &str = "https://maven.neoforged.net/releases";

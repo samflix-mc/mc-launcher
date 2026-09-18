@@ -1,42 +1,42 @@
-use super::{filtre, layer};
+use super::{filter, layer};
 
-/// Le défaut doit rester bavard à `info` et muet sur les bibliothèques
-/// réseau : sans cela, une seule requête HTTP noie le compte rendu.
+/// The default must stay talkative at `info` and quiet about the network
+/// libraries: without this, a single HTTP request drowns out the report.
 #[test]
-fn sans_rust_log_la_console_parle_a_info() {
-    let directives = filtre(None).to_string();
-    assert!(directives.contains("info"), "directives : {directives}");
-    assert!(directives.contains("hyper"), "directives : {directives}");
+fn without_rust_log_the_console_talks_at_info() {
+    let directives = filter(None).to_string();
+    assert!(directives.contains("info"), "directives: {directives}");
+    assert!(directives.contains("hyper"), "directives: {directives}");
 }
 
-/// Recopier le « .env » d'exemple tel quel pose une RUST_LOG vide. Traitée
-/// comme une directive, elle rendrait la console muette — défaut compris —
-/// sans que rien ne l'explique.
+/// Copying the example ".env" as-is sets an empty RUST_LOG. Treated as a
+/// directive, it would mute the console — default included — with nothing
+/// to explain it.
 #[test]
-fn une_rust_log_vide_vaut_une_rust_log_absente() {
-    let defaut = filtre(None).to_string();
-    assert_eq!(filtre(Some("")).to_string(), defaut);
-    assert_eq!(filtre(Some("   ")).to_string(), defaut);
-}
-
-#[test]
-fn une_rust_log_lisible_est_respectee() {
-    let directives = filtre(Some("trace")).to_string();
-    assert!(directives.contains("trace"), "directives : {directives}");
-}
-
-/// Une RUST_LOG mal écrite retombe sur le défaut plutôt que de tout couper,
-/// et le dit sur la sortie d'erreur : le souscripteur n'est pas encore posé,
-/// c'est le seul canal disponible.
-#[test]
-fn une_rust_log_illisible_retombe_sur_le_defaut() {
-    assert_eq!(filtre(Some("=====")).to_string(), filtre(None).to_string());
+fn an_empty_rust_log_is_as_good_as_an_absent_one() {
+    let default = filter(None).to_string();
+    assert_eq!(filter(Some("")).to_string(), default);
+    assert_eq!(filter(Some("   ")).to_string(), default);
 }
 
 #[test]
-fn la_couche_console_se_construit() {
-    // Elle ne s'inspecte pas — les types de tracing-subscriber sont opaques
-    // une fois boxés. Ce que le test retient, c'est qu'assembler le format,
-    // l'écrivain censurant et le filtre ne panique pas.
-    let _couche = layer();
+fn a_readable_rust_log_is_honored() {
+    let directives = filter(Some("trace")).to_string();
+    assert!(directives.contains("trace"), "directives: {directives}");
+}
+
+/// A malformed RUST_LOG falls back to the default instead of cutting
+/// everything off, and says so on standard error: the subscriber isn't set
+/// up yet, that's the only channel available.
+#[test]
+fn an_unreadable_rust_log_falls_back_to_the_default() {
+    assert_eq!(filter(Some("=====")).to_string(), filter(None).to_string());
+}
+
+#[test]
+fn the_console_layer_builds() {
+    // It can't be inspected — tracing-subscriber's types are opaque once
+    // boxed. What the test checks is that assembling the format, the
+    // redacting writer and the filter doesn't panic.
+    let _layer = layer();
 }

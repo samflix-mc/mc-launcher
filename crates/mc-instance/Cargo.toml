@@ -1,11 +1,12 @@
 [package]
 name = "mc-instance"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Installation d'une instance Minecraft : fichiers vanilla puis NeoForge"
 
 [dependencies]
+mc-paths = { path = "../mc-paths" }
 anyhow.workspace = true
 tracing.workspace = true
 mutants.workspace = true

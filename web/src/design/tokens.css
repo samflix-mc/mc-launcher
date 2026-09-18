@@ -1,0 +1,182 @@
+/*
+ * The design tokens for the "Helm" design system.
+ *
+ * ## This file is a COPY, and it gets replaced whole
+ *
+ * It comes from `docs/helm-design-system.zip`, from `tokens.css`. Nothing here is
+ * decided by the launcher: not a color, not a weight, not a radius. The day
+ * the design system is republished, this file gets replaced with a `cp` — and that's
+ * precisely why nothing should be added here. What belongs to the
+ * launcher lives in `styles.css` or in the style of the component that draws it.
+ *
+ * ## The three families, and why they aren't loaded here
+ *
+ * `--font-pixel`, `--font-sans` and `--font-mono` name Pixelify Sans, Manrope
+ * and JetBrains Mono. The design system pulls them from Google Fonts; we can't —
+ * the launcher's CSP only lets the local origin through, and an offline window
+ * would end up with no font. They're served by the package instead,
+ * from `styles.css`.
+ */
+
+:root,
+[data-theme='dark'] {
+  --bg: #0d0c0a;
+  --bg-raised: #161411;
+  --bg-overlay: #201d18;
+  --scrim: #0d0c0aa6;
+  --scrim-dialog: #0d0c0ab8;
+  --glass-dark: #0d0c0a75;
+  --glass-dark-strong: #0d0c0a9e;
+  --glass: #ffffff12;
+  --glass-strong: #ffffff1f;
+  --glass-line: #ffffff29;
+  --glass-sheen: #ffffff8c;
+  --field: #0d0c0a73;
+  --line: #ffffff1a;
+  --line-control: #ffffff6b;
+  --ink: #f4efe6;
+  --ink-2: #cbc4b8;
+  --ink-3: #b3aca1;
+  --ink-inverse: #0d0c0a;
+  --gold: #e6b54a;
+  --gold-bright: #f6d27a;
+  --gold-deep: #b8862b;
+  --gold-soft: #e6b54a1f;
+  --gold-line: #e6b54a66;
+  --on-gold: #1b1405;
+  --focus-ring: var(--gold);
+  --success: #5fd68a;
+  --success-soft: #5fd68a1f;
+  --danger: #f7918a;
+  --danger-soft: #f7918a1f;
+  --warning: #ffa562;
+  --warning-soft: #ffa5621f;
+  --info: #7cc4f5;
+  --info-soft: #7cc4f51f;
+  --neutral-dot: #8f887d;
+  --microsoft: #ffffff;
+  --shadow-glass: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 24px 60px -16px rgba(0, 0, 0, 0.6);
+  --shadow-glass-hover: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 32px 72px -16px rgba(0, 0, 0, 0.65);
+  --shadow-window: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-gold: 0 8px 28px rgba(230, 181, 74, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  --shadow-menu: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-window: 12px;
+  --radius-pill: 999px;
+  --blur-sm: 12px;
+  --blur-md: 24px;
+  --blur-lg: 40px;
+  --glass-saturate: 160%;
+  --z-stage: 0;
+  --z-page: 1;
+  --z-nav: 20;
+  --z-titlebar: 30;
+  --z-dialog: 100;
+  --z-menu: 110;
+  --font-pixel: 'Pixelify Sans', 'Silkscreen', monospace;
+  --font-sans: Manrope, 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
+}
+.display-xl {
+  font-family: var(--font-pixel);
+  font-size: 48px;
+  line-height: 48px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.display-lg {
+  font-family: var(--font-pixel);
+  font-size: 32px;
+  line-height: 36px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.display-md {
+  font-family: var(--font-pixel);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.title {
+  font-family: var(--font-sans);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.heading {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+.body-strong {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.caption {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.button {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+.button-lg {
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+.code-lg {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}

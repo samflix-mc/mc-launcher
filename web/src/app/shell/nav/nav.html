@@ -1,0 +1,21 @@
+<nav class="hm-nav" aria-label="Launcher sections" data-test="nav">
+  @for (tab of tabs; track tab.path) {
+    <!--
+      `routerLinkActive` sets the attribute, which the STYLE reads — the design
+      system relies on `[aria-current="page"]` for the light pill and the
+      golden icon — and which the tests read too. It's the attribute family
+      that's a contract on both sides.
+    -->
+    <a
+      class="hm-nav__item"
+      [routerLink]="tab.path"
+      routerLinkActive
+      #active="routerLinkActive"
+      [attr.aria-current]="active.isActive ? 'page' : null"
+      [attr.data-test]="'tab-' + tab.label.toLowerCase()"
+    >
+      <lucide-icon [img]="tab.icon" [size]="20" [strokeWidth]="1.75" aria-hidden="true" />
+      {{ tab.label }}
+    </a>
+  }
+</nav>

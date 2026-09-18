@@ -1,22 +1,22 @@
-//! Ce que Minecraft laisse derrière lui quand il s'arrête mal.
+//! What Minecraft leaves behind when it stops badly.
 //!
-//! Un joueur dont le jeu plante ne sait pas lire une trace Java et ne pensera
-//! pas à joindre un fichier. Le launcher, lui, sait exactement où regarder :
+//! A player whose game crashes can't read a Java trace and won't think to
+//! attach a file. The launcher, though, knows exactly where to look:
 //!
-//! - `crash-reports/crash-*.txt` — écrit par le jeu quand il attrape
-//!   l'exception. Le plus riche : description, trace, mods chargés, pilote
-//!   graphique ;
-//! - `logs/latest.log` — le reste du temps. Une erreur de chargement de mods
-//!   ou un conflit de modules s'y trouve, alors qu'aucun rapport n'est produit
-//!   car la JVM s'arrête avant que le jeu n'existe.
+//! - `crash-reports/crash-*.txt` — written by the game when it catches
+//!   the exception. The richest source: description, trace, loaded mods,
+//!   graphics driver;
+//! - `logs/latest.log` — the rest of the time. A mod loading error or a
+//!   module conflict shows up there, while no report is produced because
+//!   the JVM stops before the game exists.
 //!
-//! Le second cas est le plus fréquent avec un modpack, et c'est justement
-//! celui qu'aucun rapport de crash ne couvre.
+//! The second case is the most common with a modpack, and it's exactly the
+//! one no crash report covers.
 
-mod lecture;
-mod rapport;
-mod surveillance;
+mod reading;
+mod report;
+mod watch;
 
-pub use lecture::{Crash, parse};
-pub use rapport::{find, now};
-pub use surveillance::{Watcher, loaded_mods};
+pub use reading::{Crash, parse};
+pub use report::{find, now};
+pub use watch::{Watcher, loaded_mods};

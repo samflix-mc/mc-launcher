@@ -1,47 +1,292 @@
 name: Release
 
-# Publie les binaires sur tag. Les runners GitHub sont gratuits et illimités
-# sur les dépôts publics, macOS compris — c'est ce qui rend la matrice
-# multi-plateforme indolore ici.
+# Publie, sur tag, les deux choses que ce dépôt produit : l'outil en ligne de
+# commande `mc-pack`, et le launcher graphique pour les quatre plateformes où
+# des joueurs l'attendent.
+#
+# Les runners GitHub sont gratuits et illimités sur les dépôts publics, macOS
+# compris — c'est ce qui rend la matrice multi-plateforme indolore ici.
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Le tag à publier (déjà poussé). Pour rejouer une publication ratée."
+        required: true
+        type: string
 
-# Les binaires publiés sur tag sont les seuls à porter « production ».
-# Sans cette déclaration ils retomberaient sur « local », le défaut prudent :
-# un incident de production classé en local se remarque, l'inverse pollue
-# silencieusement le seul environnement qu'on surveille.
-#
-# La valeur passe par une ENTRÉE du workflow réutilisable, jamais par un
-# « env: » posé ici : un env de workflow appelant n'atteint pas le workflow
-# appelé. Il y en avait un, il était bien écrit, et il ne servait à rien — la
-# compilation réussissait, le binaire partait, et il se croyait « local ».
-# Rien ne le signalait, puisque le défaut est précisément le silence.
-#
-# Ce n'était qu'un incident mal classé tant que l'environnement ne servait qu'à
-# Sentry. Depuis qu'il choisit aussi le pack téléchargé et le serveur rejoint,
-# un binaire publié serait allé chercher le pack de DEV et aurait fait entrer
-# les joueurs sur le serveur de dev — la panne que ce dépôt existe pour
-# empêcher, retournée contre la production.
+# PAS de « cancel-in-progress », et c'est la seule différence avec les autres
+# workflows du dépôt. Une publication interrompue au milieu laisse une release
+# à moitié peuplée — trois paquets sur sept — que rien ne distingue d'une
+# complète : ni son état, ni sa date, ni son libellé. Un joueur sous Windows y
+# trouverait une page sans .msi et conclurait qu'on ne le supporte pas.
+concurrency:
+  group: release-${{ github.ref }}
 
-# mc-pack et non mc-auth : le binaire publié doit être celui qu'on lance.
-# mc-auth est une brique d'authentification, utile à qui développe, sans usage
-# pour un joueur — et elle attend toujours l'approbation Azure. mc-pack, lui,
-# installe le pack, vérifie l'installation et lance le jeu ; c'est la commande
-# dont l'existence justifie ce dépôt.
+# Aucune déclaration globale : chaque job déclare ce dont il a besoin, et la
+# revue d'une action tierce ajoutée un jour porte alors sur ce qu'elle peut
+# réellement faire. Seul « publication » écrit.
+
+env:
+  # Les binaires publiés sur tag sont les seuls à porter « production ». Sans
+  # cette valeur, ils retomberaient sur « local », le défaut prudent : un
+  # incident de production classé en local se remarque, l'inverse pollue
+  # silencieusement le seul environnement qu'on surveille.
+  #
+  # Depuis que l'environnement choisit aussi le pack téléchargé et le serveur
+  # rejoint, un binaire qui se croit local irait chercher le pack de DEV et
+  # ferait entrer les joueurs sur le serveur de dev — la panne que ce dépôt
+  # existe pour empêcher, retournée contre la production.
+  SAMFLIX_ENV: production
+  # Et la ceinture : voir crates/mc-log/build.rs. Un SAMFLIX_ENV qui ne
+  # franchirait pas une frontière de workflow arrête la compilation au lieu de
+  # produire un binaire qui ment. Elle ne franchit PAS le « uses: » du
+  # workflow délégué ci-dessous — elle couvre les quatre jambes Tauri, qui
+  # compilent ici.
+  MC_EXIGER_ENV: "1"
+
 jobs:
-  release:
+  # ───────────────────────────────────────────────────────────────────────────
+  coherence:
+    name: Le tag et les manifestes disent la même chose
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      # Trente secondes avant toute compilation, et elles valent une
+      # publication ratée. Ni dpkg, ni rpm, ni le MSI ne comparent le NOM du
+      # fichier : ils comparent la version INTERNE du paquet. Un tag v0.2.0 sur
+      # un Cargo.toml resté en 0.1.0 produit des fichiers nommés 0.1.0, publiés
+      # sous une release intitulée v0.2.0 — une mise à jour qui paraît livrée
+      # et que personne ne reçoit, parce que les gestionnaires de paquets
+      # voient la même version qu'avant.
+      - name: Comparer
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          attendue="${tag#v}"
+          declaree=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          echo "tag=$tag  →  attendue=$attendue  déclarée=$declaree"
+          if [ "$attendue" != "$declaree" ]; then
+            echo "::error title=Version::le tag annonce $attendue et [workspace.package] déclare $declaree"
+            exit 1
+          fi
+          # Aucun crate ne doit porter sa propre version : elles viennent
+          # toutes de [workspace.package], et tauri.conf.json ne doit plus
+          # déclarer la sienne du tout — privé de clé « version », Tauri la lit
+          # dans le Cargo.toml du crate.
+          if grep -rn '^version = "' crates/*/Cargo.toml; then
+            echo "::error title=Version::un crate déclare sa version au lieu de l'hériter du workspace"
+            exit 1
+          fi
+          if grep -q '"version"' crates/mc-app/tauri.conf.json; then
+            echo "::error title=Version::tauri.conf.json déclare encore une version"
+            exit 1
+          fi
+
+  # ───────────────────────────────────────────────────────────────────────────
+  ligne_de_commande:
+    name: mc-pack
+    needs: coherence
+    # Le workflow réutilisable de l'organisation, qui fait un « cargo build »
+    # NU. C'est « default-members » dans le Cargo.toml racine qui l'écarte de
+    # mc-app : sans cette ligne, ce build-là tenterait de compiler
+    # l'application graphique, sur un runner sans WebKitGTK, et sans jamais
+    # empaqueter ce qu'il aurait produit.
     uses: samflix-mc/.github/.github/workflows/release-rust.yml@main
     with:
       binary: mc-pack
-      # L'entrée existe dans samflix-mc/.github depuis « Recevoir SAMFLIX_ENV en
-      # input, faute de le voir passer ». Elle y est référencée en @main : cette
-      # ligne n'a donc d'effet qu'une fois cette PR-là fusionnée, ce qui est
-      # l'ordre prévu de toute façon — et un tag posé avant échouerait
-      # franchement sur une entrée non déclarée, plutôt que de publier en
-      # silence un binaire qui se croit local.
       environnement: production
     permissions:
       contents: write
+
+  # ───────────────────────────────────────────────────────────────────────────
+  application:
+    name: ${{ matrix.nom }}
+    needs: coherence
+    permissions:
+      contents: read
+    strategy:
+      # Une jambe qui tombe ne doit pas emporter les trois autres : on veut
+      # savoir si le problème est celui d'une plateforme ou celui du commit, et
+      # la réponse ne s'obtient qu'en laissant les autres finir.
+      fail-fast: false
+      matrix:
+        include:
+          - nom: Linux x86-64
+            runner: ubuntu-24.04
+            arguments: ""
+          # Le seul endroit où l'on éprouve la branche aarch64 de
+          # mc-java/src/adoptium.rs. Elle a quitté ci.yml, où elle occupait la
+          # place du x64 qu'on livre pourtant très majoritairement.
+          - nom: Linux aarch64
+            runner: ubuntu-24.04-arm
+            arguments: ""
+          # UNE seule jambe macOS, et un .dmg universel. Sans
+          # « --target universal-apple-darwin », on obtient un .dmg arm64 seul
+          # — le piège exact qu'on veut éviter, invisible sur le runner et
+          # visible chez un joueur Intel uniquement.
+          - nom: macOS universel
+            runner: macos-15
+            arguments: "--target universal-apple-darwin --bundles dmg"
+          - nom: Windows
+            runner: windows-2025
+            arguments: ""
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - if: runner.os == 'Linux'
+        uses: ./.github/actions/dependances-linux
+
+      - uses: ./.github/actions/front
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # Les deux cibles AVANT le build : la compilation universelle les
+      # réclame, et rustup ne les pose pas de lui-même. Sans elles, la jambe
+      # échoue sur un message de linker qui ne nomme pas la cause.
+      - if: runner.os == 'macOS'
+        run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.runner }}
+
+      - uses: tauri-apps/tauri-action@v1.0.0
+        env:
+          # Ce que le launcher affiche de lui-même, figé à la compilation.
+          # C'est le nom du LAUNCHER et non celui du réseau : le premier est
+          # server-agnostic, le second s'affiche à côté du mot-symbole.
+          MC_LAUNCHER_NOM: Helm
+        with:
+          projectPath: crates/mc-app
+          # SANS « tagName » ni « releaseId » : l'action se comporte alors en
+          # CONSTRUCTEUR SEUL, et les bundles restent des artefacts de
+          # workflow. C'est voulu — c'est le job « publication » qui attache,
+          # après que le workflow délégué a créé la release. Laisser les deux
+          # créer la release serait une course, et une course sur la création
+          # se manifeste par des notes écrasées, pas par une erreur.
+          #
+          # « tauriScript » court-circuite la détection de la CLI :
+          # tauri-action lit le package.json à la racine de projectPath
+          # (runner.ts:54) et nulle part ailleurs — crates/mc-app n'en a pas,
+          # et @tauri-apps/cli vit dans web/package.json.
+          tauriScript: pnpm --dir web exec tauri
+          args: ${{ matrix.arguments }}
+          includeUpdaterJson: false
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: paquets-${{ matrix.runner }}
+          path: |
+            target/release/bundle/**/*.deb
+            target/release/bundle/**/*.rpm
+            target/release/bundle/**/*.AppImage
+            target/release/bundle/**/*.dmg
+            target/release/bundle/**/*.msi
+            target/release/bundle/**/*-setup.exe
+            target/universal-apple-darwin/release/bundle/**/*.dmg
+          retention-days: 7
+          if-no-files-found: error
+
+  # ───────────────────────────────────────────────────────────────────────────
+  publication:
+    name: Attacher et vérifier
+    # Les TROIS, et le premier n'est pas décoratif : « ligne_de_commande » est
+    # le job qui CRÉE la release. Courir avant lui reviendrait à attacher des
+    # fichiers à une release qui n'existe pas encore, ou à en créer une
+    # deuxième que le workflow délégué écraserait ensuite.
+    needs: [coherence, ligne_de_commande, application]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: paquets-*
+          path: paquets
+          merge-multiple: true
+
+      - name: Attacher les paquets à la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          find paquets -type f | sort
+          gh release upload "$tag" $(find paquets -type f) --clobber
+
+      # Le corps de release en français ne peut pas être passé au workflow
+      # délégué, qui le pose lui-même : il se réécrit ici, après.
+      - name: Réécrire les notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          cat > notes.md <<NOTES
+          ## Helm $tag
+
+          ### Le launcher
+
+          | Système | Fichier |
+          |---|---|
+          | Windows | \`.msi\` ou \`-setup.exe\` |
+          | macOS | \`.dmg\` — universel, Intel et Apple Silicon |
+          | Linux (Debian, Ubuntu) | \`.deb\` |
+          | Linux (Fedora, openSUSE) | \`.rpm\` |
+          | Linux (autres) | \`.AppImage\` |
+
+          Les paquets Linux exigent **glibc 2.39 ou plus récente** : ils sont
+          construits sur Ubuntu 24.04. Une distribution plus ancienne doit
+          passer par l'AppImage.
+
+          Sous macOS, l'application est signée *ad hoc*. Au premier lancement,
+          macOS demande de confirmer par un clic droit → Ouvrir. C'est le
+          blocage Gatekeeper ordinaire, et non le message « l'application est
+          endommagée », qui ferait croire à un téléchargement corrompu.
+
+          ### L'outil en ligne de commande
+
+          \`mc-pack\` installe, vérifie et lance un pack sans interface. Utile
+          pour scripter un serveur ou diagnostiquer une installation.
+          NOTES
+          gh release edit "$tag" --notes-file notes.md
+
+      # Le dernier contrôle, et celui qui porte sur ce qu'un joueur va
+      # réellement télécharger : on retélécharge depuis la release, et on
+      # demande au binaire ce qu'il porte.
+      #
+      # Linux seulement, et c'est un arbitrage assumé : sous Windows,
+      # « windows_subsystem = windows » détache la console en release, et
+      # AttachConsole rendrait la sortie dépendante du shell appelant — un
+      # contrôle instable finit désactivé, et emporte avec lui les fois où il
+      # disait vrai. Le .dmg demanderait un montage ; le .msi, une
+      # installation. Le .deb est le seul dont on puisse extraire le binaire
+      # en trois commandes.
+      - name: Le binaire publié dit « production »
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          rm -rf controle && mkdir controle
+          gh release download "$tag" --dir controle --pattern '*amd64.deb'
+          dpkg-deb -x controle/*.deb controle/extrait
+          binaire=$(find controle/extrait -type f -name 'helm' | head -1)
+          sortie=$("$binaire" --diagnostic)
+          echo "$sortie"
+          echo "$sortie" | grep -qE "environment +: production" \
+            || { echo "::error title=Environnement::le binaire PUBLIÉ n'annonce pas production"; exit 1; }
+          echo "$sortie" | grep -qE "version +: ${tag#v}" \
+            || { echo "::error title=Version::le binaire PUBLIÉ n'annonce pas ${tag#v}"; exit 1; }

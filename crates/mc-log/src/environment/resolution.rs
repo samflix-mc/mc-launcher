@@ -1,17 +1,17 @@
-//! D'où vient la valeur : le lancement, la compilation, ou le défaut.
+//! Where the value comes from: launch, compilation, or the default.
 
 use super::Environment;
 
-/// Valeur figée dans le binaire à la compilation, posée par la CI.
+/// Value frozen into the binary at compile time, set by the CI.
 const COMPILED: Option<&str> = option_env!("SAMFLIX_ENV");
 
-/// Environnement de cette exécution.
+/// Environment of this run.
 pub fn current() -> Environment {
     resolve(std::env::var("SAMFLIX_ENV").ok().as_deref(), COMPILED)
 }
 
-/// Où l'environnement a-t-il été décidé ? Affiché par le diagnostic, pour
-/// qu'un environnement inattendu se remonte à sa source en une lecture.
+/// Where was the environment decided? Shown by diagnostics, so an
+/// unexpected environment can be traced to its source in one read.
 pub fn origin() -> &'static str {
     match (
         std::env::var("SAMFLIX_ENV")
@@ -20,13 +20,13 @@ pub fn origin() -> &'static str {
             .and_then(Environment::parse),
         COMPILED.and_then(Environment::parse),
     ) {
-        (Some(_), _) => "variable SAMFLIX_ENV au lancement",
-        (None, Some(_)) => "SAMFLIX_ENV figé à la compilation",
-        (None, None) => "défaut, aucune déclaration",
+        (Some(_), _) => "SAMFLIX_ENV variable at launch",
+        (None, Some(_)) => "SAMFLIX_ENV frozen at compile time",
+        (None, None) => "default, no declaration",
     }
 }
 
-/// Résolution séparée de la lecture de l'environnement, pour être testable.
+/// Resolution kept separate from reading the environment, to be testable.
 fn resolve(runtime: Option<&str>, compiled: Option<&str>) -> Environment {
     runtime
         .and_then(Environment::parse)

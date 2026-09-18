@@ -1,9 +1,9 @@
 <h1 align="center">mc-launcher</h1>
 
 <p align="center">
-  Le launcher du réseau <strong>samflix-mc</strong> : il installe le pack,<br>
+  <strong>Helm</strong>, le launcher du réseau samflix-mc : il installe le pack,<br>
   vérifie l'installation, et lance le jeu avec les mêmes mods que les serveurs.<br>
-  <em>En développement — l'interface reste à faire.</em>
+  <em>Une fenêtre, et la ligne de commande qui la précède.</em>
 </p>
 
 <p align="center">
@@ -34,6 +34,19 @@ jeu avec ce que le pack déclare.
 
 ## Démarrer
 
+**La fenêtre** : un seul bouton. Il dit INSTALLER quand rien n'est posé, JOUER
+ensuite, et rattrape de lui-même ce que le pack a changé depuis la dernière
+partie — voir [interface.md](docs/interface.md).
+
+```bash
+pnpm --dir web install                 # une fois
+cd crates/mc-app && cargo tauri dev
+```
+
+**La ligne de commande** fait la même chose, avec le même code, et garde ses
+deux gestes séparés : c'est un outil d'outilleur, et l'un ne doit pas
+déclencher l'autre.
+
 ```bash
 mc-pack install                        # installe le pack publié
 mc-pack verify [source] [--deep]       # l'installation est-elle conforme au verrou ?
@@ -52,41 +65,54 @@ sait de quel environnement il vient, et c'est cela qui choisit le pack — voir
 ## Où vivent les fichiers
 
 ```
-~/.local/share/samflix-mc/
+~/.local/share/mc.samflix.launcher/
   shared/            versions/, libraries/, assets/ — forme d'un .minecraft
   instances/<nom>/minecraft/   mods, config, saves
   instances/<nom>/server/mods/ les mods du côté serveur
+  instances/<nom>/etat.json    ce que ce poste porte : empreinte du verrou, génération
   runtime/temurin-21/
   cache/mods/
-~/.config/samflix-mc/session.json      la session Microsoft, en 0600
+  logs/
+~/.config/mc.samflix.launcher/
+  reglages.json                les préférences du joueur
+  session.json                 la session, si la machine n'a pas de trousseau
 ```
 
 Bibliothèques et assets pèsent près d'un gigaoctet et ne dépendent que de la
 version du jeu : ils sont partagés entre instances. `shared/` a la forme d'un
 `.minecraft` parce que l'installateur NeoForge l'exige.
 
+Le segment est l'**identifiant de l'application**, `mc.samflix.launcher` : c'est
+exactement ce que composent `app_data_dir()` et `app_config_dir()` de Tauri, de
+sorte que la fenêtre et la ligne de commande ne puissent pas ranger à deux
+endroits différents. Il valait `samflix-mc` avant le 18 septembre 2026 — voir
+[authentification.md](docs/authentification.md) pour le pourquoi du
+changement.
+
 ## Les crates
 
 | | |
 |---|---|
-| [`mc-pack`](crates/mc-pack) | manifeste, installation, vérification, lancement — **le binaire qu'on lance** |
-| [`mc-mods`](crates/mc-mods) | résolution des mods : Modrinth, CurseForge, dépendances lues dans les jars |
+| [`mc-pack`](crates/mc-pack) | manifeste, installation, comparaison, vérification, lancement — **la ligne de commande** |
+| [`mc-mods`](crates/mc-mods) | résolution des mods : Modrinth, CurseForge sans clé, dépendances lues dans les jars |
 | [`mc-instance`](crates/mc-instance) | Minecraft et NeoForge : installation, ligne de commande JVM, plantages |
 | [`mc-auth`](crates/mc-auth) | authentification Microsoft, et profil hors-ligne |
-| [`mc-java`](crates/mc-java) | détecte un Java 21, en installe un au besoin |
+| [`mc-java`](crates/mc-java) | détecte le Java que le verrou exige, en installe un au besoin |
 | [`mc-log`](crates/mc-log) | journaux console et fichier, incidents Sentry, censure des jetons |
 | [`mc-dl`](crates/mc-dl) | téléchargements : reprise, empreintes, écriture atomique |
-| [`mc-essais`](crates/mc-essais) | serveur HTTP d'essai, pour éprouver ce qui parle au réseau |
-
-L'interface reste à faire ; tout le reste est écrit.
+| [`mc-news`](crates/mc-news) | le fil de news : contrat JSON, markdown vers arbre typé — **aucun HTML** |
+| [`mc-settings`](crates/mc-settings) | les préférences du joueur, leurs bornes, et leur fusion dans `options.txt` |
+| [`mc-paths`](crates/mc-paths) | l'unique endroit qui décide où le launcher range ses affaires |
+| [`mc-app`](crates/mc-app) | l'application Tauri : la fenêtre, et rien d'autre — voir [interface.md](docs/interface.md) |
+| [`mc-testkit`](crates/mc-testkit) | serveur HTTP d'essai, pour éprouver ce qui parle au réseau |
 
 ## Qualité
 
 | | |
 |---|---|
-| Couverture | **94,4 %** des lignes |
+| Couverture | **91,5 %** des lignes |
 | Score de mutation | **100 %** — aucun mutant ne survit |
-| Mutants éprouvés | **96,4 %** (1012 sur 1050 ; les 38 écartés sont nommés dans le code) |
+| Mutants éprouvés | **1246**, et ce qui est écarté est nommé dans le code |
 
 La couverture dit qu'une ligne a été *exécutée*, jamais que quelqu'un a regardé
 ce qu'elle rendait. C'est la seconde mesure qui le dit : chaque pull request
@@ -98,10 +124,13 @@ survivant**. Le détail est dans [qualite.md](docs/qualite.md).
 | | |
 |---|---|
 | [packs.md](docs/packs.md) | d'où vient le pack, le manifeste, le verrou |
-| [mods.md](docs/mods.md) | les trois sources, CurseForge sans clé, les dépendances cachées |
+| [mods.md](docs/mods.md) | les deux sources, CurseForge sans clé, les dépendances cachées |
 | [lancement.md](docs/lancement.md) | ce qui décide qu'un jeu démarre, le runtime Java |
 | [authentification.md](docs/authentification.md) | Microsoft, mode hors-ligne, et ce que ce launcher présente |
-| [qualite.md](docs/qualite.md) | les quatre workflows, couverture et mutation |
+| [interface.md](docs/interface.md) | la fenêtre : Tauri, Angular, le CSP, le build |
+| [nouvelles.md](docs/nouvelles.md) | le fil de news : le contrat JSON, et pourquoi aucun HTML n'atteint le DOM |
+| [journaux.md](docs/journaux.md) | où vont les journaux, ce qui est censuré, et les incidents |
+| [qualite.md](docs/qualite.md) | les six workflows, couverture et mutation |
 
 Le « pourquoi » de chaque décision est en tête du module concerné : c'est là
 qu'il reste juste, et ces fichiers n'en sont que le résumé.

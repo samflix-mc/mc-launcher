@@ -1,24 +1,25 @@
-use super::maison_utilisable;
+use super::usable_home;
 use crate::redact::redact;
 
-/// Deux valeurs doivent être refusées, et pour des raisons opposées. Une
-/// variable vide ne désigne rien — remplacer la chaîne vide par « ~ » insérerait
-/// un tilde entre chaque caractère du journal. Et « / » préfixe tout : un
-/// journal entier deviendrait illisible, chemins système compris.
+/// Two values must be rejected, for opposite reasons. An empty variable
+/// names nothing — replacing the empty string with "~" would insert a
+/// tilde between every character of the log. And "/" prefixes
+/// everything: a whole log would become unreadable, system paths
+/// included.
 #[test]
-fn une_maison_vide_ou_reduite_a_la_racine_ne_sert_pas_de_remplacement() {
-    assert_eq!(maison_utilisable("/home/sam").as_deref(), Some("/home/sam"));
-    assert_eq!(maison_utilisable(""), None);
-    assert_eq!(maison_utilisable("/"), None);
+fn a_home_that_is_empty_or_reduced_to_the_root_is_not_used_as_a_replacement() {
+    assert_eq!(usable_home("/home/sam").as_deref(), Some("/home/sam"));
+    assert_eq!(usable_home(""), None);
+    assert_eq!(usable_home("/"), None);
 }
 
 #[test]
-fn le_repertoire_personnel_devient_un_tilde() {
+fn the_home_directory_becomes_a_tilde() {
     let home = std::env::var("HOME").unwrap_or_default();
     if home.is_empty() {
         return;
     }
-    let sortie = redact(&format!("{home}/.local/share/samflix-mc/logs"));
-    assert!(sortie.starts_with('~'));
-    assert!(!sortie.contains(&home));
+    let output = redact(&format!("{home}/.local/share/samflix-mc/logs"));
+    assert!(output.starts_with('~'));
+    assert!(!output.contains(&home));
 }

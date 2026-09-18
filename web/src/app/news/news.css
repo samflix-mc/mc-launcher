@@ -1,0 +1,110 @@
+:host {
+  display: block;
+  min-height: 0;
+  height: 100%;
+}
+
+/* Two rows: the header, then the scrolling zone. The whole page doesn't
+   scroll — an application window doesn't scroll, its panels do, each in its
+   own zone. */
+.hm-newsroom {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-4);
+  height: 100%;
+  min-height: 0;
+}
+
+.hm-newsroom__head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* The design system's `display-lg`: the pixel face, thirty-two pixels. */
+.hm-newsroom__title {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-weight: 500;
+  font-size: 32px;
+  line-height: 36px;
+  letter-spacing: 0.01em;
+}
+
+.hm-newsroom__source {
+  margin: var(--space-1) 0 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.hm-newsroom__body {
+  display: grid;
+  grid-auto-rows: max-content;
+  gap: var(--space-4);
+  align-content: start;
+  overflow: auto;
+  min-height: 0;
+  /* The scrollbar mustn't hug the text: one step of space is enough. */
+  padding-right: var(--space-1);
+}
+
+/* The trailing note, for whoever publishes. Deliberately discreet: the posts
+   that remain display just fine, and this doesn't concern the player. */
+.hm-newsroom__discarded {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-3);
+}
+
+.hm-newsroom__discarded summary {
+  cursor: pointer;
+}
+
+.hm-newsroom__discarded ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
+
+/* --- The reading dialog --------------------------------------------------- */
+
+/* Wider than the four hundred twenty pixels of a decision dialog: this one
+   reads text, and the design system wants sixty to seventy characters per
+   line. */
+.hm-newsroom__reading {
+  width: 680px;
+  max-height: 80vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.hm-newsroom__reading-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* Illustrations are bounded on the Rust side to 512 KiB, but nothing bounds
+   their DIMENSIONS: a host can serve a three-thousand-pixel-tall image in
+   512 KiB. Without this cap, an illustrated post would take over the whole
+   dialog and all you'd see is an image. */
+.hm-newsroom__illustration {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  display: block;
+}
+
+.hm-newsroom__text {
+  overflow: auto;
+  min-height: 0;
+  /* The text is selectable: it's content to read and quote, not a command. */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
+}

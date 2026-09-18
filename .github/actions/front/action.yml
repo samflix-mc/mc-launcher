@@ -1,0 +1,35 @@
+name: Préparer le front
+description: >
+  pnpm, Node, et les dépendances de web/ installées depuis le verrou.
+  Quatre jobs en ont besoin — contrôles du front, build de l'application, et
+  les quatre jambes de release — et la moindre divergence de version de pnpm
+  entre eux réécrit le verrou au lieu de le respecter.
+
+runs:
+  using: composite
+  steps:
+    # La version de pnpm n'est écrite nulle part ailleurs que dans le champ
+    # « packageManager » de web/package.json. L'action sait le lire, à
+    # condition qu'on lui dise quel fichier : par défaut elle regarde la
+    # racine du dépôt, où il n'y a pas de package.json du tout.
+    - uses: pnpm/action-setup@v6
+      with:
+        package_json_file: web/package.json
+
+    # setup-node APRÈS pnpm : son cache « pnpm » appelle « pnpm store path »,
+    # qui n'existe pas tant que pnpm n'est pas posé. L'ordre inverse ne casse
+    # pas — il désactive le cache en silence.
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: pnpm
+        cache-dependency-path: web/pnpm-lock.yaml
+
+    - name: Installer depuis le verrou
+      shell: bash
+      working-directory: web
+      # --frozen-lockfile : en CI, un verrou qui ne correspond pas au
+      # manifeste est une erreur, pas une invitation à le réécrire. C'est le
+      # défaut de pnpm quand CI=true, mais on l'écrit : le jour où quelqu'un
+      # lance ce script à la main, il doit échouer de la même façon.
+      run: pnpm install --frozen-lockfile

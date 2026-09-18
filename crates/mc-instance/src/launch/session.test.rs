@@ -1,8 +1,8 @@
 use super::Session;
 
 #[test]
-fn une_session_hors_ligne_porte_un_jeton_non_vide() {
-    // Le jeu exige l'argument ; une chaîne vide casse l'analyse.
+fn an_offline_session_carries_a_non_empty_token() {
+    // The game requires the argument; an empty string breaks parsing.
     let session = Session::offline("Sam", "uuid");
     assert!(!session.token.is_empty());
     assert_eq!(session.user_type, "legacy");

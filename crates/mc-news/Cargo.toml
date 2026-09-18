@@ -1,0 +1,20 @@
+[package]
+name = "mc-news"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The network's news feed, parsed into a typed tree"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+mutants.workspace = true
+# The network half. This is therefore NOT a leaf crate: it pulls in reqwest
+# through it, and only its pure half counts toward the coverage ratio.
+mc-dl = { path = "../mc-dl" }
+
+[dev-dependencies]
+mc-testkit = { path = "../mc-testkit" }
+tokio = { workspace = true }

@@ -1,4 +1,4 @@
-//! L'API qui publie les Temurin, et ce qu'on lui demande.
+//! The API that publishes Temurin, and what we ask it for.
 
 use anyhow::{Result, bail};
 use serde::Deserialize;
@@ -22,15 +22,15 @@ pub(crate) struct Package {
     pub(crate) checksum: String,
 }
 
-/// Racine de l'API qui publie les binaires Temurin.
+/// Root of the API that publishes Temurin binaries.
 pub(crate) const API: &str = "https://api.adoptium.net/v3";
 
-/// L'URL du dernier binaire publié pour une plateforme et un type d'image.
+/// The URL of the latest binary published for a platform and an image type.
 ///
-/// La racine est un argument : c'est ce qui permet d'éprouver l'installation
-/// complète — téléchargement, vérification d'empreinte, extraction, contrôle du
-/// binaire posé — sans sortir sur le réseau ni dépendre de la disponibilité
-/// d'Adoptium.
+/// The root is an argument: it's what allows the full installation to be
+/// exercised — download, digest verification, extraction, check of the
+/// placed binary — without going out on the network or depending on
+/// Adoptium's availability.
 pub(crate) fn url_assets(base: &str, major: u32, os: &str, arch: &str, image: &str) -> String {
     format!(
         "{base}/assets/latest/{major}/hotspot\
@@ -38,18 +38,18 @@ pub(crate) fn url_assets(base: &str, major: u32, os: &str, arch: &str, image: &s
     )
 }
 
-/// Couple `(os, architecture)` au vocabulaire d'Adoptium.
+/// Maps the `(os, architecture)` pair to Adoptium's vocabulary.
 pub(crate) fn platform() -> Result<(&'static str, &'static str)> {
     let os = match std::env::consts::OS {
         "linux" => "linux",
         "macos" => "mac",
         "windows" => "windows",
-        other => bail!("système {other} non couvert par les binaires Temurin"),
+        other => bail!("system {other} not covered by Temurin binaries"),
     };
     let arch = match std::env::consts::ARCH {
         "x86_64" => "x64",
         "aarch64" => "aarch64",
-        other => bail!("architecture {other} non couverte par les binaires Temurin"),
+        other => bail!("architecture {other} not covered by Temurin binaries"),
     };
     Ok((os, arch))
 }

@@ -7,11 +7,11 @@ fn table(session: &Session, options: &LaunchOptions) -> BTreeMap<String, String>
     variables(
         "neoforge-21.1.250",
         "1.21.1",
-        Path::new("/jeu"),
-        Path::new("/partage"),
+        Path::new("/game"),
+        Path::new("/shared"),
         "17",
         Path::new("/natives"),
-        Path::new("/partage/libraries"),
+        Path::new("/shared/libraries"),
         "/a.jar:/b.jar",
         ":",
         session,
@@ -20,71 +20,70 @@ fn table(session: &Session, options: &LaunchOptions) -> BTreeMap<String, String>
 }
 
 #[test]
-fn les_drapeaux_suivent_les_options() {
-    let sans = active_features(&LaunchOptions::default());
-    assert!(sans.is_empty());
+fn flags_follow_the_options() {
+    let without = active_features(&LaunchOptions::default());
+    assert!(without.is_empty());
 
-    let avec = active_features(&LaunchOptions {
+    let with = active_features(&LaunchOptions {
         quick_play: Some(QuickPlay::Multiplayer("mc.exemple.fr".into())),
         resolution: Some((1280, 720)),
         ..Default::default()
     });
-    assert!(avec.contains("is_quick_play_multiplayer"));
-    assert!(avec.contains("has_quick_plays_support"));
-    assert!(avec.contains("has_custom_resolution"));
-    assert!(!avec.contains("is_quick_play_singleplayer"));
+    assert!(with.contains("is_quick_play_multiplayer"));
+    assert!(with.contains("has_quick_plays_support"));
+    assert!(with.contains("has_custom_resolution"));
+    assert!(!with.contains("is_quick_play_singleplayer"));
 }
 
 #[test]
-fn un_monde_local_active_son_propre_drapeau() {
-    let avec = active_features(&LaunchOptions {
-        quick_play: Some(QuickPlay::Singleplayer("Nouveau monde".into())),
+fn a_local_world_activates_its_own_flag() {
+    let with = active_features(&LaunchOptions {
+        quick_play: Some(QuickPlay::Singleplayer("New world".into())),
         ..Default::default()
     });
-    assert!(avec.contains("is_quick_play_singleplayer"));
-    assert!(!avec.contains("is_quick_play_multiplayer"));
+    assert!(with.contains("is_quick_play_singleplayer"));
+    assert!(!with.contains("is_quick_play_multiplayer"));
 }
 
-/// L'identité du joueur est la partie qu'on ne peut pas se tromper : un
-/// mauvais `auth_uuid` change d'inventaire, un mauvais jeton refuse la
-/// connexion.
+/// Player identity is the part that must not be gotten wrong: a bad
+/// `auth_uuid` swaps the inventory, a bad token refuses the connection.
 #[test]
-fn l_identite_du_joueur_remplit_les_variables_du_descripteur() {
-    let session = Session::online("Sam", "0123456789ab", "jeton-msa");
+fn the_players_identity_fills_the_descriptors_variables() {
+    let session = Session::online("Sam", "0123456789ab", "msa-token");
     let v = table(&session, &LaunchOptions::default());
 
     assert_eq!(v["auth_player_name"], "Sam");
     assert_eq!(v["auth_uuid"], "0123456789ab");
-    assert_eq!(v["auth_access_token"], "jeton-msa");
+    assert_eq!(v["auth_access_token"], "msa-token");
     assert_eq!(v["user_type"], "msa");
-    // Forme héritée, encore attendue par certains descripteurs.
-    assert_eq!(v["auth_session"], "token:jeton-msa");
+    // Legacy form, still expected by some descriptors.
+    assert_eq!(v["auth_session"], "token:msa-token");
 }
 
-/// Assets et bibliothèques vivent dans le répertoire partagé ; le répertoire de
-/// jeu n'appartient qu'à l'instance.
+/// Assets and libraries live in the shared directory; the game directory
+/// belongs only to the instance.
 #[test]
-fn les_chemins_distinguent_le_partage_de_l_instance() {
+fn paths_distinguish_the_shared_folder_from_the_instance() {
     let v = table(&Session::offline("Sam", "0123"), &LaunchOptions::default());
 
-    assert_eq!(v["game_directory"], "/jeu");
-    assert_eq!(v["assets_root"], "/partage/assets");
+    assert_eq!(v["game_directory"], "/game");
+    assert_eq!(v["assets_root"], "/shared/assets");
     assert_eq!(v["game_assets"], v["assets_root"]);
-    assert_eq!(v["library_directory"], "/partage/libraries");
+    assert_eq!(v["library_directory"], "/shared/libraries");
     assert_eq!(v["natives_directory"], "/natives");
     assert_eq!(v["assets_index_name"], "17");
     assert_eq!(v["classpath"], "/a.jar:/b.jar");
     assert_eq!(v["classpath_separator"], ":");
     assert_eq!(v["version_name"], "neoforge-21.1.250");
-    // Le jar du socle, que NeoForge nomme dans son `ignoreList`.
+    // The base's jar, which NeoForge names in its `ignoreList`.
     assert_eq!(v["primary_jar_name"], "1.21.1.jar");
-    assert_eq!(v["launcher_name"], "samflix-mc");
+    assert_eq!(v["launcher_name"], "Helm");
 }
 
-/// Les variables de Quick Play et de résolution n'existent que lorsqu'elles
-/// sont demandées : le descripteur ne les référence que derrière une règle.
+/// Quick Play and resolution variables only exist when requested: the
+/// descriptor only references them behind a rule.
 #[test]
-fn les_variables_facultatives_restent_absentes_quand_rien_ne_les_demande() {
+fn optional_variables_stay_absent_when_nothing_requests_them() {
     let v = table(&Session::offline("Sam", "0123"), &LaunchOptions::default());
 
     assert!(!v.contains_key("quickPlayMultiplayer"));
@@ -93,7 +92,7 @@ fn les_variables_facultatives_restent_absentes_quand_rien_ne_les_demande() {
 }
 
 #[test]
-fn rejoindre_un_serveur_pose_sa_cible_et_son_fichier() {
+fn joining_a_server_sets_its_target_and_its_file() {
     let v = table(
         &Session::offline("Sam", "0123"),
         &LaunchOptions {
@@ -104,22 +103,22 @@ fn rejoindre_un_serveur_pose_sa_cible_et_son_fichier() {
     );
 
     assert_eq!(v["quickPlayMultiplayer"], "mc.ggy.info:25566");
-    assert_eq!(v["quickPlayPath"], "/jeu/quickPlay.json");
+    assert_eq!(v["quickPlayPath"], "/game/quickPlay.json");
     assert_eq!(v["resolution_width"], "1920");
     assert_eq!(v["resolution_height"], "1080");
 }
 
 #[test]
-fn ouvrir_un_monde_local_pose_son_nom_de_dossier() {
+fn opening_a_local_world_sets_its_folder_name() {
     let v = table(
         &Session::offline("Sam", "0123"),
         &LaunchOptions {
-            quick_play: Some(QuickPlay::Singleplayer("Nouveau monde".into())),
+            quick_play: Some(QuickPlay::Singleplayer("New world".into())),
             ..Default::default()
         },
     );
 
-    assert_eq!(v["quickPlaySingleplayer"], "Nouveau monde");
-    assert_eq!(v["quickPlayPath"], "/jeu/quickPlay.json");
+    assert_eq!(v["quickPlaySingleplayer"], "New world");
+    assert_eq!(v["quickPlayPath"], "/game/quickPlay.json");
     assert!(!v.contains_key("quickPlayMultiplayer"));
 }

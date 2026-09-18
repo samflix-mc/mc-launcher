@@ -1,0 +1,115 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+  /* `min-width: 0` on the host: without it, a grid child takes the width of
+     its widest content — here, a settings group whose control doesn't shrink
+     — and the WHOLE PAGE starts scrolling horizontally. This is the bug Sam
+     saw, and it never comes from the panel you're looking at: it comes from
+     the chain of ancestors that refuse to shrink. */
+  min-width: 0;
+}
+
+/* The page title, in pixel-perfect terms.
+
+   Twenty-four pixels and not the thirty-two of `display-lg`: the design
+   system writes "Settings", eight characters; we write "Configuration",
+   which is thirteen. At thirty-two, the word overflowed the rail and passed
+   UNDER the panels — an overflow of a two-hundred-pixel rail doesn't look
+   like an overflow, it looks like a cut-off title.
+
+   The rail is widened accordingly, further down. */
+.hm-settings__title {
+  margin: 0 0 var(--space-3) var(--space-3);
+  font-family: var(--font-pixel);
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 30px;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+/* Two hundred twenty rather than the design system's two hundred, for the
+   same reason: our labels run longer, and "Game window" is longer than
+   "Minecraft". */
+.hm-settings {
+  min-width: 0;
+  grid-template-columns: 220px 1fr;
+}
+
+/* The rail's entries are BUTTONS, as the design system draws them: they lead
+   nowhere, they scroll. See the component for what the anchor used to cost. */
+.hm-settings__link {
+  width: 100%;
+}
+
+.hm-settings__footer {
+  margin: var(--space-6) var(--space-3) 0;
+  font: 400 11px/16px var(--font-mono);
+  color: var(--ink-3);
+}
+
+/* A fragment-driven scroll must stop UNDER the top of the panel, not flush
+   against it: otherwise the group's title touches the edge of the zone. */
+.hm-settings-group {
+  scroll-margin-top: var(--space-4);
+}
+
+/* --- What prevents the horizontal overflow ----------------------------
+
+   `.hm-setting` is a `1fr auto` grid: the `auto` column takes the width of
+   its content, no matter what. A `<select>` at `min-width: 160px`, two
+   number fields and a suffix are enough to push it past the panel — and
+   since nothing in the chain is allowed to shrink, it's the whole window
+   that starts scrolling.
+
+   The three rules below hand back that right, from the control up to the
+   rail. */
+
+.hm-settings__body {
+  min-width: 0;
+}
+
+.hm-setting {
+  min-width: 0;
+}
+
+.hm-setting > * {
+  min-width: 0;
+}
+
+.hm-setting__control {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* The four folder buttons wrap instead of pushing the panel.
+   `.hm-setting--stack` stretches its children to equal widths, which would
+   give four oddly-sized buttons; here we want them to keep their own size
+   and wrap. */
+.hm-settings__folders {
+  justify-content: flex-start;
+}
+
+.hm-setting--stack .hm-settings__folders > * {
+  flex: 0 0 auto;
+}
+
+/* The verification note. `.hm-setting__note` is amber by default — the
+   design system reserves it for a warning. When everything's fine, it must
+   say so. */
+.hm-settings__ok {
+  color: var(--success);
+}
+
+/* The setting's name is a `<label>` and no longer a `<div>`: it now points at
+   the control it names, which is what makes clicking the text focus the
+   field — and what stops the accessible name from being a second, parallel
+   string that nothing keeps in step with the visible one.
+
+   `display: block` because a `<label>` is inline by default, where the
+   `<div>` it replaces was block: without it the description below would ride
+   up onto the same line. */
+label.hm-setting__label {
+  display: block;
+}

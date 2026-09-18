@@ -1,5 +1,4 @@
-//! Les bibliothèques que la JVM doit trouver, dans l'ordre où elle doit les
-//! trouver.
+//! The libraries the JVM must find, in the order it must find them.
 
 use anyhow::{Result, bail};
 use std::collections::BTreeMap;
@@ -7,11 +6,11 @@ use std::path::{Path, PathBuf};
 
 use crate::vanilla;
 
-use super::descripteur::{VersionJson, library_key};
+use super::descriptor::{VersionJson, library_key};
 
-/// Parcours du plus spécifique au plus général : le chargeur d'abord, Mojang
-/// ensuite. La première occurrence d'une bibliothèque gagne, donc une version
-/// remplacée par le chargeur prend la place de celle du jeu.
+/// Walked from most specific to most general: the loader first, Mojang
+/// after. The first occurrence of a library wins, so a version replaced by
+/// the loader takes the place of the game's.
 pub(super) fn classpath(
     chain: &[VersionJson],
     shared: &Path,
@@ -38,40 +37,40 @@ pub(super) fn classpath(
                 .and_then(|a| a.path.clone())
                 .or_else(|| vanilla::maven_path(&library.name))
             else {
-                bail!("bibliothèque sans chemin exploitable : {}", library.name);
+                bail!("library with no usable path: {}", library.name);
             };
             seen.insert(key, library.name.clone());
             classpath.push(libraries_root.join(relative));
         }
     }
 
-    // Le client de Mojang ne rejoint le classpath que pour du vanilla pur.
+    // Mojang's client only joins the classpath for pure vanilla.
     //
-    // Sous un chargeur, l'installateur a produit sa propre découpe du client —
-    // `client-…-slim.jar` pour le code, `client-…-extra.jar` pour les
-    // ressources — et FML les résout lui-même à partir de `libraryDirectory`.
-    // Ajouter `1.21.1.jar` par-dessus donne deux modules qui exportent les
-    // mêmes paquets, et la JVM s'arrête avant le premier écran :
+    // Under a loader, the installer has produced its own split of the
+    // client — `client-…-slim.jar` for the code, `client-…-extra.jar` for
+    // the resources — and FML resolves them itself from `libraryDirectory`.
+    // Adding `1.21.1.jar` on top yields two modules exporting the same
+    // packages, and the JVM stops before the first screen:
     //
     //     java.lang.module.ResolutionException: Modules _1._21._1 and
     //     minecraft export package com.mojang.blaze3d.systems to module …
     //
-    // Le nom `_1._21._1` est celui que la JVM dérive de `1.21.1.jar` : il
-    // désigne sans ambiguïté le jar ajouté ici, et c'est ce qui a permis de
-    // retrouver la cause.
-    let base = chain.last().expect("au moins une version");
+    // The name `_1._21._1` is the one the JVM derives from `1.21.1.jar`: it
+    // unambiguously points to the jar added here, and that's what made it
+    // possible to trace the cause.
+    let base = chain.last().expect("at least one version");
     let uses_loader = chain.len() > 1;
     let client_jar = shared
         .join("versions")
         .join(&base.id)
         .join(format!("{}.jar", base.id));
     if !client_jar.is_file() {
-        bail!("client absent : {}", client_jar.display());
+        bail!("missing client: {}", client_jar.display());
     }
     if uses_loader {
         tracing::debug!(
             client = %client_jar.display(),
-            "client vanilla laissé hors du classpath, le chargeur fournit le sien"
+            "vanilla client left out of the classpath, the loader supplies its own"
         );
     } else {
         classpath.push(client_jar);
@@ -80,7 +79,7 @@ pub(super) fn classpath(
     let missing: Vec<&PathBuf> = classpath.iter().filter(|p| !p.is_file()).collect();
     if let Some(first) = missing.first() {
         bail!(
-            "{} bibliothèques manquantes, à commencer par {} — relancer l'installation",
+            "{} missing libraries, starting with {} — reinstall",
             missing.len(),
             first.display()
         );

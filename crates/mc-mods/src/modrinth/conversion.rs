@@ -1,4 +1,4 @@
-//! D'une version d'API au candidat que le résolveur manipule.
+//! From an API version to the candidate the resolver works with.
 
 use crate::jar::Side;
 use crate::{Candidate, Channel, DeclaredDep, Origin};
@@ -16,8 +16,8 @@ fn side_of(project: &Project) -> Side {
 }
 
 pub(super) fn to_candidate(project: &Project, version: ApiVersion) -> Option<Candidate> {
-    // Une version porte parfois plusieurs fichiers (sources, variantes) ; le
-    // fichier « primary » est celui que le launcher doit installer.
+    // A version sometimes carries several files (sources, variants); the
+    // "primary" file is the one the launcher must install.
     let file = version
         .files
         .iter()

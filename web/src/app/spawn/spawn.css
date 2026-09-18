@@ -1,0 +1,101 @@
+:host {
+  display: block;
+  min-height: 0;
+}
+
+/* The pinned tile takes the height of the column next to it: that's what
+   `.hm-news--pinned { height: 100% }` expects from its cell. */
+.hm-spawn__featured {
+  min-height: 240px;
+}
+
+.hm-spawn__empty {
+  height: 100%;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  border-radius: var(--radius-xl);
+}
+
+/* The panel's title and its badge, on the same line, the badge pushed to
+   the right. On a narrow panel, the badge drops BELOW rather than crushing
+   the title — that's the layout defect that made the old page unreadable
+   on a shrunk window. */
+.hm-spawn__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+/* `.hm-glass__title` carries a bottom margin, made for a panel whose title
+   sits alone on its line. Here it shares the line with the badge, and the
+   margin would offset the two relative to each other. */
+.hm-spawn__title {
+  margin: 0;
+}
+
+.hm-spawn__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+.hm-spawn__fact {
+  gap: var(--space-1);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+.hm-spawn__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-2);
+}
+
+/* An alert INSIDE a panel doesn't stack glass on glass: the design system
+   forbids more than two layers, and three give a gray box. We strip its
+   base and its blur, and leave it its hue. */
+.hm-spawn__alert {
+  margin-top: var(--space-3);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
+.hm-spawn__alert::before,
+.hm-spawn__alert::after {
+  display: none;
+}
+
+/* The right column does NOT stretch to the tile's height.
+
+   By default, a grid item stretches across the whole row: the "Modpack"
+   panel then stood two hundred and forty pixels tall for three lines of
+   content, with a big empty space below them. `align-content: start` gives
+   it back its natural height — and what's gained goes back to the image,
+   which is precisely this page's intent. */
+.hm-stack {
+  align-content: start;
+}
+
+/* **A settled state does not pulse.**
+
+   The design system animates `.hm-status--unknown`'s dot, and that
+   animation carries a meaning: a response is expected. It's right while
+   the first probe is in flight. It lies for an environment that declares
+   no server at all — preproduction would pulse forever waiting for an
+   answer nobody is coming to give, and a player would read "it's still
+   loading" where the truth is "there is nothing to load".
+
+   Both keep the grey, because neither is a refused connection. Only one
+   keeps moving. */
+[data-test='server-badge'][data-settled='true'] .hm-status__dot {
+  animation: none;
+}

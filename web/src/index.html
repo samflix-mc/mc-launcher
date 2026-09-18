@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-backdrop="spawn">
+  <head>
+    <meta charset="utf-8" />
+    <title>Helm</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+
+    <!--
+      The backdrop, preloaded.
+
+      Without this, the photo arrives AFTER the first render and produces a
+      flash — at the exact spot the boot screen exists to cover.
+
+      `fetchpriority="high"`: without it, the browser ranks a background
+      image after the scripts, and the preload would arrive too late to serve.
+    -->
+    <link rel="preload" as="image" href="backdrops/spawn.webp" fetchpriority="high" />
+  </head>
+  <body>
+    <!--
+      The STATIC boot screen: what shows before Angular has started.
+
+      Angular clears `<app-root>` on bootstrap (`el.textContent = ''`), in
+      the same task as its first render: this block therefore disappears
+      exactly when the boot component takes over, with no visible
+      transition and nothing to orchestrate.
+
+      It's drawn with the design system's classes — `.hm-splash`,
+      `.hm-wordmark`, `.hm-spinner` — i.e. EXACTLY those of Tauri's splash
+      window and of the Angular boot screen. The three screens follow one
+      another with no visible handoff, and there's only one drawing to keep
+      up to date.
+
+      The name is hardcoded, and it can't be otherwise: `brand()` is a Rust
+      command, and at this instant there is neither bridge nor JavaScript.
+      If `MC_LAUNCHER_NAME` changes at build time, this is the only line on
+      the front end that won't follow — the Angular boot screen, on the
+      other hand, shows the real one.
+    -->
+    <app-root>
+      <div class="hm-splash" style="height: 100%">
+        <h1 class="hm-wordmark">Helm<span class="hm-wordmark__dot"></span></h1>
+        <div class="hm-splash__status">
+          <span class="hm-spinner hm-spinner--sm"></span>Starting…
+        </div>
+      </div>
+    </app-root>
+  </body>
+</html>

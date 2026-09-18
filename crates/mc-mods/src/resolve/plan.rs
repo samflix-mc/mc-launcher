@@ -1,46 +1,47 @@
-//! Ce que la résolution rend : les mods retenus, et ce qui manque.
+//! What resolution returns: the kept mods, and what's missing.
 
 use crate::Candidate;
 use crate::jar::Side;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use super::raison::Reason;
+use super::reason::Reason;
 
-/// Un mod résolu, téléchargé et analysé.
+/// A resolved, downloaded and inspected mod.
 #[derive(Debug, Clone)]
 pub struct Installed {
     pub candidate: Candidate,
-    /// Côté effectif, après combinaison du manifeste, des métadonnées du
-    /// projet et de ce que le descripteur du jar réclame.
+    /// Effective side, after combining the manifest, the project's metadata
+    /// and what the jar's descriptor requires.
     pub side: Side,
     pub reason: Reason,
-    /// Chemin dans le cache du launcher.
+    /// Path in the launcher's cache.
     pub path: PathBuf,
-    /// `modId` déclarés par le descripteur du jar. **Identité du mod**, et
-    /// seule base sur laquelle deux projets peuvent être dits redondants.
+    /// `modId`s declared by the jar's descriptor. **The mod's identity**,
+    /// and the only basis on which two projects can be called redundant.
     pub provides: BTreeSet<String>,
-    /// `modId` apportés par les jars embarqués (JarJar).
+    /// `modId`s brought by bundled jars (JarJar).
     ///
-    /// Ils satisfont des dépendances sans définir d'identité — voir
+    /// They satisfy dependencies without defining an identity — see
     /// [`crate::jar::JarInfo::bundled`].
     pub bundled: BTreeSet<String>,
-    /// `modId` que ce jar exige pour démarrer, hors plateforme.
+    /// `modId`s this jar requires to start, excluding the platform.
     pub requires: Vec<crate::jar::Requirement>,
-    /// Au nom de quoi ce build occupe la place — voir [`autorite`].
+    /// In the name of what this build holds its spot — see [`authority`].
     ///
-    /// Porté par l'entrée retenue plutôt que par une seconde table indexée de
-    /// la même façon : deux tables à tenir en phase, c'est une occasion de les
-    /// laisser diverger, et `reason` part dans le verrou.
-    pub(super) autorite: u8,
+    /// Carried by the kept entry rather than by a second table indexed the
+    /// same way: two tables to keep in sync is an invitation to let them
+    /// drift, and `reason` goes into the lock.
+    pub(super) authority: u8,
 }
 
-/// Résultat complet d'une résolution.
+/// Complete result of a resolution.
 #[derive(Debug, Default)]
 pub struct Plan {
     pub mods: Vec<Installed>,
-    /// Dépendances exigées par un jar qu'aucune source n'a su fournir.
-    /// Non bloquant ici : l'appelant décide d'arrêter ou d'avertir.
+    /// Dependencies a jar required that no source could supply.
+    /// Non-blocking here: it's the caller who decides whether to stop or
+    /// warn.
     pub unresolved: Vec<Unresolved>,
 }
 
@@ -52,14 +53,14 @@ pub struct Unresolved {
 }
 
 impl Installed {
-    /// Tout ce que ce mod apporte, racine et embarqués confondus.
+    /// Everything this mod supplies, root and bundled alike.
     ///
-    /// C'est ce qui satisfait une dépendance. La déduplication, elle, ne
-    /// regarde que [`provides`] : les deux usages n'ont pas la même sémantique,
-    /// et les avoir confondus supprimait des mods légitimes.
+    /// This is what satisfies a dependency. Deduplication, on the other
+    /// hand, only looks at [`provides`]: the two uses don't share the same
+    /// semantics, and conflating them removed legitimate mods.
     ///
     /// [`provides`]: Installed::provides
-    pub fn fournit(&self) -> impl Iterator<Item = &String> {
+    pub fn supplies(&self) -> impl Iterator<Item = &String> {
         self.provides.iter().chain(self.bundled.iter())
     }
 }

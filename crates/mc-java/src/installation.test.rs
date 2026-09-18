@@ -1,11 +1,11 @@
-use super::install_depuis;
+use super::install_from;
 use crate::adoptium::platform;
-use crate::essais::{Arbre, archive_temurin, reponse_adoptium, sha256};
+use crate::fixtures::{Tree, adoptium_response, sha256, temurin_archive};
 use crate::version::Origin;
 
-/// Le chemin de l'API tel que `url_assets` le compose, pour poser la réponse
-/// du serveur au bon endroit.
-fn chemin(major: u32, image: &str) -> String {
+/// The API path as `url_assets` composes it, to place the server's response
+/// at the right spot.
+fn path(major: u32, image: &str) -> String {
     let (_os, _arch) = platform().unwrap();
     format!("/assets/latest/{major}/hotspot?image_type={image}")
         .split('?')
@@ -16,211 +16,212 @@ fn chemin(major: u32, image: &str) -> String {
 
 #[cfg(unix)]
 #[tokio::test]
-async fn un_temurin_est_telecharge_depaquete_et_verifie() {
-    let serveur = mc_essais::Serveur::neuf().await;
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("install");
-    let archive = archive_temurin("21.0.5+11");
+async fn a_temurin_is_downloaded_unpacked_and_verified() {
+    let server = mc_testkit::Server::new().await;
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("install");
+    let archive = temurin_archive("21.0.5+11");
 
-    serveur.octets("/temurin.tar.gz", &archive);
-    serveur.json(
-        &chemin(21, "jre"),
-        &reponse_adoptium(
+    server.bytes("/temurin.tar.gz", &archive);
+    server.json(
+        &path(21, "jre"),
+        &adoptium_response(
             "jre",
-            &serveur.url("/temurin.tar.gz"),
+            &server.url("/temurin.tar.gz"),
             "temurin.tar.gz",
             &sha256(&archive),
         ),
     );
 
-    let java = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let java = install_from(&server.base(), 21, &tree.root, None)
         .await
-        .expect("l'installation aboutit");
+        .expect("the installation succeeds");
 
     assert_eq!(java.origin, Origin::Managed);
     assert_eq!(java.version.major, 21);
     assert_eq!(
         java.path,
-        arbre.racine.join("temurin-21").join("bin").join("java")
+        tree.root.join("temurin-21").join("bin").join("java")
     );
-    // L'archive et le répertoire d'extraction ne doivent rien laisser derrière.
-    assert!(!arbre.racine.join("temurin.tar.gz").exists());
-    assert!(!arbre.racine.join(".temurin-21-extraction").exists());
+    // The archive and the extraction directory must leave nothing behind.
+    assert!(!tree.root.join("temurin.tar.gz").exists());
+    assert!(!tree.root.join(".temurin-21-extraction").exists());
 }
 
-/// Adoptium ne publie pas de JRE pour toutes les combinaisons de plateformes,
-/// d'où le repli sur le JDK — deux fois plus lourd, mais présent partout.
+/// Adoptium doesn't publish a JRE for every combination of platforms, hence
+/// the fallback to the JDK — twice as heavy, but present everywhere.
 #[cfg(unix)]
 #[tokio::test]
-async fn a_defaut_de_jre_le_jdk_est_pris() {
-    let serveur = mc_essais::Serveur::neuf().await;
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("install-jdk");
-    let archive = archive_temurin("21.0.5+11");
+async fn the_jdk_is_used_when_no_jre_is_available() {
+    let server = mc_testkit::Server::new().await;
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("install-jdk");
+    let archive = temurin_archive("21.0.5+11");
 
-    serveur.octets("/temurin.tar.gz", &archive);
-    // Le JRE existe dans la réponse mais sous un autre type d'image : c'est le
-    // cas réel où Adoptium renvoie autre chose que ce qu'on a demandé.
-    serveur.json(&chemin(21, "jre"), "[]");
-    serveur.json(
-        &chemin(21, "jdk"),
-        &reponse_adoptium(
+    server.bytes("/temurin.tar.gz", &archive);
+    // The JRE exists in the response but under a different image type: this
+    // is the real case where Adoptium returns something other than what was
+    // asked for.
+    server.json(&path(21, "jre"), "[]");
+    server.json(
+        &path(21, "jdk"),
+        &adoptium_response(
             "jdk",
-            &serveur.url("/temurin.tar.gz"),
+            &server.url("/temurin.tar.gz"),
             "temurin.tar.gz",
             &sha256(&archive),
         ),
     );
 
-    let java = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let java = install_from(&server.base(), 21, &tree.root, None)
         .await
-        .expect("le JDK prend le relais");
+        .expect("the JDK takes over");
     assert_eq!(java.version.major, 21);
 }
 
-/// Un JDK est du code exécuté avec les droits de l'utilisateur : une archive
-/// dont l'empreinte ne correspond pas ne doit jamais être dépaquetée.
+/// A JDK is code run with the user's privileges: an archive whose digest
+/// doesn't match must never be unpacked.
 #[cfg(unix)]
 #[tokio::test]
-async fn une_archive_dont_l_empreinte_est_fausse_n_est_pas_installee() {
-    let serveur = mc_essais::Serveur::neuf().await;
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("install-empreinte");
+async fn an_archive_with_a_wrong_digest_is_not_installed() {
+    let server = mc_testkit::Server::new().await;
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("install-digest");
 
-    serveur.octets("/temurin.tar.gz", b"<html>page d'erreur</html>");
-    serveur.json(
-        &chemin(21, "jre"),
-        &reponse_adoptium(
+    server.bytes("/temurin.tar.gz", b"<html>error page</html>");
+    server.json(
+        &path(21, "jre"),
+        &adoptium_response(
             "jre",
-            &serveur.url("/temurin.tar.gz"),
+            &server.url("/temurin.tar.gz"),
             "temurin.tar.gz",
-            &sha256(&archive_temurin("21.0.5+11")),
+            &sha256(&temurin_archive("21.0.5+11")),
         ),
     );
 
-    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let error = install_from(&server.base(), 21, &tree.root, None)
         .await
-        .expect_err("l'empreinte ne correspond pas");
+        .expect_err("the digest doesn't match");
 
-    assert!(format!("{erreur:#}").contains("SHA-256"), "{erreur:#}");
-    assert!(!arbre.racine.join("temurin-21").exists());
+    assert!(format!("{error:#}").contains("SHA-256"), "{error:#}");
+    assert!(!tree.root.join("temurin-21").exists());
 }
 
 #[tokio::test]
-async fn un_java_que_personne_ne_publie_se_dit_clairement() {
-    let serveur = mc_essais::Serveur::neuf().await;
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("install-absent");
-    serveur.json(&chemin(99, "jre"), "[]");
-    serveur.json(&chemin(99, "jdk"), "[]");
+async fn a_java_nobody_publishes_is_reported_clearly() {
+    let server = mc_testkit::Server::new().await;
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("install-missing");
+    server.json(&path(99, "jre"), "[]");
+    server.json(&path(99, "jdk"), "[]");
 
-    let erreur = install_depuis(&serveur.base(), 99, &arbre.racine)
+    let error = install_from(&server.base(), 99, &tree.root, None)
         .await
-        .expect_err("rien de publié");
+        .expect_err("nothing published");
 
     assert!(
-        format!("{erreur:#}").contains("ne publie pas de Java 99"),
-        "{erreur:#}"
+        format!("{error:#}").contains("doesn't publish Java 99"),
+        "{error:#}"
     );
 }
 
 #[tokio::test]
-async fn une_reponse_illisible_nomme_le_type_d_image_demande() {
-    let serveur = mc_essais::Serveur::neuf().await;
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("install-illisible");
-    serveur.json(&chemin(21, "jre"), "ceci n'est pas du JSON");
+async fn an_unreadable_response_names_the_requested_image_type() {
+    let server = mc_testkit::Server::new().await;
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("install-unreadable");
+    server.json(&path(21, "jre"), "this is not JSON");
 
-    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let error = install_from(&server.base(), 21, &tree.root, None)
         .await
-        .expect_err("réponse cassée");
+        .expect_err("broken response");
 
-    assert!(format!("{erreur:#}").contains("jre 21"), "{erreur:#}");
+    assert!(format!("{error:#}").contains("jre 21"), "{error:#}");
 }
 
-/// Adoptium renvoie parfois autre chose que ce qu'on a demandé. L'entrée est
-/// alors écartée, et la recherche continue sur l'image suivante : la retenir
-/// installerait un paquet dont on ne sait pas ce qu'il contient, sous un nom
-/// qui prétend le contraire.
+/// Adoptium sometimes returns something other than what was asked for. The
+/// entry is then discarded, and the search continues on the next image:
+/// keeping it would install a package whose contents are unknown, under a
+/// name that claims otherwise.
 #[cfg(unix)]
 #[tokio::test]
-async fn une_image_d_un_autre_type_que_celui_demande_est_ecartee() {
-    let serveur = mc_essais::Serveur::neuf().await;
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("install-mauvais-type");
+async fn an_image_of_a_different_type_than_requested_is_discarded() {
+    let server = mc_testkit::Server::new().await;
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("install-wrong-type");
 
-    // Une seule réponse, deux entrées. La première ne porte pas le type
-    // demandé et livrerait un Java 17 ; c'est la seconde qu'il faut retenir.
-    // (Le serveur d'essai ignore la chaîne de requête : les deux images
-    // partagent le même chemin, ce qui est précisément la situation où seul
-    // `image_type` permet de les distinguer.)
-    let intrus = archive_temurin("17.0.9");
-    serveur.octets("/intrus.tar.gz", &intrus);
-    let attendu = archive_temurin("21.0.5+11");
-    serveur.octets("/temurin.tar.gz", &attendu);
+    // A single response, two entries. The first doesn't carry the requested
+    // type and would deliver a Java 17; it's the second that must be
+    // retained. (The test server ignores the query string: both images share
+    // the same path, which is precisely the situation where only
+    // `image_type` can tell them apart.)
+    let decoy = temurin_archive("17.0.9");
+    server.bytes("/decoy.tar.gz", &decoy);
+    let expected = temurin_archive("21.0.5+11");
+    server.bytes("/temurin.tar.gz", &expected);
 
-    let deux_entrees = format!(
+    let two_entries = format!(
         "[{},{}]",
-        une_entree(
+        one_entry(
             "jdk",
-            &serveur.url("/intrus.tar.gz"),
-            "intrus.tar.gz",
-            &sha256(&intrus)
+            &server.url("/decoy.tar.gz"),
+            "decoy.tar.gz",
+            &sha256(&decoy)
         ),
-        une_entree(
+        one_entry(
             "jre",
-            &serveur.url("/temurin.tar.gz"),
+            &server.url("/temurin.tar.gz"),
             "temurin.tar.gz",
-            &sha256(&attendu)
+            &sha256(&expected)
         ),
     );
-    serveur.json(&chemin(21, "jre"), &deux_entrees);
+    server.json(&path(21, "jre"), &two_entries);
 
-    let java = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let java = install_from(&server.base(), 21, &tree.root, None)
         .await
-        .expect("l'entrée du bon type est retenue");
+        .expect("the entry of the right type is retained");
     assert_eq!(java.version.major, 21);
 }
 
-/// Une entrée de la réponse Adoptium, sans les crochets : pour en composer
-/// plusieurs dans une même réponse.
-fn une_entree(image: &str, lien: &str, nom: &str, sha256: &str) -> String {
-    let seule = reponse_adoptium(image, lien, nom, sha256);
-    seule
+/// One entry of the Adoptium response, without the brackets: to compose
+/// several of them into a single response.
+fn one_entry(image: &str, link: &str, name: &str, sha256: &str) -> String {
+    let single = adoptium_response(image, link, name, sha256);
+    single
         .trim()
         .trim_start_matches('[')
         .trim_end_matches(']')
         .to_string()
 }
 
-/// Le dernier contrôle, et le seul qui prouve quelque chose : le binaire
-/// installé démarre et annonce la version exigée. Adoptium peut publier sous
-/// un nom ce qu'il livre sous un autre, et un Java trop vieux arrête le jeu sur
-/// `UnsupportedClassVersionError` avant même d'afficher une fenêtre.
+/// The last check, and the only one that proves anything: the installed
+/// binary starts and reports the required version. Adoptium can publish
+/// under one name what it delivers under another, and a Java too old stops
+/// the game on `UnsupportedClassVersionError` before even showing a window.
 #[cfg(unix)]
 #[tokio::test]
-async fn un_temurin_qui_annonce_une_version_trop_basse_est_refuse() {
-    let serveur = mc_essais::Serveur::neuf().await;
-    let _atelier = crate::essais::atelier();
-    let arbre = Arbre::neuf("install-trop-vieux");
+async fn a_temurin_reporting_a_version_too_low_is_refused() {
+    let server = mc_testkit::Server::new().await;
+    let _workshop = crate::fixtures::workshop();
+    let tree = Tree::new("install-too-old");
 
-    let archive = archive_temurin("17.0.9");
-    serveur.octets("/temurin.tar.gz", &archive);
-    serveur.json(&chemin(21, "jre"), "[]");
-    serveur.json(
-        &chemin(21, "jdk"),
-        &reponse_adoptium(
+    let archive = temurin_archive("17.0.9");
+    server.bytes("/temurin.tar.gz", &archive);
+    server.json(&path(21, "jre"), "[]");
+    server.json(
+        &path(21, "jdk"),
+        &adoptium_response(
             "jdk",
-            &serveur.url("/temurin.tar.gz"),
+            &server.url("/temurin.tar.gz"),
             "temurin.tar.gz",
             &sha256(&archive),
         ),
     );
 
-    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let error = install_from(&server.base(), 21, &tree.root, None)
         .await
-        .expect_err("un Java 17 ne répond pas d'une demande de Java 21");
-    let texte = format!("{erreur:#}");
-    assert!(texte.contains("17"), "{texte}");
-    assert!(texte.contains("21"), "{texte}");
+        .expect_err("a Java 17 does not answer a request for Java 21");
+    let text = format!("{error:#}");
+    assert!(text.contains("17"), "{text}");
+    assert!(text.contains("21"), "{text}");
 }

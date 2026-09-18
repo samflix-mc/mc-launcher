@@ -1,53 +1,51 @@
-use super::{derniere_stable, series_for};
+use super::{latest_stable, series_for};
 
 #[test]
-fn serie_deduite_de_la_version_du_jeu() {
+fn series_derived_from_the_game_version() {
     assert_eq!(series_for("1.21.1").as_deref(), Some("21.1."));
     assert_eq!(series_for("1.21").as_deref(), Some("21.0."));
     assert_eq!(series_for("1.20.4").as_deref(), Some("20.4."));
-    // NeoForge ne couvre pas les versions antérieures au versionnage 1.x.
+    // NeoForge doesn't cover versions before the 1.x versioning scheme.
     assert_eq!(series_for("21w07a"), None);
 }
 
-/// Trois règles décident de la version installée, et chacune compte.
+/// Three rules decide the installed version, and each one matters.
 ///
-/// La série : une version pour une autre Minecraft ne démarrera pas. Les
-/// bêtas, écartées : elles paraissent dans la même liste, et en installer une
-/// par inadvertance change le jeu sous les pieds des joueurs. Le tri par
-/// correctif : les versions sont publiées dans l'ordre, mais une
-/// republication peut désordonner la liste.
+/// The series: a version for a different Minecraft won't start. Betas,
+/// excluded: they appear in the same list, and installing one by mistake
+/// changes the game under players' feet. Sorting by patch: versions are
+/// published in order, but a republish can disorder the list.
 #[test]
-fn la_derniere_stable_de_la_serie_est_retenue() {
-    let publiees = vec![
+fn the_latest_stable_version_of_the_series_is_kept() {
+    let published = vec![
         "21.1.9".to_string(),
         "21.1.250".to_string(),
         "21.1.100".to_string(),
-        // Une bêta de la même série : jamais installée d'office.
+        // A beta of the same series: never installed by default.
         "21.1.300-beta".to_string(),
-        // Une autre série : pour une autre version du jeu.
+        // A different series: for a different game version.
         "21.4.10".to_string(),
     ];
 
     assert_eq!(
-        derniere_stable(publiees.clone(), "21.1."),
+        latest_stable(published.clone(), "21.1."),
         Some("21.1.250".to_string()),
-        "le plus grand correctif de la série, hors bêta"
+        "the highest patch of the series, excluding beta"
     );
     assert_eq!(
-        derniere_stable(publiees, "21.4."),
+        latest_stable(published, "21.4."),
         Some("21.4.10".to_string())
     );
 }
 
-/// Une série que personne n'a publiée ne donne rien, et ce n'est pas une
-/// panne : c'est ce qui arrive le jour d'une sortie de Minecraft, avant que
-/// NeoForge ne suive.
+/// A series nobody has published yields nothing, and that's not a failure:
+/// it's what happens on a Minecraft release day, before NeoForge catches up.
 #[test]
-fn une_serie_sans_version_publiee_ne_donne_rien() {
-    assert_eq!(derniere_stable(Vec::new(), "21.1."), None);
+fn a_series_with_no_published_version_yields_nothing() {
+    assert_eq!(latest_stable(Vec::new(), "21.1."), None);
     assert_eq!(
-        derniere_stable(vec!["21.1.0-beta".to_string()], "21.1."),
+        latest_stable(vec!["21.1.0-beta".to_string()], "21.1."),
         None,
-        "une série qui n'a que des bêtas n'a rien de stable"
+        "a series with only betas has nothing stable"
     );
 }

@@ -1,7 +1,7 @@
 use super::{API, platform, url_assets};
 
 #[test]
-fn l_url_demande_le_dernier_binaire_de_la_plateforme() {
+fn the_url_requests_the_latest_binary_for_the_platform() {
     assert_eq!(
         url_assets(API, 21, "linux", "x64", "jre"),
         "https://api.adoptium.net/v3/assets/latest/21/hotspot\
@@ -9,18 +9,18 @@ fn l_url_demande_le_dernier_binaire_de_la_plateforme() {
     );
 }
 
-/// Le vocabulaire d'Adoptium n'est pas celui de Rust : `macos` s'y dit `mac`,
-/// `x86_64` s'y dit `x64`. Se tromper donne une liste vide, donc « Adoptium ne
-/// publie pas de Java 21 » sur un poste parfaitement ordinaire.
+/// Adoptium's vocabulary isn't Rust's: `macos` is called `mac` there,
+/// `x86_64` is called `x64`. Getting it wrong gives an empty list, hence
+/// "Adoptium doesn't publish Java 21" on a perfectly ordinary machine.
 #[test]
-fn la_plateforme_courante_a_un_nom_chez_adoptium() {
-    let (os, arch) = platform().expect("ce poste est couvert par Temurin");
+fn the_current_platform_has_a_name_at_adoptium() {
+    let (os, arch) = platform().expect("this machine is covered by Temurin");
     assert!(
         ["linux", "mac", "windows"].contains(&os),
-        "système inattendu : {os}"
+        "unexpected system: {os}"
     );
     assert!(
         ["x64", "aarch64"].contains(&arch),
-        "architecture inattendue : {arch}"
+        "unexpected architecture: {arch}"
     );
 }

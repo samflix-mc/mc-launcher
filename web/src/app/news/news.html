@@ -1,0 +1,138 @@
+<section class="hm-newsroom" data-test="news-page">
+  <header class="hm-newsroom__head">
+    <div>
+      <h1 class="hm-newsroom__title">News</h1>
+      <p class="hm-field__hint hm-newsroom__source">
+        <lucide-icon [img]="Globe" [size]="12" [strokeWidth]="2" aria-hidden="true" />
+        @if (feed()?.offline) {
+          <!--
+            The feed comes from the cached copy. Saying so is essential: a
+            news page from yesterday beats an empty page, but a page that
+            lied about its freshness would be worse than either.
+          -->
+          <span data-test="offline">Last known copy — offline</span>
+        } @else {
+          <span>Published by the pack's server</span>
+        }
+      </p>
+    </div>
+
+    <button
+      type="button"
+      class="hm-btn hm-btn--sm"
+      (click)="reload()"
+      [disabled]="loading()"
+      [attr.aria-busy]="loading() ? 'true' : null"
+      data-test="reload"
+    >
+      <lucide-icon [img]="RefreshCw" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+      Refresh
+    </button>
+  </header>
+
+  <div class="hm-newsroom__body hm-scroll">
+    @if (feed(); as content) {
+      @if (content.posts.length === 0) {
+        <div class="hm-alert hm-alert--info" data-test="no-news">
+          <p class="hm-alert__title">Nothing published yet</p>
+          <p class="hm-alert__text">
+            The server's announcements will appear here as soon as there are any.
+          </p>
+        </div>
+      } @else {
+        @if (featured(); as top) {
+          <app-news-card
+            [post]="top"
+            variant="featured"
+            [asLink]="false"
+            (open)="reading.set($event)"
+            data-test="featured"
+          />
+        }
+
+        <div class="hm-news-grid">
+          @for (post of grid(); track post.id) {
+            <app-news-card
+              [post]="post"
+              variant="tile"
+              [asLink]="false"
+              (open)="reading.set($event)"
+              data-test="tile"
+            />
+          }
+        </div>
+      }
+
+      @if (content.discarded.length > 0) {
+        <!--
+          A half-faulty feed should be noticeable. Not an error banner — the
+          posts that remain display just fine — but a discreet note, at the
+          end, for whoever publishes.
+        -->
+        <details class="hm-newsroom__discarded" data-test="discarded">
+          <summary>{{ content.discarded.length }} post(s) discarded</summary>
+          <ul>
+            @for (reason of content.discarded; track reason) {
+              <li>{{ reason }}</li>
+            }
+          </ul>
+        </details>
+      }
+    } @else if (loading()) {
+      <!--
+        Three placeholder tiles rather than a text: the grid keeps its
+        shape, and nothing jumps when the real ones arrive.
+      -->
+      <div class="hm-news-grid" aria-hidden="true" data-test="loading">
+        @for (slot of [1, 2, 3]; track slot) {
+          <div class="hm-glass hm-news">
+            <div class="hm-news__media hm-news__media--ph"></div>
+            <div class="hm-news__scrim"></div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</section>
+
+<!-- --- Reading a post ------------------------------------------------- -->
+@if (reading(); as post) {
+  <div
+    class="hm-scrim"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="post-title"
+    data-test="reading"
+  >
+    <div class="hm-dialog hm-newsroom__reading">
+      <div class="hm-newsroom__reading-head">
+        <div>
+          <p class="hm-glass__eyebrow">{{ when(post.date) }}</p>
+          <h2 class="hm-dialog__title" id="post-title">{{ post.title }}</h2>
+        </div>
+        <button
+          type="button"
+          class="hm-btn hm-btn--ghost hm-btn--icon hm-btn--sm"
+          (click)="reading.set(null)"
+          aria-label="Close post"
+          data-test="close-reading"
+        >
+          <lucide-icon [img]="X" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+        </button>
+      </div>
+
+      @if (post.image) {
+        <img
+          class="hm-newsroom__illustration"
+          [src]="post.image"
+          [alt]="'Illustration: ' + post.title"
+          loading="lazy"
+        />
+      }
+
+      <div class="hm-newsroom__text hm-scroll">
+        <app-post-body [blocks]="post.body" />
+      </div>
+    </div>
+  </div>
+}

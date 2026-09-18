@@ -18,11 +18,11 @@ c'est plusieurs milliers de lignes par installation, qu'on lit en local.
 ```bash
 mc-pack diagnostic                    # où sont les journaux, télémétrie active ?
 mc-pack diagnostic --incident-test    # envoie un incident et confirme qu'il est parti
-cargo run -p mc-log --example panique # éprouve la chaîne complète, panique comprise
+cargo run -p mc-log --example panic # éprouve la chaîne complète, panique comprise
 RUST_LOG=mc_mods=debug mc-pack lock ../mc-content/launcher/samflix.json
 ```
 
-Les journaux vivent dans `~/.local/share/samflix-mc/logs/`.
+Les journaux vivent dans `~/.local/share/mc.samflix.launcher/logs/`.
 
 ## Ce qui ne sort pas
 

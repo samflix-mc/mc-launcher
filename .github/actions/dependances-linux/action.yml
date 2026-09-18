@@ -1,0 +1,50 @@
+name: Dépendances système de Tauri sous Linux
+description: >
+  Installe ce que WebKitGTK et le bundler exigent d'un runner Ubuntu nu.
+  Une action composite et non un bloc « run » recopié : les quatre jambes
+  Linux — contrôles, couverture, release x86-64, release aarch64 — doivent
+  installer exactement la même chose, et une liste recopiée diverge.
+
+runs:
+  using: composite
+  steps:
+    - name: Installer les paquets système
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update
+
+        # libwebkit2gtk-4.1-dev : le moteur de rendu. C'est LA dépendance dont
+        #   l'absence fait échouer la compilation de tauri — bruyamment
+        #   aujourd'hui, ce qui masque le piège du frontendDist. Voir ci.yml.
+        # libgtk-3-dev : la fenêtre, les dialogues, le thème.
+        # libayatana-appindicator3-dev : l'icône de zone de notification. Tauri
+        #   la lie même sans qu'on s'en serve.
+        # librsvg2-dev : le rendu des icônes SVG du bundler.
+        # patchelf : le bundler AppImage réécrit les RPATH avec.
+        # xdg-utils : tauri-plugin-opener étant une dépendance, la CLI pose
+        #   bundle_xdg_open = true et le bundler AppImage COPIE /usr/bin/xdg-open.
+        #   Il échoue en dur s'il manque. Le .deb et le .rpm n'en ont pas
+        #   besoin : une PR qui ne construit pas d'AppImage ne verrait jamais
+        #   l'oubli, et la première exécution serait une release.
+        # file, curl, wget : le bundler les appelle pour identifier et
+        #   télécharger ses outils.
+        sudo apt-get install --no-install-recommends -y \
+          libwebkit2gtk-4.1-dev \
+          libgtk-3-dev \
+          libayatana-appindicator3-dev \
+          librsvg2-dev \
+          patchelf \
+          xdg-utils \
+          file \
+          curl \
+          wget
+
+    - name: Dire ce qui a été posé
+      shell: bash
+      run: |
+        # Le numéro de version de WebKitGTK décide du comportement de
+        # backdrop-filter et du rendu de <progress> : il doit être dans le
+        # journal du jour où l'interface rend plat sans qu'une ligne ait bougé.
+        pkg-config --modversion webkit2gtk-4.1 \
+          | sed 's/^/::notice title=WebKitGTK::version /'

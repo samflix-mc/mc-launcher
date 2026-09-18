@@ -1,32 +1,32 @@
-//! Qui joue, et dans quelles conditions.
+//! Who's playing, and under what conditions.
 
-/// Identité du joueur transmise au jeu.
+/// Player identity passed to the game.
 ///
-/// Volontairement indépendante de `mc-auth` : une session hors-ligne et une
-/// session Microsoft produisent la même structure, et ce module n'a pas à
-/// savoir laquelle il sert.
+/// Deliberately independent from `mc-auth`: an offline session and a
+/// Microsoft session produce the same structure, and this module doesn't
+/// need to know which one it's serving.
 #[derive(Debug, Clone)]
 pub struct Session {
     pub name: String,
     pub uuid: String,
-    /// Jeton d'accès. Vide en hors-ligne — le jeu l'accepte et ne rejoint
-    /// alors que des serveurs en `online-mode=false`.
+    /// Access token. Empty when offline — the game accepts that and then
+    /// only joins servers running `online-mode=false`.
     pub token: String,
-    /// `msa` pour un compte Microsoft, `legacy` sinon.
+    /// `msa` for a Microsoft account, `legacy` otherwise.
     pub user_type: String,
     pub xuid: String,
     pub client_id: String,
 }
 
 impl Session {
-    /// Session hors-ligne, pour un serveur en `online-mode=false`.
+    /// Offline session, for a server running `online-mode=false`.
     pub fn offline(name: impl Into<String>, uuid: impl Into<String>) -> Session {
         Session {
             name: name.into(),
             uuid: uuid.into(),
-            // Le jeu exige l'argument mais ne le valide pas hors ligne. La
-            // valeur « 0 » est celle qu'emploient les launchers usuels : une
-            // chaîne vide ferait échouer l'analyse des arguments.
+            // The game requires the argument but doesn't validate it
+            // offline. The value `"0"` is the one common launchers use: an
+            // empty string would break argument parsing.
             token: "0".into(),
             user_type: "legacy".into(),
             xuid: String::new(),
@@ -34,11 +34,11 @@ impl Session {
         }
     }
 
-    /// Session Microsoft, pour un serveur en ligne.
+    /// Microsoft session, for an online server.
     ///
-    /// `xuid` et `client_id` restent vides : ni Prism, ni PolyMC, ni
-    /// OpenLauncher ne passent `--xuid` ou `--clientId` au jeu, et le serveur
-    /// vérifie l'identité auprès de Mojang à partir du seul jeton.
+    /// `xuid` and `client_id` stay empty: neither Prism, PolyMC, nor
+    /// OpenLauncher pass `--xuid` or `--clientId` to the game, and the
+    /// server checks identity with Mojang from the token alone.
     pub fn online(
         name: impl Into<String>,
         uuid: impl Into<String>,
@@ -55,22 +55,40 @@ impl Session {
     }
 }
 
-/// Partie à rejoindre directement au démarrage.
+/// Session to join directly at startup.
 #[derive(Debug, Clone)]
 pub enum QuickPlay {
-    /// Serveur, au format `hôte` ou `hôte:port`.
+    /// Server, in `host` or `host:port` form.
     Multiplayer(String),
-    /// Monde local, par son nom de dossier.
+    /// Local world, by its folder name.
     Singleplayer(String),
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct LaunchOptions {
-    /// Mémoire maximale de la JVM, en mébioctets.
+    /// Maximum JVM memory, in mebibytes.
     pub memory_mb: Option<u32>,
     pub quick_play: Option<QuickPlay>,
     pub resolution: Option<(u32, u32)>,
-    /// Arguments JVM ajoutés avant ceux du descripteur.
+    /// Open the game in fullscreen.
+    ///
+    /// ## A flag, not a value
+    ///
+    /// `--fullscreen` is a flag with NO value: writing `--fullscreen true`
+    /// would make the game take "true" for the name of a world to open. So
+    /// it's either added or not, never with an argument.
+    ///
+    /// ## The double-source trap
+    ///
+    /// `fullscreen` is ALSO an `options.txt` key, which F11 toggles during
+    /// a session and which the game persists. Driving only the command-line
+    /// argument would turn fullscreen into a one-way switch: the player
+    /// would leave it with F11, and find it back on at the next launch
+    /// without understanding why.
+    ///
+    /// The two are therefore written together — see `mc_settings::fusionner`.
+    pub fullscreen: bool,
+    /// JVM arguments added before those from the descriptor.
     pub extra_jvm: Vec<String>,
 }
 

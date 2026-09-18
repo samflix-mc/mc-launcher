@@ -1,14 +1,14 @@
-//! Vérifier qu'une installation est complète et intacte.
+//! Verify that an installation is complete and intact.
 
 use anyhow::Result;
 
-use crate::disposition::Layout;
+use crate::layout::Layout;
 use crate::{neoforge, vanilla};
 
-/// Vérifie qu'une installation est complète et intacte.
+/// Verifies that an installation is complete and intact.
 ///
-/// `deep` recontrôle l'empreinte de chaque objet d'assets, ce que
-/// l'installation ne fait pas pour ne pas relire 800 Mo à chaque lancement.
+/// `deep` re-checks the digest of every asset object, which the installer
+/// skips so it doesn't re-read 800 MB on every launch.
 pub fn verify(
     mc: &str,
     neoforge_version: &str,
@@ -22,7 +22,7 @@ pub fn verify(
     let client_jar = shared.join("versions").join(mc).join(format!("{mc}.jar"));
     for path in [&version_json, &client_jar] {
         if !path.is_file() {
-            problems.push(format!("fichier manquant : {}", path.display()));
+            problems.push(format!("missing file: {}", path.display()));
         }
     }
 
@@ -32,21 +32,21 @@ pub fn verify(
         .join(format!("{}.json", neoforge::version_id(neoforge_version)));
     if !neoforge_json.is_file() {
         problems.push(format!(
-            "NeoForge {neoforge_version} n'est pas installé : {} absent",
+            "NeoForge {neoforge_version} is not installed: {} missing",
             neoforge_json.display()
         ));
     }
 
-    // Les deux descripteurs sont contrôlés : celui de NeoForge ajoute une
-    // cinquantaine de bibliothèques au classpath, et il en manque une suffit à
-    // faire échouer le démarrage aussi sûrement qu'une bibliothèque vanilla.
+    // Both descriptors are checked: NeoForge's adds about fifty libraries
+    // to the classpath, and missing just one fails the startup as surely
+    // as a missing vanilla library would.
     for descriptor in [&version_json, &neoforge_json] {
         if !descriptor.is_file() {
             continue;
         }
         for library in vanilla::classpath(descriptor, &shared)? {
             if !library.is_file() {
-                problems.push(format!("bibliothèque manquante : {}", library.display()));
+                problems.push(format!("missing library: {}", library.display()));
             }
         }
     }
@@ -66,10 +66,10 @@ pub fn verify(
         if !id.is_empty() {
             let report = vanilla::verify_assets(&shared, &id)?;
             for hash in report.missing {
-                problems.push(format!("asset manquant : {hash}"));
+                problems.push(format!("missing asset: {hash}"));
             }
             for hash in report.corrupt {
-                problems.push(format!("asset corrompu : {hash}"));
+                problems.push(format!("corrupt asset: {hash}"));
             }
         }
     }

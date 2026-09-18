@@ -1,32 +1,32 @@
-use super::entree_de_version;
-use crate::vanilla::descripteur::ManifestVersion;
+use super::version_entry;
+use crate::vanilla::descriptor::ManifestVersion;
 
 fn version(id: &str) -> ManifestVersion {
     ManifestVersion {
         id: id.to_string(),
-        url: format!("https://exemple.invalid/{id}.json"),
+        url: format!("https://example.invalid/{id}.json"),
         sha1: "abc123".into(),
     }
 }
 
-/// Le manifeste de Mojang énumère plusieurs centaines de versions, instantanés
-/// compris. Se tromper d'entrée installerait un autre jeu que celui demandé,
-/// avec ses bibliothèques et ses assets — et le pack ne démarrerait pas, pour
-/// une raison qui ne se lirait nulle part.
+/// Mojang's manifest lists several hundred versions, snapshots included.
+/// Picking the wrong entry would install a different game than the one
+/// requested, with its own libraries and assets — and the pack wouldn't
+/// start, for a reason that wouldn't show up anywhere.
 #[test]
-fn seule_la_version_demandee_est_retenue() {
-    let publiees = vec![version("1.21.4"), version("1.21.1"), version("25w07a")];
+fn only_the_requested_version_is_kept() {
+    let published = vec![version("1.21.4"), version("1.21.1"), version("25w07a")];
 
-    let trouvee = entree_de_version(publiees, "1.21.1").expect("la version est publiée");
-    assert_eq!(trouvee.id, "1.21.1");
-    assert!(trouvee.url.contains("1.21.1"));
+    let found = version_entry(published, "1.21.1").expect("the version is published");
+    assert_eq!(found.id, "1.21.1");
+    assert!(found.url.contains("1.21.1"));
 }
 
-/// Une version que Mojang ne publie pas ne donne rien — c'est le cas d'une
-/// faute de frappe dans le manifeste du pack, et l'appelant en fait un message
-/// qui la nomme.
+/// A version Mojang doesn't publish yields nothing — this is what happens
+/// with a typo in the pack manifest, and the caller turns it into a message
+/// that names it.
 #[test]
-fn une_version_absente_du_manifeste_ne_donne_rien() {
-    assert!(entree_de_version(vec![version("1.21.1")], "1.21.9").is_none());
-    assert!(entree_de_version(Vec::new(), "1.21.1").is_none());
+fn a_version_missing_from_the_manifest_yields_nothing() {
+    assert!(version_entry(vec![version("1.21.1")], "1.21.9").is_none());
+    assert!(version_entry(Vec::new(), "1.21.1").is_none());
 }

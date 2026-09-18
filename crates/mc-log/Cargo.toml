@@ -1,11 +1,12 @@
 [package]
 name = "mc-log"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Journalisation vers la console et un fichier, remontée des incidents à Sentry"
 
 [dependencies]
+mc-paths = { path = "../mc-paths" }
 mc-dl = { path = "../mc-dl" }
 tracing.workspace = true
 tracing-subscriber.workspace = true

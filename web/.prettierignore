@@ -1,0 +1,27 @@
+# Ce que Prettier ne doit pas reformater.
+
+# Produits de build : régénérés à chaque fois, jamais relus.
+dist/
+.angular/
+node_modules/
+
+# Le rapport de couverture. Il n'existe pas en CI — d'où le fait que ce
+# manque soit resté invisible — mais un « pnpm test:couverture » sur le poste
+# le fabrique, et « format:check » ÉCHOUE alors sur du HTML généré que
+# personne ne relira. Un contrôle qui rougit selon ce qu'on a lancé avant se
+# désactive vite.
+coverage/
+
+# Le verrou de pnpm. Prettier le reformate volontiers et pnpm le réécrit
+# aussitôt : `format:check` et `install --frozen-lockfile` se contrediraient
+# à chaque exécution de la CI.
+pnpm-lock.yaml
+
+# Le design system, recopié VERBATIM de `docs/helm-design-system.zip`.
+#
+# Prettier le reformaterait — il y a de quoi : le zip écrit plusieurs règles par
+# ligne. Mais ces deux fichiers se remplacent d'un `cp` à chaque republication,
+# et un reformatage rendrait le diff de la copie suivante illisible d'un bout à
+# l'autre. Ce qui se relit n'est pas leur mise en forme, c'est leur en-tête.
+src/design/tokens.css
+src/design/helm.css

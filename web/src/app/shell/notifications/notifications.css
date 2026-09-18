@@ -1,0 +1,59 @@
+/* `display: contents`: both children are already positioned relative to the
+   window, and a `block` host would interpose an empty box in the shell. */
+:host {
+  display: contents;
+}
+
+/* The layer that closes the panel. It covers the window, under the panel
+   and above everything else; it draws nothing. */
+.hm-notif__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-menu) - 1);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* The center's rows aren't clickable here: the design system makes them
+   buttons because a notification there opens the item it announces, and we
+   have nothing to open onto — an updated pack leads nowhere. The cursor
+   must therefore promise nothing. */
+.hm-notif__item {
+  cursor: default;
+}
+
+.hm-notif__item:hover {
+  background: transparent;
+}
+
+/* **The panel is OPAQUE, where the design system makes it frosted glass.**
+
+   `hm-notif` shares its rule with `hm-play--busy`: a glass face over a
+   `backdrop-filter`. On a button that works, and on a panel that covers
+   half the window it does not — the backdrop showing through is the news
+   feed and the state panels, i.e. text behind text, and the notifications
+   become hard to read at the exact moment one wants to read them.
+
+   The account menu, two hundred pixels away under the same title bar,
+   is already opaque: `hm-menu` uses `--bg-overlay`. Two panels opening
+   from the same bar and not answering the same way is the kind of detail
+   that reads as a bug rather than as an intention.
+
+   Overridden here rather than in `helm.css`: that file is a copy of the
+   design system, replaceable with a `cp`, and an edit made there is lost
+   at the next update without a word. The `::before` carries the glass
+   sheen, which has nothing left to catch once the background is opaque. */
+.hm-notif {
+  background: var(--bg-overlay);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow:
+    var(--shadow-menu),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
+}
+
+.hm-notif::before {
+  content: none;
+}

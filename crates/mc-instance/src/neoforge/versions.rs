@@ -1,4 +1,4 @@
-//! Quelle version de NeoForge pour quelle version de Minecraft.
+//! Which NeoForge version for which Minecraft version.
 
 use anyhow::{Context, Result};
 use mc_dl::Downloader;
@@ -12,12 +12,12 @@ struct VersionList {
     versions: Vec<String>,
 }
 
-/// Série NeoForge correspondant à une version de Minecraft.
+/// NeoForge series matching a Minecraft version.
 ///
-/// NeoForge numérote `<majeur>.<mineur>.<correctif>` en reprenant les deux
-/// premiers nombres de la version du jeu : Minecraft 1.21.1 donne la série
-/// 21.1.x. C'est la seule correspondance à connaître, et elle est stable
-/// depuis l'abandon du versionnage hérité de Forge.
+/// NeoForge numbers `<major>.<minor>.<patch>` by reusing the first two
+/// numbers of the game version: Minecraft 1.21.1 gives series 21.1.x. It's
+/// the only mapping to know, and it's been stable since Forge's legacy
+/// versioning was dropped.
 pub fn series_for(mc: &str) -> Option<String> {
     let mut parts = mc.split('.');
     if parts.next()? != "1" {
@@ -28,32 +28,32 @@ pub fn series_for(mc: &str) -> Option<String> {
     Some(format!("{major}.{minor}."))
 }
 
-/// Dernière version publiée de NeoForge pour une version de Minecraft.
+/// Latest published NeoForge version for a Minecraft version.
 ///
-/// Hors de portée des tests de mutation : cette fonction ne fait que
-/// télécharger la liste publiée par NeoForge, à une adresse écrite dans ce
-/// module. Le choix qu'elle en tire se vérifie — voir [`derniere_stable`].
+/// Out of scope for mutation testing: this function only downloads the list
+/// NeoForge publishes, at an address written into this module. What it picks
+/// from it is verifiable — see [`latest_stable`].
 #[mutants::skip]
 pub async fn latest_for(mc: &str, dl: &Downloader) -> Result<String> {
-    let series = series_for(mc)
-        .with_context(|| format!("aucune série NeoForge ne correspond à Minecraft {mc}"))?;
+    let series =
+        series_for(mc).with_context(|| format!("no NeoForge series matches Minecraft {mc}"))?;
 
     let list: VersionList = serde_json::from_slice(&dl.bytes(VERSIONS_API).await?)
-        .context("liste des versions NeoForge illisible")?;
+        .context("unreadable NeoForge version list")?;
 
-    derniere_stable(list.versions, &series)
-        .with_context(|| format!("aucune version NeoForge {series}x publiée"))
+    latest_stable(list.versions, &series)
+        .with_context(|| format!("no NeoForge {series}x version published"))
 }
 
-/// La dernière version stable d'une série, parmi celles que NeoForge publie.
+/// The latest stable version of a series, among the ones NeoForge publishes.
 ///
-/// Trois règles, et chacune compte. La série d'abord : une version pour une
-/// autre Minecraft ne démarrera pas. Les bêtas ensuite, écartées — elles
-/// paraissent dans la même liste, et en installer une par inadvertance change
-/// le jeu sous les pieds des joueurs. Le tri par numéro de correctif enfin :
-/// les versions sont publiées dans l'ordre, mais une republication peut
-/// désordonner la liste, et c'est la plus récente qu'on veut.
-fn derniere_stable(versions: Vec<String>, series: &str) -> Option<String> {
+/// Three rules, and each one matters. The series first: a version for a
+/// different Minecraft won't start. Betas next, excluded — they appear in
+/// the same list, and installing one by mistake changes the game under
+/// players' feet. Sorting by patch number last: versions are published in
+/// order, but a republish can disorder the list, and it's the most recent
+/// one that's wanted.
+fn latest_stable(versions: Vec<String>, series: &str) -> Option<String> {
     let mut matching: Vec<(u32, String)> = versions
         .into_iter()
         .filter(|v| v.starts_with(series))

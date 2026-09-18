@@ -1,4 +1,4 @@
-//! Dépaqueter ce qu'Adoptium livre, quel qu'en soit le format.
+//! Unpack whatever Adoptium delivers, whatever the format.
 
 use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
@@ -11,7 +11,7 @@ pub(crate) fn single_child(dir: &Path) -> Result<PathBuf> {
     match entries.len() {
         1 => Ok(entries.remove(0)),
         n => bail!(
-            "archive Temurin inattendue : {n} entrées à la racine de {}",
+            "unexpected Temurin archive: {n} entries at the root of {}",
             dir.display()
         ),
     }
@@ -25,23 +25,23 @@ pub(crate) fn extract(archive: &Path, into: &Path) -> Result<()> {
         let file = std::fs::File::open(archive)?;
         tar::Archive::new(flate2::read::GzDecoder::new(file))
             .unpack(into)
-            .with_context(|| format!("extraction de {name}"))?;
+            .with_context(|| format!("extracting {name}"))?;
         Ok(())
     } else {
-        bail!("format d'archive non géré : {name}")
+        bail!("unsupported archive format: {name}")
     }
 }
 
-/// Extraction ZIP, pour la variante Windows d'Adoptium.
+/// ZIP extraction, for Adoptium's Windows variant.
 ///
-/// Les entrées sont validées avant écriture : une archive peut contenir des
-/// chemins remontants (`../`) qui écriraient hors du répertoire cible.
+/// Entries are validated before writing: an archive can contain upward paths
+/// (`../`) that would write outside the target directory.
 fn extract_zip(archive: &Path, into: &Path) -> Result<()> {
     let mut zip = zip::ZipArchive::new(std::fs::File::open(archive)?)?;
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i)?;
         let Some(relative) = entry.enclosed_name() else {
-            bail!("entrée d'archive au chemin suspect : {}", entry.name());
+            bail!("archive entry with a suspicious path: {}", entry.name());
         };
         let dest = into.join(relative);
         if entry.is_dir() {

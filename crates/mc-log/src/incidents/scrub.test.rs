@@ -1,47 +1,48 @@
 use super::{scrub_event, scrub_log_attribute, scrub_value};
 
 #[test]
-fn un_attribut_de_journal_structure_est_censure() {
+fn a_structured_log_attribute_is_scrubbed() {
     use sentry::protocol::{LogAttribute, Value};
 
-    // Les journaux structurés passent par `before_send_log`, pas par
-    // `before_send` : ce filtre-là est le seul à les voir.
-    let mut attribut = LogAttribute(Value::String(
+    // Structured logs go through `before_send_log`, not `before_send`:
+    // this filter is the only one that sees them.
+    let mut attribute = LogAttribute(Value::String(
         "access_token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ".into(),
     ));
-    scrub_log_attribute(&mut attribut);
-    match &attribut.0 {
+    scrub_log_attribute(&mut attribute);
+    match &attribute.0 {
         Value::String(text) => {
             assert!(!text.contains("eyJhbGci"));
             assert!(text.contains("[secret]"));
         }
-        other => panic!("type inattendu : {other:?}"),
+        other => panic!("unexpected type: {other:?}"),
     }
 }
 
 #[test]
-fn un_attribut_numerique_reste_exploitable() {
+fn a_numeric_attribute_stays_usable() {
     use sentry::protocol::{LogAttribute, Value};
 
-    // Tailles, durées, codes HTTP : rien à censurer, et ils servent au tri.
-    let mut attribut = LogAttribute(Value::from(2155935));
-    scrub_log_attribute(&mut attribut);
-    assert_eq!(attribut.0, Value::from(2155935));
+    // Sizes, durations, HTTP codes: nothing to scrub, and they're used
+    // for sorting.
+    let mut attribute = LogAttribute(Value::from(2155935));
+    scrub_log_attribute(&mut attribute);
+    assert_eq!(attribute.0, Value::from(2155935));
 }
 
 #[test]
-fn la_pile_jointe_a_un_evenement_sans_exception_est_censuree() {
+fn the_stack_attached_to_an_event_without_an_exception_is_scrubbed() {
     use sentry::protocol::{Event, Frame, Stacktrace, Thread};
 
-    // `attach_stacktrace` joint la pile du fil courant, hors de toute
-    // exception : c'est le seul endroit où elle arrive pour un
-    // `capture_message` ou un plantage du jeu.
+    // `attach_stacktrace` attaches the current thread's stack, outside
+    // any exception: it's the only place it arrives for a
+    // `capture_message` or a game crash.
     let mut event = Event::default();
     event.threads.values.push(Thread {
         stacktrace: Some(Stacktrace {
             frames: vec![Frame {
                 abs_path: Some(
-                    "appel avec token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ".into(),
+                    "call with token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ".into(),
                 ),
                 ..Default::default()
             }],
@@ -52,26 +53,26 @@ fn la_pile_jointe_a_un_evenement_sans_exception_est_censuree() {
 
     scrub_event(&mut event);
 
-    let chemin = event.threads.values[0].stacktrace.as_ref().unwrap().frames[0]
+    let path = event.threads.values[0].stacktrace.as_ref().unwrap().frames[0]
         .abs_path
         .clone()
         .unwrap();
-    assert!(!chemin.contains("eyJhbGci"), "jeton en clair : {chemin}");
-    assert!(chemin.contains("[secret]"));
+    assert!(!path.contains("eyJhbGci"), "token in clear: {path}");
+    assert!(path.contains("[secret]"));
 }
 
 #[test]
-fn les_champs_d_un_evenement_sont_censures() {
+fn an_events_fields_are_scrubbed() {
     use sentry::protocol::{Context, Event, Value};
 
-    // `sentry-tracing` ne remplit pas `extra` : les champs d'un
-    // `tracing::error!` atterrissent dans ce contexte-là, et lui seul.
+    // `sentry-tracing` doesn't fill `extra`: the fields of a
+    // `tracing::error!` land in this context, and only this one.
     let mut event = Event::default();
     event.contexts.insert(
         "Rust Tracing Fields".into(),
         Context::Other(
             [(
-                "erreur".to_string(),
+                "error".to_string(),
                 Value::String(
                     "GET https://api/x?token=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ".into(),
                 ),
@@ -83,47 +84,47 @@ fn les_champs_d_un_evenement_sont_censures() {
 
     scrub_event(&mut event);
 
-    let rendu = format!("{:?}", event.contexts);
+    let rendered = format!("{:?}", event.contexts);
     assert!(
-        !rendu.contains("eyJhbGci"),
-        "jeton envoyé en clair : {rendu}"
+        !rendered.contains("eyJhbGci"),
+        "token sent in clear: {rendered}"
     );
-    assert!(rendu.contains("[secret]"));
+    assert!(rendered.contains("[secret]"));
 }
 
-/// Un secret ne se trouve pas toujours à la racine : les variables d'une trace
-/// d'appels et les contextes d'un événement sont des objets qui contiennent des
-/// listes qui contiennent des objets. La censure descend donc, et ne pas
-/// descendre ne casse rien de visible — cela laisse seulement passer le jeton
-/// d'un cran plus bas.
+/// A secret isn't always at the root: the variables of a call stack and
+/// the contexts of an event are objects containing lists containing
+/// objects. Scrubbing therefore has to descend, and not descending
+/// breaks nothing visible — it just lets the token slip through one
+/// level down.
 #[test]
-fn la_censure_descend_dans_les_listes_et_les_objets() {
+fn scrubbing_descends_into_lists_and_objects() {
     use sentry::protocol::Value;
 
-    let jeton = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ";
-    let mut valeur = Value::Array(vec![
-        Value::String(format!("access_token={jeton}")),
+    let token = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.SflKxwRJ";
+    let mut value = Value::Array(vec![
+        Value::String(format!("access_token={token}")),
         Value::Object(
             [(
-                "entete".to_string(),
+                "header".to_string(),
                 Value::Array(vec![Value::String(format!(
-                    "Authorization: Bearer {jeton}"
+                    "Authorization: Bearer {token}"
                 ))]),
             )]
             .into_iter()
             .collect(),
         ),
-        // Ce qui n'est pas du texte traverse intact : les nombres et les
-        // booléens servent au tri, et n'ont rien à cacher.
+        // What isn't text passes through intact: numbers and booleans
+        // are used for sorting, and have nothing to hide.
         Value::from(42),
     ]);
 
-    scrub_value(&mut valeur);
+    scrub_value(&mut value);
 
-    let rendu = format!("{valeur:?}");
-    assert!(!rendu.contains("eyJhbGci"), "jeton en clair : {rendu}");
-    // Le premier niveau, puis celui qui se cache deux crans plus bas.
-    assert!(rendu.contains("access_token=[secret]"), "{rendu}");
-    assert!(rendu.contains("Authorization: [secret]"), "{rendu}");
-    assert!(rendu.contains("42"), "{rendu}");
+    let rendered = format!("{value:?}");
+    assert!(!rendered.contains("eyJhbGci"), "token in clear: {rendered}");
+    // The first level, then the one hiding two levels down.
+    assert!(rendered.contains("access_token=[secret]"), "{rendered}");
+    assert!(rendered.contains("Authorization: [secret]"), "{rendered}");
+    assert!(rendered.contains("42"), "{rendered}");
 }

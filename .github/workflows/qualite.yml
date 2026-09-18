@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: qualite-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: read
@@ -18,11 +22,15 @@ env:
   # Le cliquet, et non l'objectif. Il interdit de redescendre, et se remonte à
   # mesure qu'on monte — jamais l'inverse.
   #
-  # Quatre-vingt-dix pour un dépôt qui en couvre 94 : quelques points de marge,
-  # parce que ce seuil est là pour arrêter une chute, pas pour rougir le jour
-  # où un test se déplace. Les trois plus gros manques d'alors — le main de
-  # mc-pack, les deux clients d'API — ont été couverts en écrivant les tests
-  # que les mutants réclamaient.
+  # Quatre-vingt-dix pour un dépôt qui en couvre 92,21 — mesuré le 18/09/2026
+  # par « cargo llvm-cov --workspace --summary-only », mc-app compris, et non
+  # recopié d'un commentaire. Deux points de marge, parce que ce seuil est là
+  # pour arrêter une chute, pas pour rougir le jour où un test se déplace.
+  #
+  # L'arrivée de mc-app n'a pas fait le trou qu'on redoutait : le crate porte
+  # 661 lignes de suites sidecar. Ce qu'aucun test ne peut atteindre s'y nomme
+  # précisément — `run()`, qui demande un contexte graphique, et les sept
+  # commandes Tauri, dont le corps ne se joue que derrière un pont.
   #
   # L'exigence des 80 % est ailleurs, et porte sur le code NOUVEAU : c'est la
   # porte de qualité de SonarQube Cloud, déclarée dans sonar-project.properties.
@@ -48,7 +56,20 @@ jobs:
           # monde, et bloquerait la première PR venue.
           fetch-depth: 0
 
+      # llvm-cov porte sur --workspace, donc sur mc-app, donc sur tauri : sans
+      # WebKitGTK la mesure ne compile pas. C'est la contrepartie directe de
+      # « default-members » — écarter mc-app de la sélection par défaut oblige
+      # à le nommer partout où l'on veut le voir.
+      - uses: ./.github/actions/dependances-linux
+
+      # Une clé distincte de celle du workflow Contrôles, et c'est délibéré :
+      # llvm-cov compile avec une instrumentation qui change les artefacts. Un
+      # cache partagé ferait s'invalider mutuellement les deux workflows à
+      # chaque exécution, et chacun recompilerait tout à chaque fois en croyant
+      # profiter d'un cache.
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: llvm-cov
 
       - uses: taiki-e/install-action@v2
         with:
@@ -63,6 +84,27 @@ jobs:
           cargo llvm-cov --workspace --locked
           --lcov --output-path lcov.info
           --fail-under-lines ${{ env.SEUIL_LIGNES }}
+
+      # Le front entre dans le même périmètre Sonar que le Rust : voir
+      # sonar-project.properties. Sans ce rapport, la porte des 80 % sur le
+      # code nouveau porterait sur des fichiers dont Sonar ne saurait rien
+      # couvert, et rougirait sur la première PR de la refonte.
+      - uses: ./.github/actions/front
+
+      - name: Mesurer la couverture du front
+        working-directory: web
+        run: pnpm test:coverage
+
+      # vitest écrit des chemins relatifs à web/. Sonar les résout depuis la
+      # racine du dépôt : sans cette réécriture il chercherait « src/app/… »
+      # là où il n'y a que « crates/ », ne trouverait rien, et rapporterait
+      # 0 % — sur le code même qu'on vient d'ajouter au périmètre. Un zéro qui
+      # vient d'un chemin faux ne se distingue pas d'un zéro mérité.
+      - name: Rendre les chemins du rapport front lisibles par Sonar
+        run: |
+          set -euo pipefail
+          sed -i 's|^SF:src/|SF:web/src/|' web/coverage/launcher/lcov.info
+          grep -c '^SF:web/src/' web/coverage/launcher/lcov.info
 
       # Conservé même quand le seuil n'est pas tenu : c'est précisément le cas
       # où l'on veut savoir quelle ligne manque.

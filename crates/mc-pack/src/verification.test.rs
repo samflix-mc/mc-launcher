@@ -1,29 +1,29 @@
 use super::verify;
 use crate::Options;
-use crate::essais::{Atelier, MANIFESTE, entree, manque, verrou};
+use crate::fixtures::{MANIFEST, Workshop, entry, lock, missing};
 use crate::lockfile::{LockedMod, Lockfile};
 use crate::source::Source;
 
-const JAR: &[u8] = b"le jar";
+const JAR: &[u8] = b"the jar";
 
-/// Une installation complète : le pack, son verrou, et les fichiers Mojang que
-/// `mc_instance::verify` exige.
-fn installation(nom: &str, mods: Vec<LockedMod>) -> (Atelier, Options, Source) {
-    let atelier = Atelier::neuf(nom);
-    let manifeste = atelier.ecrire("samflix.json", MANIFESTE.as_bytes());
-    verrou(mods)
-        .save(&atelier.racine.join("samflix.lock.json"))
+/// A complete installation: the pack, its lockfile, and the Mojang files
+/// `mc_instance::verify` requires.
+fn installation(name: &str, mods: Vec<LockedMod>) -> (Workshop, Options, Source) {
+    let workshop = Workshop::new(name);
+    let manifest_path = workshop.write("samflix.json", MANIFEST.as_bytes());
+    lock(mods)
+        .save(&workshop.root.join("samflix.lock.json"))
         .unwrap();
 
     let options = Options {
-        layout: mc_instance::Layout::new(atelier.racine.join("données")),
+        layout: mc_instance::Layout::new(workshop.root.join("data")),
         instance_name: Some("samflix".into()),
         ..Default::default()
     };
 
-    // Ce que mc-instance vérifie de son côté : descripteurs et client.
+    // What mc-instance verifies on its own side: descriptors and client.
     let shared = options.layout.shared();
-    for (chemin, contenu) in [
+    for (path, content) in [
         ("versions/1.21.1/1.21.1.json", r#"{"libraries":[]}"#),
         ("versions/1.21.1/1.21.1.jar", "jar"),
         (
@@ -31,106 +31,107 @@ fn installation(nom: &str, mods: Vec<LockedMod>) -> (Atelier, Options, Source) {
             r#"{"libraries":[]}"#,
         ),
     ] {
-        let cible = shared.join(chemin);
-        std::fs::create_dir_all(cible.parent().unwrap()).unwrap();
-        std::fs::write(cible, contenu).unwrap();
+        let target = shared.join(path);
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(target, content).unwrap();
     }
 
-    let source = Source::parse(manifeste.to_str().unwrap(), &options.layout);
-    (atelier, options, source)
+    let source = Source::parse(manifest_path.to_str().unwrap(), &options.layout);
+    (workshop, options, source)
 }
 
-/// Pose un jar dans le dossier `mods` du côté demandé.
-fn poser(options: &Options, cote: &str, nom: &str, contenu: &[u8]) {
+/// Places a jar in the `mods` folder on the requested side.
+fn place(options: &Options, side: &str, name: &str, content: &[u8]) {
     let instance = options.layout.instance("samflix");
-    let dossier = match cote {
+    let folder = match side {
         "client" => instance.mods_dir(),
         _ => instance.dir.join("server").join("mods"),
     };
-    std::fs::create_dir_all(&dossier).unwrap();
-    std::fs::write(dossier.join(nom), contenu).unwrap();
+    std::fs::create_dir_all(&folder).unwrap();
+    std::fs::write(folder.join(name), content).unwrap();
 }
 
 #[test]
-fn une_installation_complete_ne_signale_rien() {
-    let (_atelier, options, source) =
-        installation("verif-ok", vec![entree("jei", "both", Some(JAR))]);
-    poser(&options, "client", "jei.jar", JAR);
-    poser(&options, "server", "jei.jar", JAR);
+fn a_complete_installation_reports_nothing() {
+    let (_workshop, options, source) =
+        installation("verify-ok", vec![entry("jei", "both", Some(JAR))]);
+    place(&options, "client", "jei.jar", JAR);
+    place(&options, "server", "jei.jar", JAR);
 
-    let problemes = verify(&source, &options, false).unwrap();
-    assert!(problemes.is_empty(), "{problemes:?}");
+    let problems = verify(&source, &options, false).unwrap();
+    assert!(problems.is_empty(), "{problems:?}");
 }
 
-/// Un mod client n'a rien à faire dans le dossier du serveur, et
-/// réciproquement : le vérifier des deux côtés ferait crier sur une
-/// installation correcte.
+/// A client mod has no business in the server's folder, and vice versa:
+/// checking it on both sides would raise a false alarm on a correct
+/// installation.
 #[test]
-fn un_mod_client_n_est_cherche_que_du_cote_client() {
-    let (_atelier, options, source) =
-        installation("verif-cote", vec![entree("sodium", "client", Some(JAR))]);
-    poser(&options, "client", "sodium.jar", JAR);
+fn a_client_mod_is_only_looked_for_on_the_client_side() {
+    let (_workshop, options, source) =
+        installation("verify-side", vec![entry("sodium", "client", Some(JAR))]);
+    place(&options, "client", "sodium.jar", JAR);
 
-    let problemes = verify(&source, &options, false).unwrap();
-    assert!(problemes.is_empty(), "{problemes:?}");
+    let problems = verify(&source, &options, false).unwrap();
+    assert!(problems.is_empty(), "{problems:?}");
 }
 
 #[test]
-fn un_mod_manquant_est_nomme_par_son_chemin() {
-    let (_atelier, options, source) =
-        installation("verif-manquant", vec![entree("jei", "both", Some(JAR))]);
-    poser(&options, "client", "jei.jar", JAR);
-    // Rien côté serveur.
+fn a_missing_mod_is_named_by_its_path() {
+    let (_workshop, options, source) =
+        installation("verify-missing", vec![entry("jei", "both", Some(JAR))]);
+    place(&options, "client", "jei.jar", JAR);
+    // Nothing on the server side.
 
-    let problemes = verify(&source, &options, false).unwrap();
-    assert_eq!(problemes.len(), 1, "{problemes:?}");
-    assert!(problemes[0].contains("mod manquant"), "{problemes:?}");
-    assert!(problemes[0].contains("jei.jar"), "{problemes:?}");
+    let problems = verify(&source, &options, false).unwrap();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("missing mod"), "{problems:?}");
+    assert!(problems[0].contains("jei.jar"), "{problems:?}");
 }
 
-/// Un jar altéré doit être vu : c'est tout l'intérêt de garder l'empreinte
-/// dans le verrou.
+/// A tampered jar must be caught: that's the whole point of keeping the
+/// digest in the lockfile.
 #[test]
-fn un_mod_altere_est_signale_avec_les_deux_empreintes() {
-    let (_atelier, options, source) =
-        installation("verif-altere", vec![entree("jei", "client", Some(JAR))]);
-    poser(&options, "client", "jei.jar", b"autre chose");
+fn an_altered_mod_is_reported_with_both_digests() {
+    let (_workshop, options, source) =
+        installation("verify-altered", vec![entry("jei", "client", Some(JAR))]);
+    place(&options, "client", "jei.jar", b"something else");
 
-    let problemes = verify(&source, &options, false).unwrap();
-    assert_eq!(problemes.len(), 1, "{problemes:?}");
-    assert!(problemes[0].contains("empreinte"), "{problemes:?}");
+    let problems = verify(&source, &options, false).unwrap();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("digest"), "{problems:?}");
 }
 
-/// Un verrou sans empreinte ne permet pas de vérifier : c'est le cas des
-/// entrées écrites depuis une source qui n'en publiait pas.
+/// A lockfile with no digest can't be verified: that's the case for entries
+/// written from a source that didn't publish one.
 #[test]
-fn un_mod_sans_empreinte_est_seulement_constate_present() {
-    let (_atelier, options, source) =
-        installation("verif-sans-empreinte", vec![entree("jei", "client", None)]);
-    poser(&options, "client", "jei.jar", b"peu importe");
+fn a_mod_without_a_digest_is_only_confirmed_present() {
+    let (_workshop, options, source) =
+        installation("verify-no-digest", vec![entry("jei", "client", None)]);
+    place(&options, "client", "jei.jar", b"doesn't matter");
 
-    let problemes = verify(&source, &options, false).unwrap();
-    assert!(problemes.is_empty(), "{problemes:?}");
+    let problems = verify(&source, &options, false).unwrap();
+    assert!(problems.is_empty(), "{problems:?}");
 }
 
-/// Le verrou porte les `modId` fournis par chaque jar : la cohérence de
-/// l'ensemble se vérifie sans rouvrir une seule archive.
+/// The lockfile carries the `modId`s each jar provides: the whole's coherence
+/// is checked without reopening a single archive.
 #[test]
-fn une_dependance_non_satisfaite_est_signalee_sans_ouvrir_de_jar() {
-    let atelier = Atelier::neuf("verif-coherence");
-    let manifeste = atelier.ecrire("samflix.json", MANIFESTE.as_bytes());
-    let mut lock = verrou(vec![entree("jei", "client", Some(JAR))]);
-    lock.unresolved.push(manque("bookshelf", "jei"));
-    lock.save(&atelier.racine.join("samflix.lock.json"))
+fn an_unmet_dependency_is_reported_without_opening_a_jar() {
+    let workshop = Workshop::new("verify-coherence");
+    let manifest_path = workshop.write("samflix.json", MANIFEST.as_bytes());
+    let mut lockfile = lock(vec![entry("jei", "client", Some(JAR))]);
+    lockfile.unresolved.push(missing("bookshelf", "jei"));
+    lockfile
+        .save(&workshop.root.join("samflix.lock.json"))
         .unwrap();
 
     let options = Options {
-        layout: mc_instance::Layout::new(atelier.racine.join("données")),
+        layout: mc_instance::Layout::new(workshop.root.join("data")),
         instance_name: Some("samflix".into()),
         ..Default::default()
     };
     let shared = options.layout.shared();
-    for (chemin, contenu) in [
+    for (path, content) in [
         ("versions/1.21.1/1.21.1.json", r#"{"libraries":[]}"#),
         ("versions/1.21.1/1.21.1.jar", "jar"),
         (
@@ -138,41 +139,43 @@ fn une_dependance_non_satisfaite_est_signalee_sans_ouvrir_de_jar() {
             r#"{"libraries":[]}"#,
         ),
     ] {
-        let cible = shared.join(chemin);
-        std::fs::create_dir_all(cible.parent().unwrap()).unwrap();
-        std::fs::write(cible, contenu).unwrap();
+        let target = shared.join(path);
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(target, content).unwrap();
     }
-    poser(&options, "client", "jei.jar", JAR);
+    place(&options, "client", "jei.jar", JAR);
 
-    let source = Source::parse(manifeste.to_str().unwrap(), &options.layout);
-    let problemes = verify(&source, &options, false).unwrap();
+    let source = Source::parse(manifest_path.to_str().unwrap(), &options.layout);
+    let problems = verify(&source, &options, false).unwrap();
 
     assert!(
-        problemes
+        problems
             .iter()
-            .any(|p| p.contains("dépendance non satisfaite") && p.contains("bookshelf")),
-        "{problemes:?}"
+            .any(|p| p.contains("unmet dependency") && p.contains("bookshelf")),
+        "{problems:?}"
     );
 }
 
-/// Un manque que le verrou consigne mais qu'un autre jar fournit finalement
-/// n'en est pas un : le signaler ferait chercher un problème réglé.
+/// A gap the lockfile records but another jar ends up providing isn't one
+/// anymore: reporting it would send someone chasing a problem that's already
+/// solved.
 #[test]
-fn un_manque_finalement_fourni_n_est_plus_un_probleme() {
-    let atelier = Atelier::neuf("verif-manque-comble");
-    let manifeste = atelier.ecrire("samflix.json", MANIFESTE.as_bytes());
-    let mut lock = verrou(vec![entree("bookshelf", "client", Some(JAR))]);
-    lock.unresolved.push(manque("bookshelf", "jei"));
-    lock.save(&atelier.racine.join("samflix.lock.json"))
+fn a_gap_eventually_filled_is_no_longer_a_problem() {
+    let workshop = Workshop::new("verify-gap-filled");
+    let manifest_path = workshop.write("samflix.json", MANIFEST.as_bytes());
+    let mut lockfile = lock(vec![entry("bookshelf", "client", Some(JAR))]);
+    lockfile.unresolved.push(missing("bookshelf", "jei"));
+    lockfile
+        .save(&workshop.root.join("samflix.lock.json"))
         .unwrap();
 
     let options = Options {
-        layout: mc_instance::Layout::new(atelier.racine.join("données")),
+        layout: mc_instance::Layout::new(workshop.root.join("data")),
         instance_name: Some("samflix".into()),
         ..Default::default()
     };
     let shared = options.layout.shared();
-    for (chemin, contenu) in [
+    for (path, content) in [
         ("versions/1.21.1/1.21.1.json", r#"{"libraries":[]}"#),
         ("versions/1.21.1/1.21.1.jar", "jar"),
         (
@@ -180,58 +183,59 @@ fn un_manque_finalement_fourni_n_est_plus_un_probleme() {
             r#"{"libraries":[]}"#,
         ),
     ] {
-        let cible = shared.join(chemin);
-        std::fs::create_dir_all(cible.parent().unwrap()).unwrap();
-        std::fs::write(cible, contenu).unwrap();
+        let target = shared.join(path);
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(target, content).unwrap();
     }
-    poser(&options, "client", "bookshelf.jar", JAR);
+    place(&options, "client", "bookshelf.jar", JAR);
 
-    let source = Source::parse(manifeste.to_str().unwrap(), &options.layout);
-    let problemes = verify(&source, &options, false).unwrap();
+    let source = Source::parse(manifest_path.to_str().unwrap(), &options.layout);
+    let problems = verify(&source, &options, false).unwrap();
 
     assert!(
-        !problemes.iter().any(|p| p.contains("non satisfaite")),
-        "{problemes:?}"
+        !problems.iter().any(|p| p.contains("unmet")),
+        "{problems:?}"
     );
 }
 
-/// Sans verrou, il n'y a rien à vérifier — et le message doit dire quoi faire.
+/// With no lockfile, there's nothing to verify — and the message must say
+/// what to do.
 #[test]
-fn sans_verrou_la_verification_renvoie_a_l_installation() {
-    let atelier = Atelier::neuf("verif-sans-verrou");
-    let manifeste = atelier.ecrire("samflix.json", MANIFESTE.as_bytes());
+fn without_a_lockfile_verification_points_to_the_install() {
+    let workshop = Workshop::new("verify-no-lock");
+    let manifest_path = workshop.write("samflix.json", MANIFEST.as_bytes());
     let options = Options {
-        layout: mc_instance::Layout::new(atelier.racine.join("données")),
+        layout: mc_instance::Layout::new(workshop.root.join("data")),
         ..Default::default()
     };
-    let source = Source::parse(manifeste.to_str().unwrap(), &options.layout);
+    let source = Source::parse(manifest_path.to_str().unwrap(), &options.layout);
 
-    let erreur = verify(&source, &options, false).expect_err("aucun verrou");
+    let error = verify(&source, &options, false).expect_err("no lockfile");
     assert!(
-        format!("{erreur:#}").contains("mc-pack install"),
-        "{erreur:#}"
+        format!("{error:#}").contains("mc-pack install"),
+        "{error:#}"
     );
 }
 
-/// À défaut de nom d'instance, c'est celui du pack qui sert — sinon la
-/// vérification regarderait un répertoire vide et crierait sur tout.
+/// Absent a name, the instance takes the pack's — otherwise verification
+/// would look at an empty directory and raise an alarm on everything.
 #[test]
-fn a_defaut_de_nom_l_instance_porte_celui_du_pack() {
-    let (_atelier, mut options, source) =
-        installation("verif-nom", vec![entree("jei", "client", Some(JAR))]);
+fn absent_a_name_the_instance_takes_the_packs() {
+    let (_workshop, mut options, source) =
+        installation("verify-name", vec![entry("jei", "client", Some(JAR))]);
     options.instance_name = None;
-    poser(&options, "client", "jei.jar", JAR);
+    place(&options, "client", "jei.jar", JAR);
 
-    let problemes = verify(&source, &options, false).unwrap();
-    assert!(problemes.is_empty(), "{problemes:?}");
+    let problems = verify(&source, &options, false).unwrap();
+    assert!(problems.is_empty(), "{problems:?}");
 }
 
-/// Le verrou relu doit être celui qu'on a écrit : un pack dont le verrou a été
-/// remplacé par autre chose ne doit pas passer pour vérifié.
+/// The lockfile read back must be the one we wrote: a pack whose lockfile was
+/// replaced by something else must not pass as verified.
 #[test]
-fn le_verrou_lu_est_bien_celui_du_pack() {
-    let (atelier, _options, _source) =
-        installation("verif-identite", vec![entree("jei", "client", Some(JAR))]);
-    let relu = Lockfile::load(&atelier.racine.join("samflix.lock.json")).unwrap();
-    assert_eq!(relu.pack, "samflix");
+fn the_lockfile_read_back_is_indeed_the_packs() {
+    let (workshop, _options, _source) =
+        installation("verify-identity", vec![entry("jei", "client", Some(JAR))]);
+    let reread = Lockfile::load(&workshop.root.join("samflix.lock.json")).unwrap();
+    assert_eq!(reread.name, "samflix");
 }

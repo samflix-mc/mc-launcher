@@ -1,11 +1,12 @@
 [package]
 name = "mc-pack"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Installe un pack décrit par un manifeste JSON : Java, jeu, chargeur et mods"
 
 [dependencies]
+mc-paths = { path = "../mc-paths" }
 anyhow.workspace = true
 tracing.workspace = true
 mutants.workspace = true
@@ -25,7 +26,7 @@ name = "mc-pack"
 path = "src/main.rs"
 
 [dev-dependencies]
-mc-essais = { path = "../mc-essais" }
+mc-testkit = { path = "../mc-testkit" }
 
 # Le transport de test du SDK : il retient les incidents au lieu de les
 # envoyer. Sans lui, ce qui part chez Sentry quand le jeu plante ne se

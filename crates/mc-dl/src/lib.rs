@@ -1,33 +1,37 @@
-//! Plomberie partagée : téléchargement vérifié et emplacements de données.
+//! Shared plumbing: digest-verified, retryable downloads.
 //!
-//! Installer un modpack, c'est récupérer quelques milliers de fichiers depuis
-//! cinq domaines différents. Trois propriétés suffisent à rendre l'opération
-//! sûre et relançable :
+//! Installing a modpack means fetching a few thousand files from five
+//! different domains. Three properties are enough to make the operation safe
+//! and resumable:
 //!
-//! - **vérifié** — chaque fichier est comparé à l'empreinte publiée par sa
-//!   source. Un CDN qui renvoie une page d'erreur en HTTP 200 est détecté ici,
-//!   pas trois heures plus tard sous la forme d'un crash de NeoForge ;
-//! - **idempotent** — un fichier déjà présent *et* conforme n'est pas
-//!   retéléchargé. Relancer une installation interrompue reprend où elle en
-//!   était, ce qui compte quand il reste 2 500 objets d'assets ;
-//! - **atomique** — l'écriture passe par un `.part` renommé à la fin. Une
-//!   coupure ne laisse jamais un fichier tronqué que la vérification d'un
-//!   prochain passage prendrait pour valide s'il n'y avait pas d'empreinte.
+//! - **verified** — every file is checked against the digest published by its
+//!   source. A CDN that returns an error page over HTTP 200 is caught here,
+//!   not three hours later as a NeoForge crash;
+//! - **idempotent** — a file that is already present *and* matching is not
+//!   redownloaded. Resuming an interrupted install picks up where it left
+//!   off, which matters when there are 2,500 asset objects left;
+//! - **atomic** — the write goes through a `.part` file renamed at the end. A
+//!   power cut never leaves a truncated file that the next pass's check would
+//!   mistake for valid, absent a digest.
+//! - **observable** — a gigabyte takes several minutes to come down, and a
+//!   window that says nothing the whole time looks no different from a
+//!   crashed one. The body is read chunk by chunk, and each chunk is
+//!   announced: see [`progress`].
 mod check;
 mod checksum;
-mod emplacements;
-mod telechargement;
+mod download;
+pub mod progress;
 
 pub use check::{Check, Fetched};
-pub use checksum::{Checksum, sha1_of_file, sha512_of_file};
-pub use emplacements::data_dir;
-pub use telechargement::Downloader;
-pub use telechargement::fichier::write_atomic;
+pub use checksum::{Checksum, sha1_of_file, sha512_of_bytes, sha512_of_file};
+pub use download::file::{read_off_thread, write_atomic, write_off_thread};
+pub use download::{Absent, Downloader};
+pub use progress::{Observer, Progress};
 
-/// Agent annoncé à toutes les API contactées.
+/// Agent announced to every API contacted.
 ///
-/// Modrinth demande explicitement un agent identifiable — `projet/version
-/// (contact)` — et limite plus sévèrement les agents anonymes ; Mojang et
-/// Adoptium ne l'exigent pas mais le journalisent. Une seule constante pour
-/// tout le launcher : c'est ce qui rend un abus traçable jusqu'à nous.
+/// Modrinth explicitly requires an identifiable agent — `project/version
+/// (contact)` — and rate-limits anonymous agents more severely; Mojang and
+/// Adoptium don't require it but do log it. One single constant for the
+/// whole launcher: that's what makes abuse traceable back to us.
 pub const USER_AGENT: &str = "samflix-mc-launcher/0.1 (+https://github.com/samflix-mc/mc-launcher)";

@@ -1,0 +1,42 @@
+@if (message(); as text) {
+  <div
+    class="hm-scrim"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="incident-title"
+    data-test="incident"
+  >
+    <div class="hm-dialog">
+      <div class="hm-alert hm-alert--danger">
+        <lucide-icon
+          class="hm-alert__icon"
+          [img]="TriangleAlert"
+          [size]="20"
+          [strokeWidth]="1.75"
+          aria-hidden="true"
+        />
+        <p class="hm-alert__title" id="incident-title">Something went wrong</p>
+        <p class="hm-alert__text">
+          The action didn't go through. Try again; if it happens again, copy the detail below and
+          send it.
+        </p>
+      </div>
+
+      <!--
+        The detail, selectable: this is exactly what we ask the player to
+        copy, and the rest of the window doesn't allow it.
+      -->
+      <p class="hm-code hm-incident__detail hm-selectionnable" data-test="message">{{ text }}</p>
+
+      <div class="hm-dialog__actions">
+        <button type="button" class="hm-btn hm-btn--ghost" (click)="copy()" data-test="copy">
+          <lucide-icon [img]="Copy" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+          Copy detail
+        </button>
+        <button type="button" class="hm-btn hm-btn--primary" (click)="close()" data-test="close">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+}

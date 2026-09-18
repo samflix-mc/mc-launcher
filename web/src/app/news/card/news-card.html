@@ -1,0 +1,56 @@
+<!--
+  A tile's content, written once.
+
+  Two possible hosts — an anchor when the tile leads elsewhere, a button
+  when it opens something here — and the same interior. Copying this block
+  would make the gradient, the chevron and the excerpt diverge at the first
+  adjustment.
+-->
+<ng-template #body>
+  <!--
+    The image is a `data:` built by Rust, never a remote URL. That's what
+    avoids opening `img-src` to a host, and what lets the size be bounded
+    and the byte type inferred.
+
+    Without an image, the design system's replacement gradient: it carries
+    the same hues as the scene, so a tile with no illustration doesn't look
+    broken.
+  -->
+  <div
+    class="hm-news__media"
+    data-test="media"
+    [class.hm-news__media--ph]="!post().image"
+    [style.--illustration]="post().image ? 'url(' + post().image + ')' : null"
+    aria-hidden="true"
+  ></div>
+  <div class="hm-news__scrim" aria-hidden="true"></div>
+
+  <span class="hm-news__open" aria-hidden="true">
+    <lucide-icon [img]="ChevronRight" [size]="16" [strokeWidth]="2" />
+  </span>
+
+  <div class="hm-news__body">
+    <div class="hm-news__meta">
+      @if (post().pinned) {
+        <span class="hm-tag hm-tag--gold" data-test="pinned">Pinned</span>
+      }
+      <span data-test="date">{{ when() }}</span>
+    </div>
+
+    <h3 class="hm-news__title" data-test="title">{{ post().title }}</h3>
+
+    @if (showExcerpt() && excerpt(); as text) {
+      <p class="hm-news__excerpt" data-test="excerpt">{{ text }}</p>
+    }
+  </div>
+</ng-template>
+
+@if (asLink()) {
+  <a [class]="classes()" routerLink="/news" data-test="news-card">
+    <ng-container [ngTemplateOutlet]="body" />
+  </a>
+} @else {
+  <button type="button" [class]="classes()" (click)="open.emit(post())" data-test="news-card">
+    <ng-container [ngTemplateOutlet]="body" />
+  </button>
+}

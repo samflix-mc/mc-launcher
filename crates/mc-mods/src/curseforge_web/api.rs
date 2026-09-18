@@ -1,4 +1,4 @@
-//! Ce que les routes du site rendent.
+//! What the site's routes render.
 
 use serde::Deserialize;
 
@@ -7,6 +7,17 @@ pub(crate) struct Page<T> {
     pub(crate) data: Vec<T>,
     #[serde(default)]
     pub(crate) pagination: Option<Pagination>,
+}
+
+/// A response that carries only a single object.
+///
+/// The site's routes wrap **everything** in `data`, the list just like the
+/// unit. Reading a single object without its envelope produces a
+/// deserialization failure — and, because the failure was swallowed, a
+/// pinned build that exists and gets declared missing.
+#[derive(Debug, Deserialize)]
+pub(crate) struct Single<T> {
+    pub(crate) data: T,
 }
 
 #[derive(Debug, Deserialize)]

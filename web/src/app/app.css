@@ -1,0 +1,89 @@
+/* The shell.
+
+   `:host { display: block }` first, and it isn't ritual: a component
+   element is `inline` until you say otherwise, and a height set on an
+   `inline` host appears to produce nothing. */
+:host {
+  display: block;
+  height: 100%;
+
+  /* The build acceptance marker.
+
+     This property exists ONLY in this file, i.e. in a component's
+     `styleUrl`. `crates/mc-app/src/acceptance.rs` reads it back on
+     `app-root`: if it arrives, a component style is being applied, so
+     `style-src` does carry `'unsafe-inline'` in the packaged build.
+
+     The point used to be proven by the title bar's `backdrop-filter`. It no
+     longer proves it: the glass now comes from the design system's global
+     sheet, which is served by a `<link>` and would pass even if every
+     component style were rejected. This marker is the only thing in the
+     document that can only arrive through the path being checked.
+
+     Do not remove it for looking useless: its uselessness IS what it
+     measures. */
+  --acceptance-component-style: applied;
+}
+
+/* `router-outlet` is an ELEMENT, not a comment: Angular inserts the
+   component AFTER it and leaves it in the DOM. In a three-row grid, it
+   would take up one — and the bottom bar would end up out of frame.
+
+   `display: none` removes it from layout: an element hidden this way isn't
+   a grid item, and the page then occupies the row it's due. */
+router-outlet {
+  display: none;
+}
+
+/* What the router mounts is the page's CONTENT, i.e. the second row. It
+   must be able to shrink: without `min-height: 0`, a grid child refuses to
+   go below the size of its content, and a long list pushes the bottom bar
+   out of the window instead of scrolling. */
+.hm-page > :not(.hm-topbar):not(.hm-bottombar) {
+  min-height: 0;
+}
+
+/* The "no backend" warning: placed at the bottom of the window, where it
+   covers neither the title bar nor the play button. */
+.hm-alert--warning {
+  position: absolute;
+  left: var(--space-6);
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: var(--z-dialog);
+}
+
+/* --- The sign-in window ------------------------------------------------
+
+   The body of the design system's AuthWindow: the wordmark top left, the
+   dialog in the middle, a line of text at the bottom. Three rows, the
+   middle one centered. */
+.hm-signin {
+  position: relative;
+  z-index: var(--z-page);
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+  /* Below the title bar, and the design system's margin on the other three
+     edges. */
+  padding: calc(var(--space-10) + var(--space-5)) var(--space-5) var(--space-5);
+}
+
+/* The wordmark sits at the LEFT and not centered: the design system wants
+   it at the head of the window, not as the title of its content. */
+.hm-signin .hm-wordmark {
+  justify-self: start;
+  align-self: start;
+}
+
+.hm-signin__footer {
+  margin: 0;
+  align-self: end;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-align: center;
+}

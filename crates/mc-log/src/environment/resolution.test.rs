@@ -2,22 +2,21 @@ use super::resolve;
 use crate::environment::Environment;
 
 #[test]
-fn sans_declaration_on_reste_local() {
-    // Le cas d'un `cargo run --release` sur un poste : ce n'est pas parce
-    // que le profil est « release » que le déploiement est en production.
+fn without_a_declaration_we_stay_local() {
+    // The case of a `cargo run --release` on a machine: it's not because
+    // the profile is "release" that the deployment is production.
     assert_eq!(resolve(None, None), Environment::Local);
 }
 
 #[test]
-fn la_compilation_pose_l_environnement() {
+fn compilation_sets_the_environment() {
     assert_eq!(resolve(None, Some("production")), Environment::Production);
     assert_eq!(resolve(None, Some("preprod")), Environment::Preproduction);
 }
 
 #[test]
-fn le_lancement_prime_sur_la_compilation() {
-    // Rejouer un binaire de production en local ne doit pas salir la
-    // production.
+fn launch_takes_priority_over_compilation() {
+    // Replaying a production binary locally must not taint production.
     assert_eq!(
         resolve(Some("local"), Some("production")),
         Environment::Local
@@ -25,81 +24,81 @@ fn le_lancement_prime_sur_la_compilation() {
 }
 
 #[test]
-fn une_valeur_inconnue_ne_prend_pas_la_place_du_reste() {
-    // Une faute de frappe au lancement ne doit pas effacer ce que la
-    // compilation avait déclaré.
+fn an_unknown_value_does_not_take_the_place_of_the_rest() {
+    // A typo at launch must not erase what compilation had declared.
     assert_eq!(
         resolve(Some("prodction"), Some("production")),
         Environment::Production
     );
-    assert_eq!(resolve(Some("n'importe quoi"), None), Environment::Local);
+    assert_eq!(resolve(Some("whatever"), None), Environment::Local);
 }
 
 #[test]
-fn les_alias_usuels_sont_acceptes() {
-    for (texte, attendu) in [
+fn the_usual_aliases_are_accepted() {
+    for (text, expected) in [
         ("dev", Environment::Development),
         ("DEV", Environment::Development),
         ("staging", Environment::Preproduction),
         ("pre-prod", Environment::Preproduction),
         (" prod ", Environment::Production),
     ] {
-        assert_eq!(Environment::parse(texte), Some(attendu), "pour « {texte} »");
+        assert_eq!(Environment::parse(text), Some(expected), "for \"{text}\"");
     }
 }
 
 #[test]
-fn seuls_les_environnements_publies_sont_dits_deployes() {
+fn only_published_environments_are_said_to_be_deployed() {
     assert!(!Environment::Local.is_deployed());
     assert!(!Environment::Development.is_deployed());
     assert!(Environment::Preproduction.is_deployed());
     assert!(Environment::Production.is_deployed());
 }
 
-/// `current` et `origin` lisent la même variable, et c'est leur accord qui
-/// compte : un diagnostic annonçant « production » et « défaut, aucune
-/// déclaration » sur la même exécution envoie chercher au mauvais endroit.
+/// `current` and `origin` read the same variable, and it's their agreement
+/// that matters: a diagnostic announcing "production" and "default, no
+/// declaration" on the same run sends you looking in the wrong place.
 #[test]
-fn le_diagnostic_dit_d_ou_vient_l_environnement() {
+fn the_diagnostic_says_where_the_environment_comes_from() {
     use super::{COMPILED, current, origin};
 
-    let garde = crate::essais::variables();
-    garde.poser("SAMFLIX_ENV", "staging");
+    let vars = crate::fixtures::variables();
+    vars.set("SAMFLIX_ENV", "staging");
     assert_eq!(current(), Environment::Preproduction);
-    assert_eq!(origin(), "variable SAMFLIX_ENV au lancement");
+    assert_eq!(origin(), "SAMFLIX_ENV variable at launch");
 
-    // Une valeur illisible ne doit pas être annoncée comme une déclaration :
-    // c'est précisément le cas où l'on cherche pourquoi l'environnement n'est
-    // pas celui qu'on croyait.
-    garde.poser("SAMFLIX_ENV", "prodction");
-    assert_ne!(origin(), "variable SAMFLIX_ENV au lancement");
+    // An unreadable value must not be announced as a declaration: this is
+    // precisely the case where one is looking for why the environment
+    // isn't the one expected.
+    vars.set("SAMFLIX_ENV", "prodction");
+    assert_ne!(origin(), "SAMFLIX_ENV variable at launch");
 
-    // Sans déclaration au lancement, il ne reste que ce que la compilation a
-    // pu figer : rien sur un poste, « development » sur la CI, qui compile
-    // avec la variable posée. Ce test dit l'accord des deux réponses ; il ne
-    // peut pas dire laquelle, sans quoi il mesurerait le runner.
-    garde.retirer("SAMFLIX_ENV");
+    // Without a declaration at launch, all that's left is what compilation
+    // managed to freeze: nothing on a machine, "development" on the CI,
+    // which compiles with the variable set. This test states the agreement
+    // between the two answers; it can't say which one, or it would be
+    // testing the runner.
+    vars.unset("SAMFLIX_ENV");
     match COMPILED.and_then(Environment::parse) {
-        Some(compile) => {
-            assert_eq!(current(), compile);
-            assert_eq!(origin(), "SAMFLIX_ENV figé à la compilation");
+        Some(compiled) => {
+            assert_eq!(current(), compiled);
+            assert_eq!(origin(), "SAMFLIX_ENV frozen at compile time");
         }
         None => {
             assert_eq!(current(), Environment::Local);
-            assert_eq!(origin(), "défaut, aucune déclaration");
+            assert_eq!(origin(), "default, no declaration");
         }
     }
 }
 
 #[test]
-fn chaque_environnement_a_le_nom_que_sentry_attend() {
-    for (env, nom) in [
+fn each_environment_has_the_name_sentry_expects() {
+    for (env, name) in [
         (Environment::Local, "local"),
         (Environment::Development, "development"),
         (Environment::Preproduction, "preproduction"),
         (Environment::Production, "production"),
     ] {
-        assert_eq!(env.as_str(), nom);
-        assert_eq!(Environment::parse(nom), Some(env));
+        assert_eq!(env.as_str(), name);
+        assert_eq!(Environment::parse(name), Some(env));
     }
 }

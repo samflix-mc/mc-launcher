@@ -1,0 +1,17 @@
+[package]
+name = "mc-ping"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Minecraft's Server List Ping: is a server up, and how many players are on it"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# `net` and `io-util` on top of the workspace default: nothing else in the
+# tree opens a raw socket, they were never needed before this crate.
+tokio = { workspace = true, features = ["net", "io-util"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util"] }

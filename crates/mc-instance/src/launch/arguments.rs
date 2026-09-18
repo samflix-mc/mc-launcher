@@ -1,14 +1,14 @@
-//! Les arguments que le descripteur décrit, et ceux qu'il faut inventer.
+//! The arguments the descriptor describes, and the ones that must be invented.
 
-mod assemblage;
+mod assembly;
 
 use std::collections::BTreeMap;
 
 use crate::vanilla::{self, Features};
 
-use super::descripteur::Argument;
+use super::descriptor::Argument;
 
-pub(super) use assemblage::assembler;
+pub(super) use assembly::assemble;
 
 fn collect(
     arguments: &[Argument],
@@ -33,11 +33,11 @@ fn collect(
     }
 }
 
-/// Remplace les `${…}` par leur valeur.
+/// Replaces `${…}` with their value.
 ///
-/// Une variable inconnue est laissée telle quelle plutôt que vidée : un
-/// argument qui garde `${quelque_chose}` se remarque dans un message d'erreur,
-/// là où un argument devenu vide décale silencieusement tous les suivants.
+/// An unknown variable is left as-is rather than cleared: an argument that
+/// keeps `${something}` stands out in an error message, whereas an argument
+/// that becomes empty silently shifts every argument after it.
 pub(super) fn substitute(text: &str, variables: &BTreeMap<String, String>) -> String {
     if !text.contains("${") {
         return text.to_string();

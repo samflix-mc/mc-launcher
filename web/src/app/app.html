@@ -1,0 +1,135 @@
+<!--
+  The window, as the design system draws it.
+
+  `.hm-window--system`: here the window IS NOT a rectangle in a page, it's
+  the desktop window itself. No radius, no shadow — with an opaque,
+  decoration-less window, rounded corners would show black.
+-->
+<div
+  class="hm-window hm-window--system"
+  [class.hm-window--maximized]="maximized()"
+  data-test="shell"
+>
+  <!--
+    The scene: the server's image and its readability gradient. It's THIS
+    that gives the frosted glass something to blur — on a flat color, the
+    blur does nothing and the panels render as gray boxes.
+
+    The image comes from `html[data-backdrop]`, set by the settings
+    service; see `styles.css`. The player's scrim is added on top, on
+    `.hm-stage::after`.
+  -->
+  <div class="hm-stage" aria-hidden="true">
+    <div class="hm-stage__art" data-test="scene"></div>
+  </div>
+
+  <!--
+    The edges, for the CURSOR only.
+
+    The resize gesture is already wired by `tauri-runtime-wry` on Linux;
+    what was missing is the pointer announcing it. These zones carry no
+    handler, and must not carry one.
+  -->
+  @if (!onSignIn()) {
+    <div class="hm-bords" aria-hidden="true" data-test="edges">
+      <span class="hm-bords__n"></span>
+      <span class="hm-bords__s"></span>
+      <span class="hm-bords__w"></span>
+      <span class="hm-bords__e"></span>
+      <span class="hm-bords__nw"></span>
+      <span class="hm-bords__ne"></span>
+      <span class="hm-bords__sw"></span>
+      <span class="hm-bords__se"></span>
+    </div>
+  }
+
+  <!--
+    ABOVE the boot screen, and that's deliberate: during the two network
+    round-trips of `status()`, the window must keep its buttons. Without
+    that, on a slow network or behind a captive portal, there would be no
+    way to close it.
+  -->
+  <app-title-bar [dialog]="onSignIn()" />
+
+  @if (onSignIn()) {
+    <!--
+      The sign-in WINDOW, as the design system draws it: a full-surface
+      frosted sheet over the image, the wordmark top left, the dialog in
+      the middle, a line of text at the bottom.
+
+      It has no navigation, no play button, no player badge — and no
+      maximize button either: `--dialog` hides it, and the window rule on
+      the Tauri side does the rest, otherwise a double-click on the bar
+      would maximize it anyway.
+    -->
+    <div class="hm-pane" aria-hidden="true" data-test="sheet"></div>
+
+    <div class="hm-signin">
+      <h1 class="hm-wordmark hm-wordmark--sm" data-test="brand-signin">
+        {{ brand().name }}<span class="hm-wordmark__dot" aria-hidden="true"></span>
+      </h1>
+
+      <router-outlet />
+
+      <p class="hm-signin__footer">
+        The launcher waits here until you've authorized, or the code expires.
+      </p>
+    </div>
+  } @else if (boot()) {
+    <app-boot />
+  } @else {
+    <div
+      class="hm-page"
+      [class.hm-page--three-rows]="threeRows()"
+      [class.hm-page--two-rows]="!threeRows()"
+      data-test="page"
+    >
+      <div class="hm-topbar">
+        <app-nav />
+      </div>
+
+      <router-outlet />
+
+      @if (threeRows()) {
+        <!--
+          Three equal columns at the ends: that's what keeps the button
+          TRULY centered, whatever the width of the player badge.
+        -->
+        <div class="hm-bottombar" data-test="bottom-bar">
+          <span></span>
+          @if (bottom() === 'play') {
+            <app-playbar />
+          } @else {
+            <span></span>
+          }
+          <app-player />
+        </div>
+      }
+    </div>
+  }
+
+  @if (!available) {
+    <!--
+      Neither a Tauri window nor a dev server. The screen says so instead
+      of failing on an `invoke` that doesn't exist.
+    -->
+    <div class="hm-alert hm-alert--warning" role="alert" data-test="outside-tauri">
+      <p class="hm-alert__title">No backend reachable</p>
+      <p class="hm-alert__text">
+        Run <span class="hm-mono">cargo tauri dev</span> for the window, or
+        <span class="hm-mono">cargo run --bin mc-dev-server --features dev-server</span> to work on
+        the interface in a browser.
+      </p>
+    </div>
+  }
+
+  <!--
+    Notifications and the incident live at the WINDOW level, outside the
+    page: the frosted glass of the navigation pill creates a stacking
+    context and would make it a containing block for any `position:
+    absolute` descendant — a panel mounted inside it would be bound to its
+    width.
+  -->
+  <app-notifications />
+  <app-incident />
+</div>

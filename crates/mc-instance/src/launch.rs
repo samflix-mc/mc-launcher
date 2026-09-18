@@ -1,37 +1,37 @@
-//! Construire la ligne de commande qui démarre le jeu.
+//! Build the command line that starts the game.
 //!
-//! Minecraft ne se lance pas : il se *compose*. Le descripteur de NeoForge ne
-//! contient qu'un delta et désigne son socle par `inheritsFrom` ; il faut
-//! fusionner les deux, choisir les bibliothèques valables pour ce système,
-//! assembler un classpath, puis remplacer une vingtaine de variables dans des
-//! arguments dont certains n'apparaissent que sous condition.
+//! Minecraft doesn't just launch: it gets *composed*. NeoForge's descriptor
+//! only holds a delta and points to its base via `inheritsFrom`; the two must
+//! be merged, the libraries valid for this system picked, a classpath
+//! assembled, and then some twenty variables substituted into arguments,
+//! some of which only appear conditionally.
 //!
-//! Quatre points décident que le jeu démarre ou non :
+//! Four points decide whether the game starts or not:
 //!
-//! - **l'ordre du classpath** — NeoForge remplace certaines bibliothèques de
-//!   Mojang. Sa version doit passer devant, sinon la JVM charge celle de
-//!   Mojang et le chargeur échoue sur une méthode absente ;
-//! - **le client vanilla** — NeoForge ne le déclare pas parmi ses
-//!   bibliothèques. Il est ajouté au classpath, et c'est FML qui le transforme
-//!   au chargement ;
-//! - **les natives** — inutile de les extraire : les arguments de Mojang
-//!   passent `org.lwjgl.system.SharedLibraryExtractPath`, et LWJGL 3.3 sort
-//!   lui-même ses binaires des jars du classpath. Il suffit que le répertoire
-//!   existe ;
-//! - **les drapeaux** — `--quickPlayMultiplayer` n'existe dans le descripteur
-//!   que derrière une règle `is_quick_play_multiplayer`. Ignorer les règles de
-//!   drapeaux produit une ligne de commande que le jeu refuse.
+//! - **classpath order** — NeoForge replaces some of Mojang's libraries.
+//!   Its version has to come first, otherwise the JVM loads Mojang's and the
+//!   loader fails on a missing method;
+//! - **the vanilla client** — NeoForge doesn't declare it among its
+//!   libraries. It's added to the classpath, and FML is what transforms it
+//!   at load time;
+//! - **natives** — no need to extract them: Mojang's arguments pass
+//!   `org.lwjgl.system.SharedLibraryExtractPath`, and LWJGL 3.3 extracts its
+//!   own binaries from the classpath jars. The directory just needs to
+//!   exist;
+//! - **flags** — `--quickPlayMultiplayer` only exists in the descriptor
+//!   behind an `is_quick_play_multiplayer` rule. Ignoring flag rules produces
+//!   a command line the game refuses.
 mod arguments;
-mod chemin;
 mod classpath;
-mod commande;
-mod descripteur;
+mod command;
+mod descriptor;
 mod execution;
+mod path;
 mod session;
 mod variables;
 
-pub use commande::Command;
-pub use execution::{Outcome, Report, run};
+pub use command::Command;
+pub use execution::{Outcome, Report, run, run_observe};
 pub use session::{LaunchOptions, QuickPlay, Session};
 
-pub use chemin::build;
+pub use path::build;

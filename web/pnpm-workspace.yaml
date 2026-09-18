@@ -1,0 +1,25 @@
+# pnpm 12 n'exécute aucun script d'installation sans autorisation explicite, et
+# la lit ici. Les quatre qui suivent sont la chaîne de compilation d'Angular :
+# esbuild déplie son binaire natif, lmdb et msgpackr son cache de build,
+# @parcel/watcher la surveillance des fichiers. Sans eux, `ng build` retombe sur
+# des implémentations JavaScript nettement plus lentes — ou échoue.
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  lmdb: true
+  msgpackr-extract: true
+
+# lucide-angular 1.0.0 déclare « 13.x - 21.x » en pair et nous sommes en 22.
+#
+# C'est un intervalle non mis à jour, pas une incompatibilité : le paquet ne
+# fait qu'exposer un composant et des données d'icônes, il n'emploie aucune API
+# privée d'Angular, et le build comme les tests passent. Vérifié en le
+# compilant, avant d'écrire cette ligne.
+#
+# La dérogation est nommée plutôt que globale : une prochaine dépendance qui
+# déclarerait mal ses pairs devra être examinée elle aussi, et non passer
+# derrière celle-ci.
+peerDependencyRules:
+  allowedVersions:
+    'lucide-angular>@angular/core': '22'
+    'lucide-angular>@angular/common': '22'
