@@ -12,3 +12,6 @@
 /web/node_modules
 /web/dist
 /web/.angular
+
+# Rapports de couverture du front, produits par « pnpm test:couverture ».
+web/coverage/
