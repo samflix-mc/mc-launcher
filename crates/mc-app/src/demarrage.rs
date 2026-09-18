@@ -23,22 +23,39 @@
 //! `app.ts`. Rust ne peut pas le deviner : `RuntimeRunEvent::Ready` dit que la
 //! fenêtre EXISTE, pas que son contenu est peint.
 //!
-//! ## La garde, et pourquoi elle n'est pas facultative
+//! ## Les deux bornes, et elles ne servent pas à la même chose
 //!
-//! Si le front n'appelle jamais — une erreur JavaScript, un morceau paresseux
-//! introuvable, une exception dans un constructeur — la fenêtre principale
-//! resterait cachée POUR TOUJOURS, et l'écran de démarrage resterait affiché
-//! sans un seul bouton pour le fermer. Le launcher serait inutilisable, et la
-//! seule issue serait de tuer le processus.
+//! Un **plancher** ([`DUREE_MINIMALE`]) : en dessous, l'écran de démarrage
+//! passe trop vite pour être lu, et ce qui devait ressembler à une intention
+//! ressemble à un défaut d'affichage.
 //!
-//! Passé le délai, on montre donc la fenêtre quoi qu'il arrive. Elle affichera
-//! peut-être une page cassée — mais une page cassée avec une barre de titre se
-//! ferme, se signale, et se diagnostique par la console.
+//! Un **plafond** ([`DELAI_DE_GARDE`]) : si le front n'appelle jamais, la
+//! fenêtre principale resterait cachée POUR TOUJOURS derrière un écran sans le
+//! moindre bouton, et la seule issue serait de tuer le processus.
+//!
+//! Les deux se mesurent depuis le même instant — celui où les fenêtres
+//! existent — et c'est pourquoi ils vivent ici plutôt que dans le front : le
+//! front ne sait pas quand l'écran de démarrage est apparu, il ne sait que
+//! quand lui-même a fini.
 
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Manager};
+
+/// Combien de temps l'écran de démarrage reste affiché AU MINIMUM.
+///
+/// Mesuré sur ce poste, le front signale son premier rendu au bout d'environ
+/// six cents millisecondes. C'est assez court pour qu'on n'ait le temps de
+/// rien lire : l'écran apparaît et disparaît, ce qui se remarque comme un
+/// clignotement et non comme un démarrage.
+///
+/// Une seconde et demie est le seuil au-delà duquel une attente cesse d'être
+/// perçue comme un raté et devient une transition. C'est un choix de rythme,
+/// pas une contrainte technique — et il est donc écrit ici, seul, pour qu'on
+/// puisse le changer sans rien relire d'autre.
+const DUREE_MINIMALE: Duration = Duration::from_millis(1500);
 
 /// Au bout de combien de temps on montre la fenêtre sans attendre le front.
 ///
@@ -47,6 +64,14 @@ use tauri::{AppHandle, Manager};
 /// de regarder sans rien comprendre.
 const DELAI_DE_GARDE: Duration = Duration::from_secs(10);
 
+/// L'instant où les fenêtres ont été créées.
+///
+/// L'origine des deux bornes. Posé dans le hook `setup`, qui s'exécute quand
+/// les fenêtres de `tauri.conf.json` existent réellement — c'est-à-dire à
+/// quelques millisecondes près le moment où l'écran de démarrage devient
+/// visible.
+static DEPART: OnceLock<Instant> = OnceLock::new();
+
 /// Le passage n'a lieu qu'une fois.
 ///
 /// La garde et le front peuvent arriver ensemble — un front lent exactement à
@@ -54,14 +79,25 @@ const DELAI_DE_GARDE: Duration = Duration::from_secs(10);
 /// démarrage, ce qui journalise une erreur pour rien.
 static PASSAGE_FAIT: AtomicBool = AtomicBool::new(false);
 
-/// Montre la fenêtre principale et ferme l'écran de démarrage.
+/// Ce qu'il reste à attendre avant d'avoir le droit de montrer la fenêtre.
 ///
-/// Idempotente : les appels suivants ne font rien.
-fn passer_la_main(app: &AppHandle, pourquoi: &str) {
-    if PASSAGE_FAIT.swap(true, Ordering::AcqRel) {
-        return;
-    }
+/// Fonction PURE, séparée de l'attente : c'est elle qui porte la règle, et
+/// c'est donc elle qu'on peut éprouver sans horloge ni fenêtre.
+fn reste_a_attendre(ecoule: Duration) -> Duration {
+    DUREE_MINIMALE.saturating_sub(ecoule)
+}
 
+/// Réserve le passage, ou dit qu'il a déjà eu lieu.
+///
+/// Le drapeau est pris AVANT l'attente du plancher, et non après. Sinon, deux
+/// appelants arrivés pendant cette attente la traverseraient tous les deux et
+/// se retrouveraient à montrer la fenêtre en même temps.
+fn reserver() -> bool {
+    !PASSAGE_FAIT.swap(true, Ordering::AcqRel)
+}
+
+/// Montre la fenêtre principale et ferme l'écran de démarrage.
+fn accomplir(app: &AppHandle, pourquoi: &str) {
     tracing::info!(pourquoi, "écran de démarrage refermé");
 
     // La principale D'ABORD, l'écran de démarrage ENSUITE.
@@ -91,24 +127,54 @@ fn passer_la_main(app: &AppHandle, pourquoi: &str) {
 ///
 /// Appelée par `app.ts` après son premier rendu. C'est le seul signal fiable :
 /// Rust sait quand la fenêtre existe, pas quand son contenu est peint.
+///
+/// Asynchrone parce qu'elle peut ATTENDRE : si le front a été plus rapide que
+/// le plancher, on tient l'écran de démarrage le temps qui reste. Le front,
+/// lui, n'attend rien d'utile de cette promesse — il l'ignore.
 #[tauri::command]
-pub fn front_pret(app: AppHandle) {
-    passer_la_main(&app, "le front a signalé son premier rendu");
+pub async fn front_pret(app: AppHandle) {
+    if !reserver() {
+        return;
+    }
+
+    let ecoule = DEPART.get().map(Instant::elapsed).unwrap_or_default();
+    let reste = reste_a_attendre(ecoule);
+    if !reste.is_zero() {
+        tracing::debug!(
+            rendu_en_ms = ecoule.as_millis(),
+            attente_ms = reste.as_millis(),
+            "front prêt avant le plancher : l'écran de démarrage est tenu"
+        );
+        tokio::time::sleep(reste).await;
+    }
+
+    accomplir(&app, "le front a signalé son premier rendu");
 }
 
-/// Arme la garde de délai. À appeler dans le hook `setup`.
+/// Arme la garde de délai et pose l'origine des deux bornes.
+///
+/// À appeler dans le hook `setup` : c'est le premier instant où les fenêtres
+/// existent réellement.
 pub fn armer_la_garde(app: &AppHandle) {
+    // `set` plutôt que `get_or_init` : une seconde pose serait un bogue de
+    // séquencement, et l'ignorer en silence nous ferait mesurer le plancher
+    // depuis le mauvais instant.
+    if DEPART.set(Instant::now()).is_err() {
+        tracing::warn!("l'origine du démarrage était déjà posée");
+    }
+
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(DELAI_DE_GARDE).await;
-        if !PASSAGE_FAIT.load(Ordering::Acquire) {
-            tracing::warn!(
-                secondes = DELAI_DE_GARDE.as_secs(),
-                "le front n'a rien signalé : la fenêtre est montrée quand même. \
-                 Chercher une erreur JavaScript dans la console du build --debug."
-            );
+        if !reserver() {
+            return;
         }
-        passer_la_main(&app, "délai de garde écoulé");
+        tracing::warn!(
+            secondes = DELAI_DE_GARDE.as_secs(),
+            "le front n'a rien signalé : la fenêtre est montrée quand même. \
+             Chercher une erreur JavaScript dans la console du build --debug."
+        );
+        accomplir(&app, "délai de garde écoulé");
     });
 }
 
