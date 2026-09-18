@@ -187,7 +187,7 @@ jobs:
           [ -x "$binaire" ] || { echo "::error::aucun binaire produit sous target/release"; exit 1; }
           sortie=$("$binaire" --diagnostic)
           echo "$sortie"
-          echo "$sortie" | grep -q "environnement : ${SAMFLIX_ENV}" \
+          echo "$sortie" | grep -qE "environment +: ${SAMFLIX_ENV}" \
             || { echo "::error title=Environnement::le binaire n'annonce pas ${SAMFLIX_ENV}"; exit 1; }
 
       # Conservés seulement quand on a demandé l'empaquetage : sinon il n'y a

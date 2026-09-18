@@ -70,9 +70,15 @@ pub async fn stop_game() -> Result<(), Error> {
     let (program, args) = stop_order(pid);
     tracing::warn!(pid, "game stop requested from the window");
 
-    let output = std::process::Command::new(program)
+    // `tokio::process` and not `std::process`: this command runs inside a
+    // `#[tauri::command] async fn`, on the runtime that also carries the
+    // download and the progress events. `kill` returns in microseconds, so
+    // the block would be short — but "short" is not "none", and the async
+    // API costs nothing here.
+    let output = tokio::process::Command::new(program)
         .args(&args)
         .output()
+        .await
         .map_err(|error| Error::from(anyhow::Error::new(error)))?;
 
     if !output.status.success() {

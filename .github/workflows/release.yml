@@ -286,7 +286,7 @@ jobs:
           binaire=$(find controle/extrait -type f -name 'helm' | head -1)
           sortie=$("$binaire" --diagnostic)
           echo "$sortie"
-          echo "$sortie" | grep -q "environnement : production" \
+          echo "$sortie" | grep -qE "environment +: production" \
             || { echo "::error title=Environnement::le binaire PUBLIÉ n'annonce pas production"; exit 1; }
-          echo "$sortie" | grep -q "version       : ${tag#v}" \
+          echo "$sortie" | grep -qE "version +: ${tag#v}" \
             || { echo "::error title=Version::le binaire PUBLIÉ n'annonce pas ${tag#v}"; exit 1; }
