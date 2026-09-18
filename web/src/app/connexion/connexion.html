@@ -1,14 +1,12 @@
 <!--
-  Une modale, et rien derrière : ni navigation, ni bouton de jeu, ni badge
-  joueur. La coque ne s'assemble qu'une fois la session jouable.
+  Le dialogue NU : c'est la coque qui l'enveloppe.
+
+  Elle lui donne une feuille dépolie pleine fenêtre, le mot-symbole au-dessus et
+  une phrase en dessous — voir `app.html`. Cette page ne connaît donc ni la
+  fenêtre où elle s'affiche ni sa taille : elle ne porte que la conversation
+  avec Microsoft.
 -->
-<div
-  class="hm-scrim"
-  role="dialog"
-  aria-modal="true"
-  aria-labelledby="connexion-titre"
-  data-test="connexion"
->
+<div role="dialog" aria-modal="true" aria-labelledby="connexion-titre" data-test="connexion">
   <div class="hm-dialog">
     <div class="hm-auth">
       @if (pas() !== 'sans-licence') {

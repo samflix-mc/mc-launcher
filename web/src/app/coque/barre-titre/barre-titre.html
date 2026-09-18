@@ -3,7 +3,13 @@
   saisissable. Les boutons sont écartés par le script de Tauri lui-même, sans
   qu'on ait à neutraliser leurs pointeurs.
 -->
-<div class="hm-titlebar" data-tauri-drag-region data-test="barre-titre">
+<div
+  class="hm-titlebar"
+  [class.hm-titlebar--dialog]="dialogue()"
+  [class.hm-titlebar--glass]="dialogue()"
+  data-tauri-drag-region
+  data-test="barre-titre"
+>
   <span class="hm-titlebar__title" data-tauri-drag-region>
     <span class="hm-titlebar__brand" data-tauri-drag-region data-test="titre">
       {{ marque().nom }}
@@ -18,24 +24,26 @@
     La cloche. Trente-deux pixels et non quarante-six : ce n'est pas un bouton
     de légende, et le design system le distingue pour cette raison.
   -->
-  <div class="hm-titlebar__tools">
-    <button
-      type="button"
-      class="hm-bell"
-      (click)="basculerNotifications()"
-      [attr.aria-expanded]="panneauOuvert()"
-      aria-label="Notifications"
-      title="Notifications"
-      data-test="cloche"
-    >
-      <lucide-icon [img]="Bell" [size]="16" [strokeWidth]="1.75" aria-hidden="true" />
-      @if (nonLus() > 0) {
-        <!-- Cachée à zéro : une pastille qui dit « 0 » demande à être lue pour
-             apprendre qu'il n'y a rien. -->
-        <span class="hm-bell__count" data-test="non-lus">{{ nonLus() }}</span>
-      }
-    </button>
-  </div>
+  @if (!dialogue()) {
+    <div class="hm-titlebar__tools">
+      <button
+        type="button"
+        class="hm-bell"
+        (click)="basculerNotifications()"
+        [attr.aria-expanded]="panneauOuvert()"
+        aria-label="Notifications"
+        title="Notifications"
+        data-test="cloche"
+      >
+        <lucide-icon [img]="Bell" [size]="16" [strokeWidth]="1.75" aria-hidden="true" />
+        @if (nonLus() > 0) {
+          <!-- Cachée à zéro : une pastille qui dit « 0 » demande à être lue pour
+               apprendre qu'il n'y a rien. -->
+          <span class="hm-bell__count" data-test="non-lus">{{ nonLus() }}</span>
+        }
+      </button>
+    </div>
+  }
 
   <!--
     Les trois boutons du système. Leurs permissions ne sont PAS dans

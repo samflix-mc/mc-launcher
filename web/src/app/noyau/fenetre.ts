@@ -33,6 +33,31 @@ export class Fenetre {
   /** La fenêtre est-elle maximisée ? Pour changer l'icône du bouton. */
   readonly maximisee = signal(false);
 
+  /**
+   * L'étiquette de la fenêtre où ce front tourne, ou `null` hors de Tauri.
+   *
+   * Le launcher en ouvre deux qui chargent la MÊME application Angular :
+   * « main » et « connexion ». Elles n'ont pas le même travail — l'une ouvre la
+   * fenêtre de connexion quand la session manque, l'autre EST cette fenêtre —
+   * et rien dans l'URL ne les distingue, puisqu'elles partagent la route.
+   *
+   * Lu une fois, au démarrage : une étiquette ne change pas.
+   */
+  readonly etiquette: string | null = this.pont.dansLaFenetre ? getCurrentWindow().label : null;
+
+  /** Sommes-nous dans la fenêtre principale ? Faux dans celle de connexion. */
+  readonly estPrincipale = this.etiquette === 'main';
+
+  /**
+   * Sommes-nous dans une fenêtre que le launcher ferme lui-même ?
+   *
+   * La fenêtre de connexion en est une : quand la session s'ouvre, Rust la
+   * referme et montre la principale. Naviguer ailleurs dedans reviendrait à
+   * dessiner Spawn dans une fenêtre de quatre cent quarante pixels, le temps
+   * qu'elle disparaisse.
+   */
+  readonly dansUneFenetreDediee = this.etiquette !== null && this.etiquette !== 'main';
+
   async reduire(): Promise<void> {
     if (!this.pont.dansLaFenetre) {
       return;

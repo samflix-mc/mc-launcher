@@ -117,6 +117,11 @@ fn accomplir(app: &AppHandle, pourquoi: &str) {
         tracing::error!("aucune fenêtre « main » à montrer");
     }
 
+    fermer_le_demarrage(app);
+}
+
+/// Referme la fenêtre d'écran de démarrage, quel que soit le chemin pris.
+fn fermer_le_demarrage(app: &AppHandle) {
     if let Some(demarrage) = app.get_webview_window("splash")
         && let Err(erreur) = demarrage.close()
     {

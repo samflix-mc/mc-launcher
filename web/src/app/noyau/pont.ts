@@ -20,6 +20,16 @@ const EVENEMENT_CODE = 'auth://code';
 const EVENEMENT_AVANCEMENT = 'cinematique://avancement';
 
 /**
+ * Ce que Rust émet vers la fenêtre PRINCIPALE quand la connexion a abouti.
+ *
+ * Elle a chargé son front avant que la session n'existe — pendant que le joueur
+ * s'authentifiait dans une autre fenêtre — et son service de session porte donc
+ * un compte nul. Sans ce signal, elle se montrerait sur une page qu'elle n'a
+ * plus de raison d'afficher. Écrit des deux côtés : voir `fenetres.rs`.
+ */
+const EVENEMENT_SESSION = 'session-ouverte';
+
+/**
  * Le SEUL endroit qui parle à Rust.
  *
  * Tout passe par ici pour une raison précise : hors de la fenêtre Tauri —
@@ -56,6 +66,33 @@ export class Pont {
    * ceci ; tout ce qui demande des DONNÉES lit `disponible`.
    */
   readonly dansLaFenetre = DANS_TAURI;
+
+  // --- Les fenêtres --------------------------------------------------------
+
+  /**
+   * Ouvre la fenêtre de connexion, et efface la principale.
+   *
+   * Appelée depuis la fenêtre principale, dès qu'elle sait que la session n'est
+   * pas jouable. Hors de Tauri — dans un navigateur, devant le serveur de
+   * développement — il n'y a qu'un onglet : la commande ne fait rien, et c'est
+   * le routeur qui emmène vers la page.
+   */
+  ouvrirConnexion(): Promise<void> {
+    return appeler<void>('ouvrir_connexion');
+  }
+
+  /**
+   * La session est ouverte : la principale reprend la main, la connexion s'en
+   * va.
+   */
+  connexionReussie(): Promise<void> {
+    return appeler<void>('connexion_reussie');
+  }
+
+  /** La fenêtre principale apprend qu'une session vient de s'ouvrir ailleurs. */
+  surSessionOuverte(recevoir: () => void): Promise<UnlistenFn> {
+    return ecouter<unknown>(EVENEMENT_SESSION, () => recevoir());
+  }
 
   // --- Le démarrage --------------------------------------------------------
 

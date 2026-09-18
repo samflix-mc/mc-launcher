@@ -52,3 +52,38 @@ router-outlet {
   bottom: var(--space-6);
   z-index: var(--z-dialog);
 }
+
+/* --- La fenêtre de connexion ------------------------------------------------
+
+   Le corps de l'AuthWindow du design system : le mot-symbole en haut à gauche,
+   le dialogue au milieu, une phrase en bas. Trois rangs, celui du milieu
+   centré. */
+.hm-connexion {
+  position: relative;
+  z-index: var(--z-page);
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-4);
+  /* Sous la barre de titre, et la marge du design system sur les trois autres
+     bords. */
+  padding: calc(var(--space-10) + var(--space-5)) var(--space-5) var(--space-5);
+}
+
+/* Le mot-symbole se pose à GAUCHE et non au centre : le design system le veut
+   en tête de la fenêtre, pas en titre de son contenu. */
+.hm-connexion .hm-wordmark {
+  justify-self: start;
+  align-self: start;
+}
+
+.hm-connexion__pied {
+  margin: 0;
+  align-self: end;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-align: center;
+}

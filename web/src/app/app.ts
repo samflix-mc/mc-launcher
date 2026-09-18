@@ -47,6 +47,9 @@ const AVANT_DE_MONTRER = 250;
 /** Ce que la barre du bas porte, selon la page. Voir `routes.ts`. */
 export type Bas = 'jouer' | 'joueur' | 'aucune';
 
+/** La route qui vit dans sa propre fenêtre. */
+const ROUTE_CONNEXION = '/connexion';
+
 /**
  * La coque : la fenêtre, la scène, la barre de titre, la page.
  *
@@ -88,7 +91,7 @@ export class App {
   private readonly pont = inject(Pont);
   private readonly session = inject(Session);
   private readonly incidents = inject(Incidents);
-  private readonly marque = inject(Marque);
+  private readonly marqueService = inject(Marque);
   private readonly reglages = inject(Reglages);
   private readonly fenetre = inject(Fenetre);
   private readonly pack = inject(Pack);
@@ -100,8 +103,19 @@ export class App {
   /** L'amorce est-elle encore affichée ? */
   protected readonly amorce = signal(true);
 
+  protected readonly marque = this.marqueService.vue;
   protected readonly maximisee = this.fenetre.maximisee;
   protected readonly jouable = this.session.jouable;
+
+  /**
+   * Sommes-nous sur la page de connexion ?
+   *
+   * Elle ne se dessine pas comme les autres : c'est une FENÊTRE à elle, de
+   * quatre cent quarante pixels, avec une feuille dépolie pleine surface et une
+   * barre de titre sans bouton d'agrandissement. La coque — navigation, bouton
+   * de jeu, badge joueur — n'y existe pas.
+   */
+  protected readonly surConnexion = signal(false);
 
   /**
    * Ce que la barre du bas porte, lu sur la route courante.
@@ -117,10 +131,30 @@ export class App {
 
   constructor() {
     this.router.events.subscribe((evenement) => {
-      if (evenement instanceof NavigationEnd) {
-        this.bas.set(this.basDe(this.router.routerState.snapshot.root));
+      if (!(evenement instanceof NavigationEnd)) {
+        return;
+      }
+      this.bas.set(this.basDe(this.router.routerState.snapshot.root));
+
+      const connexion = evenement.urlAfterRedirects.startsWith(ROUTE_CONNEXION);
+      this.surConnexion.set(connexion);
+
+      // La fenêtre PRINCIPALE ne montre jamais la connexion : elle la
+      // délègue à une fenêtre dédiée, et s'efface derrière. Elle reste sur
+      // cette route — personne ne la voit, puisqu'elle est cachée — et
+      // reprendra la main sur le signal de session.
+      //
+      // La fenêtre de connexion, elle, EST déjà sur cette route : elle
+      // n'ouvrirait qu'elle-même.
+      if (connexion && this.fenetre.estPrincipale) {
+        void this.pont.ouvrirConnexion().catch(() => {});
       }
     });
+
+    // Quand la session s'ouvre dans l'autre fenêtre, celle-ci doit l'apprendre :
+    // son service de session porte un compte nul depuis son chargement, et rien
+    // ne le lui dirait.
+    void this.pont.surSessionOuverte(() => void this.reprendreLaMain()).catch(() => {});
 
     // Le signal qui referme l'écran de démarrage et montre la fenêtre.
     //
@@ -151,7 +185,7 @@ export class App {
 
     try {
       await Promise.all([
-        this.marque.charger(),
+        this.marqueService.charger(),
         this.reglages.charger(),
         this.fenetre.observer(),
         this.session.ouvrir(),
@@ -166,6 +200,21 @@ export class App {
       await plancher;
       this.amorce.set(false);
     }
+  }
+
+  /**
+   * La session vient de s'ouvrir dans la fenêtre de connexion.
+   *
+   * On relit le compte, puis on va à Spawn : la fenêtre principale était restée
+   * sur `/connexion` pendant qu'elle était cachée, et l'y laisser lui ferait
+   * afficher une page de connexion à quelqu'un qui vient de se connecter.
+   */
+  private async reprendreLaMain(): Promise<void> {
+    await this.incidents.pendant(async () => {
+      await this.session.ouvrir();
+      await this.pack.rafraichir();
+      await this.router.navigate(['/spawn']);
+    });
   }
 
   /** La donnée `bas` de la route la plus profonde, ou « aucune » à défaut. */

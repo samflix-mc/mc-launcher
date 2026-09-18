@@ -60,10 +60,54 @@ export async function appeler<T>(
 }
 
 /**
+ * Le flux d'événements du serveur de développement — **un seul pour tous**.
+ *
+ * ## Pourquoi il est partagé, et ce que coûtait de ne pas l'être
+ *
+ * Chaque abonnement ouvrait sa propre connexion SSE, et une connexion SSE ne
+ * se ferme jamais d'elle-même. Le launcher en pose trois — le code d'appareil,
+ * l'avancement, l'ouverture de session — et un navigateur n'autorise que **six
+ * connexions simultanées par origine** en HTTP/1.1.
+ *
+ * Deux onglets suffisaient donc à consommer les six, et toutes les requêtes
+ * suivantes attendaient un créneau qui ne venait plus. Le symptôme : l'écran de
+ * démarrage qui ne s'efface jamais, sans une ligne en console — les requêtes
+ * n'échouaient pas, elles n'étaient pas encore parties.
+ *
+ * Un flux unique, démultiplexé par nom, ramène le coût à UNE connexion quel que
+ * soit le nombre d'abonnés. C'est d'ailleurs ce que le serveur fait déjà de son
+ * côté : il n'a qu'un canal de diffusion, et chaque message porte son nom.
+ */
+let flux: EventSource | null = null;
+
+/** Qui écoute quoi. Un même nom peut avoir plusieurs abonnés. */
+const abonnes = new Map<string, Set<(charge: unknown) => void>>();
+
+function fluxPartage(): EventSource {
+  if (flux) {
+    return flux;
+  }
+  const source = new EventSource(`${SERVEUR_DEV}/evenements`);
+  source.onmessage = (message) => {
+    try {
+      const recu = JSON.parse(message.data) as { evenement: string; charge: unknown };
+      for (const recevoir of abonnes.get(recu.evenement) ?? []) {
+        recevoir(recu.charge);
+      }
+    } catch {
+      // Un message qu'on ne sait pas lire n'a pas à casser le flux : le
+      // suivant porte l'état complet, pas un delta.
+    }
+  };
+  flux = source;
+  return source;
+}
+
+/**
  * S'abonne à un événement.
  *
  * Dans la fenêtre, `listen` ouvre un canal par nom. Sur HTTP, il n'y a qu'un
- * flux — SSE n'en a qu'un — et chaque message porte le nom de son événement :
+ * flux — voir ci-dessus — et chaque message porte le nom de son événement :
  * c'est ici qu'on démultiplexe, pour que l'appelant ne voie aucune différence.
  */
 export async function ecouter<T>(
@@ -74,19 +118,22 @@ export async function ecouter<T>(
     return listen<T>(evenement, (recu) => recevoir(recu.payload));
   }
 
-  const source = new EventSource(`${SERVEUR_DEV}/evenements`);
-  source.onmessage = (message) => {
-    try {
-      const recu = JSON.parse(message.data) as { evenement: string; charge: T };
-      if (recu.evenement === evenement) {
-        recevoir(recu.charge);
-      }
-    } catch {
-      // Un message qu'on ne sait pas lire n'a pas à casser le flux : le
-      // suivant porte l'état complet, pas un delta.
+  fluxPartage();
+  const ecouteur = recevoir as (charge: unknown) => void;
+  const pour = abonnes.get(evenement) ?? new Set();
+  pour.add(ecouteur);
+  abonnes.set(evenement, pour);
+
+  return () => {
+    pour.delete(ecouteur);
+    // La connexion reste ouverte tant qu'il reste un abonné, et se ferme quand
+    // le dernier part : la rouvrir coûte un aller-retour, la garder ouverte
+    // pour personne coûte un des six créneaux du navigateur.
+    if ([...abonnes.values()].every((ensemble) => ensemble.size === 0)) {
+      flux?.close();
+      flux = null;
     }
   };
-  return () => source.close();
 }
 
 /**

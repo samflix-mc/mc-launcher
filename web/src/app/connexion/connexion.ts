@@ -5,6 +5,7 @@ import { LucideAngularModule } from 'lucide-angular';
 import { Check, Copy, ExternalLink, TriangleAlert } from '../noyau/icones';
 import { Incidents } from '../noyau/incidents';
 import { Notifications } from '../noyau/notifications';
+import { Fenetre } from '../noyau/fenetre';
 import { Pont } from '../noyau/pont';
 import { Session } from '../noyau/session';
 
@@ -53,6 +54,7 @@ export class Connexion {
   private readonly incidents = inject(Incidents);
   private readonly notifications = inject(Notifications);
   private readonly pont = inject(Pont);
+  private readonly fenetre = inject(Fenetre);
   private readonly router = inject(Router);
 
   protected readonly compte = this.session.compte;
@@ -77,8 +79,22 @@ export class Connexion {
   protected async connecter(): Promise<void> {
     await this.incidents.pendant(async () => {
       await this.session.connecter();
-      if (this.session.jouable()) {
-        this.notifications.signaler('success', 'Connecté', this.compte()?.pseudo ?? null);
+      if (!this.session.jouable()) {
+        // Compte Microsoft valide, mais sans licence : on reste ici, et l'écran
+        // le dit. C'est le quatrième état de la page.
+        return;
+      }
+      this.notifications.signaler('success', 'Connecté', this.compte()?.pseudo ?? null);
+
+      // Dans la fenêtre de connexion, on ne NAVIGUE pas : on rend la main à la
+      // fenêtre principale, qui se montre, relit sa session et va à Spawn. Ici,
+      // il n'y a rien après — la fenêtre se ferme.
+      await this.pont.connexionReussie();
+
+      // Hors de Tauri — un navigateur devant le serveur de développement — il
+      // n'y a qu'un onglet : la commande ci-dessus n'a rien fait, et c'est le
+      // routeur qui emmène.
+      if (!this.fenetre.dansUneFenetreDediee) {
         await this.router.navigate(['/spawn']);
       }
     });

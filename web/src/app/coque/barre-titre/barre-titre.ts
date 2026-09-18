@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { Bell, Copy, Minus, Square, X } from '../../noyau/icones';
@@ -41,6 +41,21 @@ import { Pack } from '../../noyau/pack';
   styleUrl: './barre-titre.css',
 })
 export class BarreTitre {
+  /**
+   * La barre d'une fenêtre de DIALOGUE plutôt que celle de la principale.
+   *
+   * Elle perd le bouton d'agrandissement — `--dialog` le cache — et la cloche,
+   * qui n'a rien à annoncer dans une fenêtre où l'on ne fait qu'une chose. Elle
+   * gagne le verre : la fenêtre de connexion n'a pas d'image derrière sa barre,
+   * seulement une feuille dépolie, et une barre transparente s'y fondrait sans
+   * qu'on voie où la saisir.
+   *
+   * Cacher le bouton ne suffit pas côté système : c'est `maximizable: false` à
+   * la construction de la fenêtre qui empêche le double-clic sur la barre de
+   * l'agrandir quand même.
+   */
+  readonly dialogue = input(false);
+
   private readonly fenetre = inject(Fenetre);
   private readonly notifications = inject(Notifications);
 
@@ -58,7 +73,15 @@ export class BarreTitre {
    * le joueur reconnaît est le nom du modpack — c'est ce que le verrou publie,
    * et c'est ce qui change quand le serveur change de saison.
    */
-  protected readonly pack = computed(() => this.etat()?.nom ?? null);
+  protected readonly pack = computed(() => {
+    // Dans une fenêtre de dialogue, ce qui suit le séparateur est ce qu'on y
+    // FAIT — le design system y écrit « Sign in ». Le nom du modpack n'y dirait
+    // rien : on n'y joue pas, on s'y connecte.
+    if (this.dialogue()) {
+      return 'Connexion';
+    }
+    return this.etat()?.nom ?? null;
+  });
 
   // Les nœuds d'icône sont passés au gabarit comme des valeurs : une faute de
   // frappe est alors une erreur TypeScript, là où un registre résolu par nom

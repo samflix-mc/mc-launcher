@@ -1,7 +1,20 @@
-/* `display: contents` : l'enfant est déjà `.hm-scrim`, en position absolue sur
-   la fenêtre. Un hôte `block` interposerait une boîte que rien ne remplit. */
 :host {
-  display: contents;
+  display: block;
+  /* `min-width: 0` : l'hôte est un élément de grille de la coque, et sans lui
+     il prendrait la largeur de son contenu le plus large plutôt que celle de
+     la fenêtre. */
+  min-width: 0;
+}
+
+/* Le dialogue tient la largeur de la fenêtre, laquelle fait quatre cent
+   quarante pixels : ses quatre cent vingt de défaut déborderaient des marges.
+
+   La règle vit ICI et non dans le style de la coque : l'encapsulation émulée
+   préfixe les sélecteurs avec l'attribut du composant qui les déclare, et
+   `.hm-dialog` appartient à ce gabarit-ci. Écrite là-bas, elle ne
+   s'appliquerait à rien — sans une erreur. */
+.hm-dialog {
+  width: 100%;
 }
 
 /* La note sous le bouton Microsoft, centrée comme dans le design system. */

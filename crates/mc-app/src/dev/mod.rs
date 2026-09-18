@@ -142,6 +142,13 @@ pub async fn router(contexte: Arc<Contexte>, requete: Requete) -> Reponse {
         "ecran" => Reponse::json("null".to_string()),
         "ouvrir_dossier" | "front_pret" => Reponse::vide(),
 
+        // Les deux temps de la fenêtre de connexion. Dans un navigateur il n'y
+        // a qu'un onglet : il n'y a rien à ouvrir ni à refermer, et c'est le
+        // routeur du front qui emmène d'une page à l'autre. Elles répondent
+        // quand même — une commande inconnue rendrait un 404 que le front
+        // ouvrirait en incident, sur un geste qui n'a simplement pas lieu ici.
+        "ouvrir_connexion" | "connexion_reussie" => Reponse::vide(),
+
         _ => Reponse::erreur(404, &format!("commande inconnue : {nom}")),
     }
 }
@@ -252,6 +259,8 @@ fn accueil(etat: Etat) -> Reponse {
             "ecran",
             "ouvrir_dossier",
             "front_pret",
+            "ouvrir_connexion",
+            "connexion_reussie",
         ]
         .into_iter()
         .map(str::to_string)

@@ -103,7 +103,7 @@ Ses chemins remontent d'un cran — `frontendDist` vaut
 `../../web/dist/launcher/browser` — parce que Tauri les résout relativement à
 `tauri.conf.json`.
 
-## Deux fenêtres, et pourquoi
+## Trois fenêtres, et pourquoi
 
 La fenêtre principale charge Angular : un module à analyser, compiler et
 exécuter avant le premier pixel. Pendant ce temps, une WebView peint sa couleur
@@ -141,6 +141,41 @@ est apparu, il ne sait que quand lui-même a fini.
 
 Puis l'amorce Angular prend le relais derrière, avec son propre plancher de
 900 ms, le temps que la poignée de main réseau se fasse.
+
+### La troisième : la connexion
+
+Elle fait 440 × 520, comme le design system la pose, et elle est **créée à la
+demande** — pas déclarée dans `tauri.conf.json`, sinon elle s'ouvrirait à chaque
+démarrage, y compris pour qui a déjà une session.
+
+```text
+  splash ──┬── session trouvée ──→ main
+           └── aucune session  ──→ connexion ──→ main
+```
+
+Elle charge la MÊME application Angular, à la route `/connexion`. Le front s'y
+reconnaît par l'étiquette de sa fenêtre — `getCurrentWindow().label` — et se
+dessine autrement : feuille dépolie pleine surface, barre de titre sans bouton
+d'agrandissement ni cloche, pas de navigation, pas de bouton de jeu, pas de
+badge joueur.
+
+Quatre choses valent d'être connues, parce qu'elles ne se déduisent pas :
+
+- **La fenêtre principale ne montre jamais la connexion.** Sa garde l'y envoie
+  comme partout ailleurs, mais elle demande alors l'ouverture de la fenêtre
+  dédiée et s'efface. Elle reste sur cette route pendant qu'elle est cachée, et
+  la quitte sur le signal `session-ouverte`.
+- **Cacher le bouton d'agrandissement ne suffit pas.** `--dialog` le retire du
+  gabarit ; c'est `maximizable: false` à la construction qui empêche le
+  double-clic sur la barre d'agrandir quand même.
+- **Fermer la connexion quitte le launcher.** La principale est cachée, il n'y a
+  rien derrière, et un processus qui survit à sa dernière fenêtre visible ne se
+  retrouve que dans le gestionnaire de tâches. La garde tombe dès que la session
+  est ouverte.
+- **`capabilities/default.json` nomme les DEUX fenêtres.** Une fenêtre absente de
+  la liste `windows` s'ouvre normalement et voit chacun de ses appels refusés —
+  ses boutons de barre de titre ne font rien, et rien ne le dit en
+  développement.
 
 ## La barre de titre
 
@@ -186,7 +221,7 @@ bouton de légende.
 
 | Route | Ce qu'on y fait | Barre du bas |
 |---|---|---|
-| `/connexion` | une MODALE : la session Microsoft, et l'état « ce compte ne possède pas le jeu » | aucune, et pas de coque non plus |
+| `/connexion` | la session Microsoft, dans SA PROPRE FENÊTRE, et l'état « ce compte ne possède pas le jeu » | aucune, et pas de coque non plus |
 | `/spawn` | la nouvelle épinglée, l'état du pack, la cinématique pendant le travail | le bouton et le badge joueur |
 | `/nouvelles` | la tuile vedette et la grille | le badge joueur seul |
 | `/configuration` | Apparence, Fenêtre du jeu, Vidéo, Java, Avancé | aucune |

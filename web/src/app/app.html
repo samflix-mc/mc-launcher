@@ -29,16 +29,18 @@
     Linux ; ce qui manquait, c'est que le pointeur l'annonce. Ces zones ne
     portent aucun gestionnaire, et ne doivent pas en porter.
   -->
-  <div class="hm-bords" aria-hidden="true" data-test="bords">
-    <span class="hm-bords__n"></span>
-    <span class="hm-bords__s"></span>
-    <span class="hm-bords__o"></span>
-    <span class="hm-bords__e"></span>
-    <span class="hm-bords__no"></span>
-    <span class="hm-bords__ne"></span>
-    <span class="hm-bords__so"></span>
-    <span class="hm-bords__se"></span>
-  </div>
+  @if (!surConnexion()) {
+    <div class="hm-bords" aria-hidden="true" data-test="bords">
+      <span class="hm-bords__n"></span>
+      <span class="hm-bords__s"></span>
+      <span class="hm-bords__o"></span>
+      <span class="hm-bords__e"></span>
+      <span class="hm-bords__no"></span>
+      <span class="hm-bords__ne"></span>
+      <span class="hm-bords__so"></span>
+      <span class="hm-bords__se"></span>
+    </div>
+  }
 
   <!--
     AU-DESSUS de l'amorce, et c'est délibéré : pendant les deux allers-retours
@@ -46,18 +48,34 @@
     réseau lent ou derrière un portail captif, il n'y aurait aucun moyen de
     fermer.
   -->
-  <app-barre-titre />
+  <app-barre-titre [dialogue]="surConnexion()" />
 
-  @if (amorce()) {
-    <app-amorce />
-  } @else if (!jouable()) {
+  @if (surConnexion()) {
     <!--
-      Pas de coque avant la connexion : la page est une modale par-dessus la
-      scène, et il n'y a derrière elle ni navigation, ni bouton de jeu, ni
-      badge joueur. C'est `router-outlet` seul, et la garde du routeur
-      garantit que ce qu'il y monte est `/connexion`.
+      La FENÊTRE de connexion, telle que le design system la dessine : une
+      feuille dépolie pleine surface par-dessus l'image, le mot-symbole en haut
+      à gauche, le dialogue au milieu, une phrase en bas.
+
+      Elle n'a ni navigation, ni bouton de jeu, ni badge joueur — et elle n'a
+      pas non plus de bouton d'agrandissement : `--dialog` le cache, et la règle
+      de la fenêtre côté Tauri fait le reste, sans quoi un double-clic sur la
+      barre l'agrandirait quand même.
     -->
-    <router-outlet />
+    <div class="hm-pane" aria-hidden="true"></div>
+
+    <div class="hm-connexion">
+      <h1 class="hm-wordmark hm-wordmark--sm" data-test="marque-connexion">
+        {{ marque().nom }}<span class="hm-wordmark__dot" aria-hidden="true"></span>
+      </h1>
+
+      <router-outlet />
+
+      <p class="hm-connexion__pied">
+        Le launcher attend ici jusqu'à ce que vous ayez autorisé, ou que le code expire.
+      </p>
+    </div>
+  } @else if (amorce()) {
+    <app-amorce />
   } @else {
     <div
       class="hm-page"

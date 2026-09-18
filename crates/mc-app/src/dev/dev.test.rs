@@ -30,6 +30,8 @@ async fn toutes_les_commandes_du_pont_repondent() {
         "ecran",
         "ouvrir_dossier",
         "front_pret",
+        "ouvrir_connexion",
+        "connexion_reussie",
     ] {
         let reponse = router(contexte.clone(), requete(&format!("/commande/{nom}"))).await;
         assert_eq!(reponse.code, 200, "{nom} : {}", reponse.corps);

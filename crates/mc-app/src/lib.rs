@@ -30,6 +30,7 @@ mod cinematique;
 mod commandes;
 mod csp;
 mod demarrage;
+mod fenetres;
 // Le launcher sans sa fenêtre, servi sur HTTP. Derrière une feature qui n'est
 // pas activée par défaut : `cargo tauri build` ne le compile pas.
 #[cfg(feature = "dev-serveur")]
@@ -129,6 +130,10 @@ pub fn run() {
             // Le front dit quand il a rendu : c'est ce qui referme l'écran de
             // démarrage et montre la fenêtre.
             demarrage::front_pret,
+            // Les deux temps de la fenêtre de connexion : on l'ouvre quand la
+            // session manque, on la referme quand elle est là.
+            fenetres::ouvrir_connexion,
+            fenetres::connexion_reussie,
             // Le geste unique, et ce qu'il faut pour le dessiner.
             commandes::pack::etat_du_pack,
             commandes::pack::jouer,
