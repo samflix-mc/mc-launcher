@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
 import { Amorce } from './amorce/amorce';
@@ -13,14 +20,37 @@ import { Reglages } from './noyau/reglages';
 import { Session } from './noyau/session';
 
 /**
- * Le plancher de l'écran de démarrage, en millisecondes.
+ * Le plancher de l'amorce Angular, en millisecondes.
  *
- * Neuf cents : assez pour qu'on ait le temps de lire la phrase, assez peu pour
- * qu'on ne le remarque pas comme une attente. Un plancher est nécessaire parce
- * que sans lui, un démarrage rapide ferait clignoter l'amorce pendant deux
- * images — ce qui se remarque bien plus qu'une seconde tenue.
+ * Il valait neuf cents quand cette amorce était le SEUL écran de démarrage :
+ * il fallait alors couvrir tout le chargement d'Angular, et une durée tenue se
+ * remarque moins qu'un clignotement de deux images.
+ *
+ * Depuis qu'une vraie fenêtre d'écran de démarrage couvre ce chargement — voir
+ * `crates/mc-app/src/demarrage.rs` — cette amorce-ci ne couvre plus que
+ * l'attente du RÉSEAU, après que la fenêtre s'est affichée. La faire durer
+ * neuf cents millisecondes de plus reviendrait à ajouter une attente à une
+ * attente.
+ *
+ * Quatre cents reste un plancher, parce qu'il en faut un : sans lui, une
+ * session déjà en cache ferait clignoter l'amorce le temps d'une image.
  */
-const PLANCHER_AMORCE = 900;
+const PLANCHER_AMORCE = 400;
+
+/**
+ * Le délai entre le premier rendu et le signal envoyé à Rust.
+ *
+ * `afterNextRender` se déclenche quand Angular a écrit dans le DOM — pas
+ * quand le navigateur a PEINT. Montrer la fenêtre à cet instant précis la
+ * ferait apparaître sur une image encore vide, ce qui remplacerait un écran de
+ * démarrage propre par un clignotement.
+ *
+ * Deux cent cinquante millisecondes couvrent plusieurs images à soixante hertz,
+ * y compris le décodage de l'image de fond. C'est le délai que Sam a proposé,
+ * et il est juste : plus court, on voit le vide ; plus long, on attend pour
+ * rien.
+ */
+const AVANT_DE_MONTRER = 250;
 
 /**
  * La coque : le fond, la barre de titre, le menu, et la page.
@@ -76,6 +106,21 @@ export class App {
   protected readonly flou = computed(() => (this.incidentOuvert() ? '' : null));
 
   constructor() {
+    // Le signal qui referme l'écran de démarrage et montre la fenêtre.
+    //
+    // Il ne dépend PAS de `demarrer()`, et c'est délibéré : celui-ci interroge
+    // le réseau, ce qui peut durer derrière un portail captif. Attendre ses
+    // données pour montrer la fenêtre garderait le joueur devant un écran de
+    // démarrage sans le moindre bouton — exactement ce qu'on refuse par
+    // ailleurs en gardant la barre de titre au-dessus de l'amorce.
+    //
+    // La fenêtre apparaît donc dès que l'interface est dessinée, et l'amorce
+    // Angular prend le relais pendant l'attente du réseau. Les deux écrans
+    // sont identiques à l'œil : le passage ne se voit pas.
+    afterNextRender(() => {
+      setTimeout(() => void this.pont.frontPret().catch(() => {}), AVANT_DE_MONTRER);
+    });
+
     void this.demarrer();
   }
 

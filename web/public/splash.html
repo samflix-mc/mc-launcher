@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>samflix-mc</title>
+    <style>
+      /*
+        Tout est ici, en dur, et c'est le sujet de ce fichier.
+
+        Cette fenêtre existe pour s'afficher AVANT qu'Angular n'existe. Elle ne
+        peut donc dépendre d'aucun morceau produit par le build : ni la feuille
+        Tailwind, ni daisyUI, ni une police. Le moindre `<link>` vers un fichier
+        ajouterait un aller-retour du protocole d'actifs entre l'ouverture de la
+        fenêtre et son premier rendu — c'est-à-dire exactement le trou qu'on
+        cherche à combler.
+
+        ## Le style en ligne, et pourquoi il passe le CSP
+
+        Tauri injecte un nonce dans toute balise `<style>` qu'il trouve dans le
+        HTML embarqué, et la règle du CSP niveau 3 veut qu'un nonce annule
+        `'unsafe-inline'`. C'est précisément la situation que
+        `dangerousDisableAssetCspModification: ["style-src"]` a été posé pour
+        couvrir : la directive `style-src` n'est pas réécrite, donc
+        `'unsafe-inline'` reste effectif et ce bloc s'applique.
+
+        Si ce fichier devenait blanc un jour, c'est la première chose à
+        vérifier.
+      */
+      :root {
+        color-scheme: dark;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body {
+        /* La MÊME couleur que `backgroundColor` de la fenêtre et que le fond de
+           l'interface. Les trois doivent coïncider : c'est ce qui fait qu'aucune
+           des transitions ne se voit. */
+        background: #191c22;
+        color: #eef1f5;
+        font-family: system-ui, sans-serif;
+        display: grid;
+        place-items: center;
+        /* Une fenêtre sans décorations se déplace par le DOM ; celle-ci ne se
+           déplace pas du tout, mais rien ne doit s'y sélectionner non plus. */
+        user-select: none;
+        cursor: default;
+      }
+
+      .pile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+      }
+
+      /* Le sceau, identique à celui de la barre de titre et de l'amorce
+         Angular : c'est ce qui rend le passage d'une fenêtre à l'autre
+         invisible. */
+      .sceau {
+        display: grid;
+        place-items: center;
+        width: 80px;
+        height: 80px;
+        border-radius: 12px;
+        background: #5b8731;
+        color: #f7fbf4;
+        font-size: 28px;
+        font-weight: 700;
+        box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+      }
+
+      .nom {
+        font-size: 18px;
+        font-weight: 500;
+      }
+
+      /* Trois points qui pulsent — la même figure que `loading-dots` de
+         daisyUI, réécrite ici parce qu'on n'a pas daisyUI. */
+      .points {
+        display: flex;
+        gap: 6px;
+      }
+
+      .points span {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #7cb342;
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+
+      .points span:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      .points span:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+
+      @keyframes pulse {
+        0%,
+        80%,
+        100% {
+          opacity: 0.25;
+          transform: scale(0.8);
+        }
+        40% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      /* Ce que « mouvement réduit » demande : la figure reste, elle ne bouge
+         plus. */
+      @media (prefers-reduced-motion: reduce) {
+        .points span {
+          animation: none;
+          opacity: 0.7;
+        }
+      }
+
+      .phrase {
+        font-size: 13px;
+        opacity: 0.55;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="pile">
+      <div class="sceau">SA</div>
+      <div class="nom">samflix-mc</div>
+      <div class="points" role="status" aria-label="Démarrage en cours">
+        <span></span><span></span><span></span>
+      </div>
+      <!--
+        Une phrase fixe, et non tirée au sort.
+
+        Le tirage demanderait du JavaScript, donc un script à charger, donc le
+        aller-retour qu'on évite. La variété est le travail de l'amorce Angular,
+        qui prend le relais et qui, elle, a déjà tout chargé.
+      -->
+      <div class="phrase">Démarrage…</div>
+    </div>
+  </body>
+</html>

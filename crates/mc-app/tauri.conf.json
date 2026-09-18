@@ -12,13 +12,30 @@
   "app": {
     "windows": [
       {
+        "label": "splash",
+        "url": "splash.html",
+        "width": 340,
+        "height": 300,
+        "center": true,
+        "decorations": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": true,
+        "backgroundColor": "#191C22"
+      },
+      {
+        "label": "main",
         "title": "samflix-mc",
         "width": 900,
         "height": 820,
         "minWidth": 720,
         "minHeight": 560,
+        "center": true,
         "resizable": true,
         "fullscreen": false,
+        "decorations": false,
+        "visible": false,
         "backgroundColor": "#191C22"
       }
     ],

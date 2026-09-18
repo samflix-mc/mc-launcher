@@ -37,6 +37,22 @@ export class Pont {
   /** Vrai dans la fenêtre Tauri, faux dans un navigateur ordinaire. */
   readonly disponible = isTauri();
 
+  // --- Le démarrage --------------------------------------------------------
+
+  /**
+   * Dit à Rust que le front a fini de se rendre.
+   *
+   * C'est ce qui referme l'écran de démarrage — une seconde fenêtre, sans
+   * script, ouverte pendant qu'Angular se charge — et qui montre la fenêtre
+   * principale, jusque-là cachée.
+   *
+   * Rust ne peut pas le deviner : il sait quand une fenêtre EXISTE, pas quand
+   * son contenu est peint. Le front est le seul à le savoir.
+   */
+  frontPret(): Promise<void> {
+    return invoke<void>('front_pret');
+  }
+
   // --- Identité du launcher ------------------------------------------------
 
   marque(): Promise<Marque> {

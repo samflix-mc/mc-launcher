@@ -28,6 +28,7 @@
 mod chemins;
 mod cinematique;
 mod commandes;
+mod demarrage;
 mod diagnostic;
 mod marque;
 mod navigation;
@@ -84,16 +85,28 @@ pub fn run() {
         // téléchargements l'incrémentent depuis leurs tâches, la boucle
         // d'émission le lit, et aucune commande ne peut le posséder.
         .manage(commandes::Etat::default())
-        // Le titre de `tauri.conf.json` est figé dans le fichier ; celui-ci
-        // vient de `MC_LAUNCHER_NOM`. Le poser ici évite d'avoir deux endroits
-        // à changer pour renommer le launcher, dont un qu'on oublie.
+        // Le hook `setup` fait deux choses, et c'est le seul endroit d'où
+        // elles soient possibles : il s'exécute une fois les fenêtres de
+        // `tauri.conf.json` réellement construites — ce qui n'est PAS le cas
+        // juste après `build()`.
         .setup(|app| {
             use tauri::Manager;
+
+            // Le titre de `tauri.conf.json` est figé dans le fichier ; celui-ci
+            // vient de `MC_LAUNCHER_NOM`. Le poser ici évite d'avoir deux
+            // endroits à changer pour renommer le launcher, dont un qu'on
+            // oublie.
             if let Some(fenetre) = app.get_webview_window("main")
                 && let Err(erreur) = fenetre.set_title(marque::nom())
             {
                 tracing::warn!(erreur = %erreur, "titre de la fenêtre inchangé");
             }
+
+            // Sans elle, une erreur JavaScript laisserait la fenêtre
+            // principale cachée POUR TOUJOURS, derrière un écran de démarrage
+            // sans le moindre bouton pour le fermer.
+            demarrage::armer_la_garde(app.handle());
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -102,6 +115,9 @@ pub fn run() {
             commandes::statut,
             commandes::connexion,
             commandes::deconnexion,
+            // Le front dit quand il a rendu : c'est ce qui referme l'écran de
+            // démarrage et montre la fenêtre.
+            demarrage::front_pret,
             // Le geste unique, et ce qu'il faut pour le dessiner.
             commandes::pack::etat_du_pack,
             commandes::pack::jouer,
