@@ -5,6 +5,13 @@ dist/
 .angular/
 node_modules/
 
+# Le rapport de couverture. Il n'existe pas en CI — d'où le fait que ce
+# manque soit resté invisible — mais un « pnpm test:couverture » sur le poste
+# le fabrique, et « format:check » ÉCHOUE alors sur du HTML généré que
+# personne ne relira. Un contrôle qui rougit selon ce qu'on a lancé avant se
+# désactive vite.
+coverage/
+
 # Le verrou de pnpm. Prettier le reformate volontiers et pnpm le réécrit
 # aussitôt : `format:check` et `install --frozen-lockfile` se contrediraient
 # à chaque exécution de la CI.

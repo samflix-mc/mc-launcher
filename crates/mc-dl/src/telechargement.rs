@@ -70,6 +70,12 @@ impl Downloader {
                     tracing::trace!(url, octets = b.len(), tentative = attempt + 1, "GET");
                     return Ok(b);
                 }
+                // Un absent ne se réessaie PAS. Redemander trois fois une
+                // adresse qui a répondu « ce n'est pas là » coûte deux
+                // allers-retours et deux paliers d'attente pour obtenir la
+                // même réponse — et sur le fil de nouvelles, qui est chargé à
+                // l'ouverture d'une page, cela se voit.
+                Err(e) if e.is::<Absent>() => return Err(e),
                 Err(e) => {
                     // Un réessai qui finit par réussir ne remonte nulle part
                     // ailleurs : c'est pourtant le premier signe d'une source
@@ -94,6 +100,13 @@ impl Downloader {
     async fn try_bytes(&self, url: &str) -> Result<Vec<u8>> {
         let response = self.client.get(url).send().await?;
         let status = response.status();
+        if status == 404 {
+            // Une RÉPONSE, pas une panne — voir [`Absent`].
+            return Err(Absent {
+                url: url.to_string(),
+            }
+            .into());
+        }
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
             bail!(
@@ -131,6 +144,31 @@ impl Downloader {
 fn palier(attempt: u32) -> Duration {
     Duration::from_millis(400 * u64::from(attempt))
 }
+
+/// La ressource n'existe pas : **une réponse, pas une panne**.
+///
+/// La distinction n'est pas une subtilité. Un hôte qui rend 404 sur
+/// `nouvelles.json` a répondu : il ne publie pas de fil. Un hôte injoignable,
+/// lui, n'a rien dit — et c'est à ce moment-là, et à ce moment-là seulement,
+/// qu'une copie locale doit prendre le relais et qu'un message a du sens.
+///
+/// Les confondre donnait une page de nouvelles en erreur sur tout hôte qui
+/// n'en publie pas encore — c'est-à-dire sur les trois, le jour où la page a
+/// été écrite.
+#[derive(Debug)]
+pub struct Absent {
+    pub url: String,
+}
+
+impl std::fmt::Display for Absent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Le code y figure : un journal se lit avec ses habitudes, et « 404 »
+        // est ce qu'on y cherche.
+        write!(f, "HTTP 404 : {} n'existe pas sur cet hôte", self.url)
+    }
+}
+
+impl std::error::Error for Absent {}
 
 #[cfg(test)]
 #[path = "telechargement.test.rs"]

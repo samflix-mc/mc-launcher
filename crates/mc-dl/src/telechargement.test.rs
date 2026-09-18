@@ -114,3 +114,46 @@ fn le_client_est_partageable_tel_quel() {
     let dl = client();
     assert!(std::ptr::eq(dl.client(), dl.client()));
 }
+
+/// Un 404 rend un [`Absent`], et non une erreur de transport.
+///
+/// C'est ce qui permet à un appelant de distinguer « cet hôte ne publie pas
+/// cette ressource » de « cet hôte n'a rien dit ». Les confondre donnait une
+/// page de nouvelles en erreur sur tout hôte qui n'en publie pas encore.
+#[tokio::test]
+async fn un_404_est_un_absent_et_pas_une_panne() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let dl = client();
+
+    let erreur = dl
+        .bytes(&serveur.url("/rien-du-tout.json"))
+        .await
+        .expect_err("404");
+
+    assert!(
+        erreur.downcast_ref::<super::Absent>().is_some(),
+        "un 404 doit rendre un Absent, pas « {erreur} »"
+    );
+    assert!(erreur.to_string().contains("rien-du-tout.json"));
+}
+
+/// Et il ne se réessaie PAS.
+///
+/// Trois tentatives sur une adresse qui a répondu « ce n'est pas là » coûtent
+/// deux allers-retours et deux paliers d'attente pour obtenir la même
+/// réponse. Le test le vérifie par le TEMPS, seule chose qui l'observe depuis
+/// l'extérieur : avec les réessais, les paliers s'additionnent.
+#[tokio::test]
+async fn un_absent_ne_se_reessaie_pas() {
+    let serveur = mc_essais::Serveur::neuf().await;
+    let dl = client();
+
+    let debut = std::time::Instant::now();
+    let _ = dl.bytes(&serveur.url("/absent.json")).await;
+    let ecoule = debut.elapsed();
+
+    assert!(
+        ecoule < std::time::Duration::from_millis(500),
+        "un absent réessayé trois fois : {ecoule:?}"
+    );
+}

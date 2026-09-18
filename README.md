@@ -34,7 +34,18 @@ jeu avec ce que le pack déclare.
 
 ## Démarrer
 
-La fenêtre fait tout cela ; la ligne de commande aussi, avec le même code.
+**La fenêtre** : un seul bouton. Il dit INSTALLER quand rien n'est posé, JOUER
+ensuite, et rattrape de lui-même ce que le pack a changé depuis la dernière
+partie — voir [interface.md](docs/interface.md).
+
+```bash
+pnpm --dir web install                 # une fois
+cd crates/mc-app && cargo tauri dev
+```
+
+**La ligne de commande** fait la même chose, avec le même code, et garde ses
+deux gestes séparés : c'est un outil d'outilleur, et l'un ne doit pas
+déclencher l'autre.
 
 ```bash
 mc-pack install                        # installe le pack publié
@@ -71,13 +82,16 @@ version du jeu : ils sont partagés entre instances. `shared/` a la forme d'un
 
 | | |
 |---|---|
-| [`mc-pack`](crates/mc-pack) | manifeste, installation, vérification, lancement — **le binaire qu'on lance** |
+| [`mc-pack`](crates/mc-pack) | manifeste, installation, comparaison, vérification, lancement — **la ligne de commande** |
 | [`mc-mods`](crates/mc-mods) | résolution des mods : Modrinth, CurseForge sans clé, dépendances lues dans les jars |
 | [`mc-instance`](crates/mc-instance) | Minecraft et NeoForge : installation, ligne de commande JVM, plantages |
 | [`mc-auth`](crates/mc-auth) | authentification Microsoft, et profil hors-ligne |
 | [`mc-java`](crates/mc-java) | détecte le Java que le verrou exige, en installe un au besoin |
 | [`mc-log`](crates/mc-log) | journaux console et fichier, incidents Sentry, censure des jetons |
 | [`mc-dl`](crates/mc-dl) | téléchargements : reprise, empreintes, écriture atomique |
+| [`mc-nouvelles`](crates/mc-nouvelles) | le fil de news : contrat JSON, markdown vers arbre typé — **aucun HTML** |
+| [`mc-reglages`](crates/mc-reglages) | les préférences du joueur, leurs bornes, et leur fusion dans `options.txt` |
+| [`mc-chemins`](crates/mc-chemins) | l'unique endroit qui décide où le launcher range ses affaires |
 | [`mc-app`](crates/mc-app) | l'application Tauri : la fenêtre, et rien d'autre — voir [interface.md](docs/interface.md) |
 | [`mc-essais`](crates/mc-essais) | serveur HTTP d'essai, pour éprouver ce qui parle au réseau |
 
@@ -85,9 +99,9 @@ version du jeu : ils sont partagés entre instances. `shared/` a la forme d'un
 
 | | |
 |---|---|
-| Couverture | **94,4 %** des lignes |
+| Couverture | **91,5 %** des lignes |
 | Score de mutation | **100 %** — aucun mutant ne survit |
-| Mutants éprouvés | **96,4 %** (1012 sur 1050 ; les 38 écartés sont nommés dans le code) |
+| Mutants éprouvés | **1246**, et ce qui est écarté est nommé dans le code |
 
 La couverture dit qu'une ligne a été *exécutée*, jamais que quelqu'un a regardé
 ce qu'elle rendait. C'est la seconde mesure qui le dit : chaque pull request
@@ -102,7 +116,8 @@ survivant**. Le détail est dans [qualite.md](docs/qualite.md).
 | [mods.md](docs/mods.md) | les deux sources, CurseForge sans clé, les dépendances cachées |
 | [lancement.md](docs/lancement.md) | ce qui décide qu'un jeu démarre, le runtime Java |
 | [authentification.md](docs/authentification.md) | Microsoft, mode hors-ligne, et ce que ce launcher présente |
-| [interface.md](docs/interface.md) | la fenêtre : Tauri, Angular, le trousseau, le build |
+| [interface.md](docs/interface.md) | la fenêtre : Tauri, Angular, le CSP, le build |
+| [nouvelles.md](docs/nouvelles.md) | le fil de news : le contrat JSON, et pourquoi aucun HTML n'atteint le DOM |
 | [qualite.md](docs/qualite.md) | les quatre workflows, couverture et mutation |
 
 Le « pourquoi » de chaque décision est en tête du module concerné : c'est là

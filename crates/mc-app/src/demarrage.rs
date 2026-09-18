@@ -138,6 +138,13 @@ pub async fn front_pret(app: AppHandle) {
         return;
     }
 
+    // Le seul instant où la page est certainement chargée, donc le seul où un
+    // `eval` arrive à destination. Absent du binaire de production.
+    #[cfg(debug_assertions)]
+    crate::csp::sonder(&app);
+    #[cfg(debug_assertions)]
+    crate::recette::sonder(&app);
+
     let ecoule = DEPART.get().map(Instant::elapsed).unwrap_or_default();
     let reste = reste_a_attendre(ecoule);
     if !reste.is_zero() {

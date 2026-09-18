@@ -43,14 +43,40 @@ pub const HAUTEUR: (u32, u32) = (480, 4320);
 
 /// Le plancher du voile.
 ///
-/// **Une mesure, pas un choix.** C'est la valeur en dessous de laquelle le
-/// texte de l'interface cesse de tenir le contraste minimal sur l'image
-/// embarquée la plus claire.
+/// **Une mesure, pas un choix — et elle a été refaite.**
 ///
-/// Elle est à REMESURER si l'on change le jeu d'images de fond : la valeur
-/// actuelle vaut pour celles d'aujourd'hui, et une image plus claire la
-/// rendrait insuffisante sans qu'aucun test ne le voie.
-pub const VOILE_PLANCHER: f32 = 0.35;
+/// La première version disait « la valeur en dessous de laquelle le texte
+/// cesse de tenir le contraste sur l'image embarquée la plus claire ». Cette
+/// phrase avait deux défauts. Le premier : mesurée pour de bon, elle rend
+/// ZÉRO, parce que les trois fonds livrés aujourd'hui sont des dégradés
+/// sombres — le texte y tient déjà 10,9:1 sans aucun voile. Le second, plus
+/// grave : elle adosse une garantie d'accessibilité à un jeu d'images qui a
+/// vocation à être remplacé par de vraies captures, et personne ne
+/// remesurerait.
+///
+/// La borne se mesure donc sur le **pire fond concevable** plutôt que sur
+/// celui d'aujourd'hui : une surface blanche, ce que produit une plaine
+/// enneigée ou un ciel surexposé. Elle ne dépend plus des images, et il n'y a
+/// plus rien à remesurer quand elles changent.
+///
+/// La pile, de bas en haut, et chaque terme compte :
+///
+/// | Couche | Valeur |
+/// |---|---|
+/// | fond | `rgb(255, 255, 255)`, le pire cas |
+/// | voile | `oklch(13% 0.012 260)` à l'opacité cherchée |
+/// | verre | `base-100` à **0,32** — celui du menu, le plus léger de l'interface |
+/// | texte | `base-content`, `rgb(236, 239, 242)` |
+///
+/// À 0,44 le contraste vaut 4,61:1, au-dessus du seuil AA de 4,5:1 pour du
+/// texte ordinaire ; à 0,43 il tombe en dessous. Le défaut, 0,55, laisse
+/// 6,10:1 — le curseur donne donc au joueur de quoi éclaircir sans jamais
+/// descendre sous le lisible.
+///
+/// À remesurer si l'on change la couleur du texte, celle du voile, ou
+/// l'opacité du verre — c'est-à-dire trois valeurs de `styles.css`, pas trois
+/// fichiers binaires.
+pub const VOILE_PLANCHER: f32 = 0.44;
 
 fn borner<T: PartialOrd>(valeur: T, bornes: (T, T)) -> T {
     if valeur < bornes.0 {

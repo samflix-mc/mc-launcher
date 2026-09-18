@@ -1,4 +1,6 @@
-//! Installer un pack : six étapes, dans cet ordre et pas un autre.
+//! Installer un pack : sept étapes, dans cet ordre et pas un autre.
+//!
+//! Sept, comme `Etape::TOUTES` — voir l'en-tête de `lib.rs`, qui les nomme.
 
 mod chargeur;
 mod compte_rendu;

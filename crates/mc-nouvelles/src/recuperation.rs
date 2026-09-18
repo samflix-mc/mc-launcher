@@ -13,6 +13,13 @@ use crate::contrat::{Billet, Fil, FilBrut, SCHEMA, date_valide, ordonner};
 /// secondes. Un hôte fautif — ou compromis — servirait un fichier de plusieurs
 /// gigaoctets, et le launcher grossirait jusqu'à se faire tuer par le système,
 /// sans un message.
+///
+/// **La borne protège la mémoire, pas l'affichage.** Mesuré le 18 septembre
+/// 2026 dans la fenêtre, sous WebKitGTK et DMA-BUF désactivé : un `data:` de
+/// **567 kio se décode et s'affiche en 5 ms**. Le transport n'est donc pas ce
+/// qui justifie ce plafond, et le relever ne rendrait pas la page lente — cela
+/// rendrait seulement le launcher vulnérable à un hôte qui servirait un
+/// fichier sans fin.
 pub const IMAGE_MAX: usize = 512 * 1024;
 
 /// Combien d'images on rapatrie pour un fil.
@@ -55,6 +62,17 @@ pub async fn charger(url_du_pack: &str, cache: &Path, dl: &mc_dl::Downloader) ->
             }
             octets
         }
+        // Un hôte qui RÉPOND « ce n'est pas là » ne publie pas de fil : la
+        // page s'ouvre vide, et c'est la bonne réponse. Se rabattre ici sur la
+        // copie afficherait des billets que quelqu'un a retirés exprès.
+        Err(erreur) if erreur.downcast_ref::<mc_dl::Absent>().is_some() => {
+            tracing::info!(url, "aucun fil publié sur cet hôte");
+            return Ok(Fil {
+                billets: Vec::new(),
+                hors_ligne: false,
+                ecartes: Vec::new(),
+            });
+        }
         Err(erreur) => {
             tracing::warn!(url, erreur = %erreur, "fil injoignable, repli sur la copie");
             let copie_lue = std::fs::read(&copie)
@@ -84,16 +102,24 @@ fn ecrire_le_cache(copie: &Path, octets: &[u8]) -> Result<()> {
 pub fn lire(octets: &[u8], url_du_fil: &str) -> Result<Fil> {
     let brut: FilBrut = serde_json::from_slice(octets).context("fil de nouvelles illisible")?;
 
-    if brut.schema != SCHEMA {
-        tracing::warn!(
-            trouve = brut.schema,
-            attendu = SCHEMA,
-            "fil d'un autre schéma : lu quand même, ce qui se lit"
-        );
-    }
-
     let mut retenus = Vec::new();
     let mut ecartes = Vec::new();
+
+    if brut.schema != SCHEMA {
+        // Dans le COMPTE RENDU, et pas seulement dans le journal.
+        //
+        // Un fil servi sous un autre schéma se lit quand même — les champs
+        // qu'on connaît se relisent — mais il faut que quelqu'un l'apprenne.
+        // Le journal seul ne suffit pas : personne ne l'ouvre tant que rien
+        // n'a l'air cassé, et c'est précisément le cas ici.
+        //
+        // La page des nouvelles affiche déjà `ecartes` dans un repli discret :
+        // c'est exactement le bon endroit, et cela ne coûte rien à personne.
+        ecartes.push(format!(
+            "le fil annonce le schéma {} au lieu de {SCHEMA} : ce qui se lit est gardé",
+            brut.schema
+        ));
+    }
 
     for billet in brut.billets {
         if !date_valide(&billet.date) {
@@ -206,7 +232,12 @@ pub fn type_mime(octets: &[u8]) -> Option<&'static str> {
         return Some("image/gif");
     }
     // WebP : « RIFF » puis quatre octets de taille puis « WEBP ».
-    if octets.len() > 12 && octets.starts_with(b"RIFF") && &octets[8..12] == b"WEBP" {
+    //
+    // `>= 12` et non `> 12` : douze octets SONT exactement la signature, et
+    // c'est tout ce qu'il faut pour l'identifier. Exiger un treizième
+    // refuserait un en-tête complet parce qu'il lui manque un octet de
+    // contenu — ce qui n'est pas la question posée à cette fonction.
+    if octets.len() >= 12 && octets.starts_with(b"RIFF") && &octets[8..12] == b"WEBP" {
         return Some("image/webp");
     }
     None
@@ -235,7 +266,20 @@ fn base64(octets: &[u8]) -> String {
             *morceau.get(1).unwrap_or(&0),
             *morceau.get(2).unwrap_or(&0),
         ];
-        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        // `from_be_bytes` et non trois décalages assemblés par `|`.
+        //
+        // Le calcul est le même, la lecture est meilleure, et il se trouve
+        // que c'est aussi la seule forme qui ne laisse rien à muter : sur des
+        // octets rangés dans des champs de bits disjoints, `|` et `^` rendent
+        // exactement le même nombre. Un mutant qui remplace l'un par l'autre
+        // est donc ÉQUIVALENT — aucun test ne peut le tuer, et il resterait
+        // au compte des survivants pour toujours.
+        //
+        // Le réflexe serait de l'exclure par un attribut. Mais un mutant
+        // équivalent dit souvent qu'une expression fait un détour : ici, le
+        // détour était d'assembler à la main ce que la bibliothèque standard
+        // assemble mieux.
+        let n = u32::from_be_bytes([0, b[0], b[1], b[2]]);
         sortie.push(ALPHABET[(n >> 18) as usize & 63] as char);
         sortie.push(ALPHABET[(n >> 12) as usize & 63] as char);
         sortie.push(if morceau.len() > 1 {

@@ -150,7 +150,14 @@ fn inlines(texte: &str, hote_du_fil: &str) -> Vec<Inline> {
                         tampon.push_str(&libelle);
                     }
                 }
-                i += saut;
+                // `.max(1)`, pour la MÊME raison que plus bas : la boucle
+                // doit progresser à chaque tour, et un `saut` nul la ferait
+                // tourner sans fin sur le fil d'interface. `lien` ne rend
+                // jamais zéro aujourd'hui — il faut au moins `[]()` — mais
+                // c'est une propriété de `lien`, pas de cette boucle, et une
+                // boucle ne doit pas dépendre pour sa terminaison d'une
+                // fonction qu'on peut modifier ailleurs.
+                i += saut.max(1);
                 continue;
             }
         }
@@ -159,8 +166,21 @@ fn inlines(texte: &str, hote_du_fil: &str) -> Vec<Inline> {
         // n'en est pas un est du texte, caractère par caractère : c'est la
         // règle qui fait qu'un `<script>` écrit dans un billet ressort comme
         // les onze caractères qu'il est.
+        //
+        // `avance.max(1)` : la boucle DOIT progresser à chaque tour.
+        //
+        // Ce n'est pas une précaution théorique. Le corps d'un billet vient
+        // d'un hôte, il est analysé dans le fil d'interface, et une boucle qui
+        // n'avance pas gèlerait la fenêtre entière — sans message, sans
+        // plantage, et sans autre issue que de tuer le processus. Un analyseur
+        // qui ne peut pas garantir sa progression n'a rien à faire sur ce
+        // chemin-là.
+        //
+        // Aucune entrée réelle ne produit zéro aujourd'hui ; c'est exactement
+        // pour cela qu'on l'écrit, plutôt que de découvrir le contraire chez
+        // un joueur.
         match consomme(&octets, i, &mut sortie, &mut tampon) {
-            Some(avance) => i += avance,
+            Some(avance) => i += avance.max(1),
             None => {
                 tampon.push(octets[i]);
                 i += 1;

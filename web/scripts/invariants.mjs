@@ -53,11 +53,15 @@ const INVARIANTS = [
   },
   {
     nom: 'aucun sélecteur de classe dans les tests',
-    // À activer à la fin de E9, quand les cinq dernières assertions de classe
-    // auront leur `data-test` : `.etape`, `.jauge__glisseur`, `.jauge__barre`,
-    // `.overlay`, `.app[data-flou]`. L'activer avant ferait échouer le
-    // contrôle sur du code qu'on est en train de remplacer.
-    actif: false,
+    // Activé : les cinq dernières assertions de classe — `.etape`,
+    // `.jauge__glisseur`, `.jauge__barre`, `.overlay`, `.app[data-flou]` — ont
+    // disparu avec la refonte de l'interface, et les gabarits posent
+    // désormais quatre-vingt-dix `data-test`.
+    //
+    // Il était à `false` pendant tout le temps où l'on remplaçait ce code :
+    // un contrôle qui échoue sur ce qu'on est en train de réécrire se
+    // désactive au bout de deux jours, et ne se réactive jamais.
+    actif: true,
     motif: /querySelector(All)?\((['"`])\./,
     extensions: ['.ts'],
     pourquoi: [

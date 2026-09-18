@@ -1,17 +1,22 @@
 //! Enchaînement complet : d'un manifeste JSON à une instance jouable.
 //!
-//! L'ordre des étapes n'est pas arbitraire, chacune dépend de la précédente :
+//! **Sept étapes**, et [`Etape::TOUTES`] en fait foi — ce commentaire en
+//! annonçait six, en oubliant la première, alors même qu'un affichage dessine
+//! le chemin entier à partir de cette liste. L'ordre n'est pas arbitraire :
+//! chacune dépend de la précédente.
 //!
-//! 1. **le chargeur** — `latest` est résolu tout de suite, pour que le verrou
+//! 1. **le pack** — le manifeste, et le verrou s'il y en a un ; c'est aussi ici
+//!    qu'une purge se décide, quand la génération publiée a changé ;
+//! 2. **le chargeur** — `latest` est résolu tout de suite, pour que le verrou
 //!    consigne une version exacte et non un mot ;
-//! 2. **les fichiers de Mojang** — ils donnent au passage la version de Java
+//! 3. **les fichiers de Mojang** — ils donnent au passage la version de Java
 //!    qu'exige cette version du jeu ;
-//! 3. **Java** — détecté ou installé, en s'appuyant sur ce que Mojang exige ;
-//! 4. **NeoForge** — son installateur patche le client vanilla et a besoin du
+//! 4. **Java** — détecté ou installé, à la majeure EXACTE que le verrou porte ;
+//! 5. **NeoForge** — son installateur patche le client vanilla et a besoin du
 //!    Java de l'étape précédente ;
-//! 5. **les mods** — résolus, téléchargés, puis répartis entre client et
+//! 6. **les mods** — résolus, téléchargés, puis répartis entre client et
 //!    serveur ;
-//! 6. **le verrou** — écrit en dernier, il décrit ce qui a réellement été fait.
+//! 7. **le verrou** — écrit en dernier, il décrit ce qui a réellement été fait.
 
 mod coherence;
 pub mod comparaison;

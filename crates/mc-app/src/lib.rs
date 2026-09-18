@@ -28,11 +28,13 @@
 mod chemins;
 mod cinematique;
 mod commandes;
+mod csp;
 mod demarrage;
 mod diagnostic;
 mod marque;
 mod navigation;
 mod phase;
+mod recette;
 mod suivi;
 mod webkit;
 
@@ -81,6 +83,11 @@ pub fn run() {
         // de greffon, dont le magasin est consulté pour TOUTE webview
         // (manager/webview.rs:596-602).
         .plugin(navigation::greffon())
+        // La recette du build empaqueté, jouée par la fenêtre. Greffon parce
+        // qu'il faut poser le collecteur de violations AVANT le document, et
+        // qu'une webview déclarée dans tauri.conf.json n'existe pas encore
+        // ici. Absent du binaire de production.
+        .plugin(recette::greffon())
         // Le compteur d'avancement vit aussi longtemps que la fenêtre : les
         // téléchargements l'incrémentent depuis leurs tâches, la boucle
         // d'émission le lit, et aucune commande ne peut le posséder.

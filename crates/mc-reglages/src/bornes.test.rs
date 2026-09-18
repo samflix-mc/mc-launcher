@@ -140,8 +140,8 @@ fn la_taille_de_fenetre_est_bornee() {
 // --- Le voile, et c'est la borne qui compte --------------------------------
 
 /// Le voile est borné PAR LE BAS, et ce n'est pas un confort : en dessous, le
-/// texte cesse de tenir le contraste sur l'image la plus claire, et les
-/// libellés deviennent illisibles sur une partie de l'écran seulement — ce qui
+/// texte cesse de tenir le contraste sur un fond clair, et les libellés
+/// deviennent illisibles sur une partie de l'écran seulement — ce qui
 /// ressemble à un défaut de rendu et non à un réglage.
 #[test]
 fn le_voile_ne_descend_pas_sous_le_plancher() {
@@ -235,5 +235,41 @@ fn le_plein_ecran_se_deduit_du_mode() {
             ..Fenetre::default()
         };
         assert_eq!(fenetre.plein_ecran(), attendu, "{mode:?}");
+    }
+}
+
+/// Le défaut est AU-DESSUS du plancher, et il doit le rester.
+///
+/// Un défaut sous le plancher se ferait relever par `valider` au premier
+/// enregistrement : le joueur verrait sa valeur changer toute seule, sans que
+/// rien ne l'explique. Et un défaut ÉGAL au plancher ne laisserait aucune
+/// marge pour éclaircir — le curseur existerait sans servir dans ce sens-là.
+#[test]
+fn le_defaut_laisse_de_la_marge_au_dessus_du_plancher() {
+    assert!(
+        Apparence::default().voile > VOILE_PLANCHER,
+        "défaut {} contre plancher {VOILE_PLANCHER}",
+        Apparence::default().voile
+    );
+}
+
+/// Le plancher tient dans 0..=1, et il reste un voile — pas un mur.
+///
+/// Au-delà d'environ deux tiers, l'image de fond ne se distingue plus d'un
+/// aplat : le plancher aurait alors supprimé la fonctionnalité qu'il est censé
+/// rendre lisible.
+#[test]
+fn le_plancher_reste_un_voile() {
+    // En bloc `const` : les deux comparaisons portent sur une constante, et
+    // clippy a raison de le dire. Les évaluer à la compilation ne change rien
+    // à ce qu'elles vérifient — la valeur est relue à chaque build — et rend
+    // l'intention plus juste : ce n'est pas un comportement qu'on éprouve,
+    // c'est une borne qu'on interdit de franchir.
+    const {
+        assert!(VOILE_PLANCHER > 0.0, "un plancher nul ne garantit rien");
+        assert!(
+            VOILE_PLANCHER <= 0.66,
+            "au-delà, l'image de fond ne se voit plus : autant ne pas en avoir"
+        );
     }
 }

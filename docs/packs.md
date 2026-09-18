@@ -147,6 +147,7 @@ Ce qu'il ajoute, et qui justifie son existence :
 | | |
 |---|---|
 | `generated` | quand il a été écrit |
+| `generation` | le compteur de purge — voir plus bas |
 | `file`, `version`, `channel` | le build exact retenu, et son canal |
 | `project`, `file_name`, `url` | de quoi retrouver et télécharger le jar sans rien résoudre |
 | `sha1`, `sha512`, `size` | de quoi vérifier ce qu'on a reçu |
@@ -159,3 +160,84 @@ changement se lit sans être réécrit, et le champ `channel` qui lui manque vau
 `release` — supposer une préversion sur un pack que personne n'a touché ferait
 apparaître des avertissements infondés.
 
+## `generation` : forcer une réinstallation propre
+
+Un verrou dit ce qu'il faut poser. Il ne sait pas dire **« et efface d'abord
+ce qui traîne »** — or cela arrive : un mod retiré laisse son jar renommé en
+`.jar.disabled`, une mise à jour de chargeur laisse des bibliothèques qui ne
+servent plus, un répertoire de ressources garde une version qui n'est plus
+référencée. Le déploiement supprime déjà tout `.jar` hors plan, mais pas ces
+résidus-là.
+
+Le manifeste porte donc un compteur, recopié dans le verrou :
+
+```json
+{ "schema": 1, "name": "samflix", "generation": 3, … }
+```
+
+Et le poste garde le sien, dans `instances/<nom>/etat.json`, à côté du
+répertoire de jeu et non dedans — ce qui est dans `minecraft/` appartient au
+jeu, et un fichier étranger y serait ramassé par un outil de synchronisation.
+
+Quand la génération publiée dépasse celle qui est posée, l'installation purge
+avant de commencer. Trois précisions qui comptent :
+
+- **la cible vient du manifeste, jamais du verrou** — en rejeu, le verrou est
+  celui qui a été *publié*, pas celui qui décrit ce qui est *posé* ;
+- **l'état contrôle son propre `schema`**, et un refus se traite comme une
+  absence : génération 0, donc purge, donc réinstallation propre. Un fichier
+  d'état qu'on ne sait pas lire ne doit ni empêcher de jouer, ni faire croire
+  qu'on connaît l'installation ;
+- **le compte rendu porte la purge**, pas la note d'avancement. La note est un
+  emplacement unique réécrit sans condition, et sept messages l'écrasent dans
+  la seconde qui suit ; `Installation` a déjà des champs durables pour ce
+  genre de fait.
+
+### Ce que la purge a le droit d'effacer
+
+```
+mods/  shaderpacks/  resourcepacks/  libraries/
+```
+
+**Une liste blanche, et c'est vital.** Une liste noire — « efface tout sauf
+`saves` et `options.txt` » — serait la bonne façon de perdre un monde le jour
+où un mod range ses données dans un répertoire auquel personne n'a pensé. Les
+journaux de serveur, les captures d'écran, les schémas de Litematica, les
+carnets de Waystones vivent tous dans le répertoire de jeu, et rien ne les
+distingue d'un résidu.
+
+Ces quatre répertoires ont une propriété commune : leur contenu est
+**intégralement** reposé par l'installation qui suit.
+
+`config/` n'en fait **pas** partie, et c'est le point qui demande le plus
+d'attention : c'est là que le joueur règle ses mods, et un réglage perdu est
+une soirée de reconfiguration. Un changement de forme qui exigerait vraiment
+de vider `config/` demande une décision humaine, annoncée aux joueurs — pas un
+numéro incrémenté dans un fichier.
+
+Une purge qui échoue n'arrête rien : un répertoire verrouillé par un antivirus
+ou un point de montage ne doit pas empêcher d'installer. L'installation écrit
+par-dessus, et le compte rendu dit ce qui a résisté.
+
+## Comparer sans installer
+
+La fenêtre a besoin d'une question que la ligne de commande ne pose jamais :
+**y a-t-il quelque chose à rattraper ?** C'est elle qui permet au launcher de
+n'avoir qu'un seul bouton — voir [interface.md](interface.md).
+
+La comparaison récupère le verrou publié, quelques kilooctets, et oppose son
+empreinte à celle du verrou posé. Trois points d'exécution :
+
+- **elle n'écrit rien dans le cache.** Le chemin qui existait déjà récupère
+  manifeste *et* verrou et les sauve avant que l'installation n'ait commencé :
+  le réutiliser ferait de la copie locale la description du pack *publié* et
+  non du pack *posé*, et la vérification de cohérence s'y casserait ;
+- **l'empreinte se calcule sur la forme canonique**, jamais sur les octets
+  reçus : l'hôte ne promet aucune mise en forme, et un espace de différence
+  ferait réinstaller huit cents mégaoctets à chaque partie ;
+- **sans réseau, ce n'est pas une erreur** : l'écart est *inconnu*, le résultat
+  est marqué hors ligne, et le disque suffit à dire si le pack est jouable.
+
+Conséquence à connaître : **le premier lancement de tout poste déjà installé
+repasse par une installation complète**, puisque `etat.json` n'existe pas
+encore. C'est cent pour cent de la population, une fois.

@@ -60,6 +60,31 @@ fn les_titres_sont_bornes_a_deux_quatre() {
     }
 }
 
+/// Au-delà de six dièses, ce n'est plus un titre — c'est du texte.
+///
+/// La borne haute n'est pas décorative : CommonMark s'arrête à six, et une
+/// ligne de sept dièses est presque toujours un séparateur décoratif écrit à
+/// la main. La rendre en titre de niveau 4 poserait dans la hiérarchie du
+/// document — celle que suit un lecteur d'écran — un niveau que personne n'a
+/// voulu y mettre.
+///
+/// Le test porte sur SEPT et non sur six : c'est le premier cas où la borne
+/// décide, et le seul qui distingue `diese == 0 || diese > 6` de la même
+/// ligne écrite avec un `&&`, qui ne serait jamais vraie et laisserait tout
+/// passer.
+#[test]
+fn au_dela_de_six_dieses_ce_n_est_plus_un_titre() {
+    for markdown in ["####### Sept", "######## Huit"] {
+        assert_eq!(
+            analyse(markdown),
+            vec![Bloc::Paragraphe {
+                contenu: vec![texte(markdown)]
+            }],
+            "{markdown}"
+        );
+    }
+}
+
 /// Un dièse SANS espace n'est pas un titre : c'est un mot-dièse, et les
 /// billets en contiennent.
 #[test]
