@@ -68,20 +68,6 @@
       </div>
     </div>
 
-    <!-- --- La cinématique, PENDANT le travail seulement ------------------
-         Elle est ce qui distingue « on en est à la moitié » de « il se passe
-         quelque chose ». Hors travail, elle n'a rien à dire et disparaît. -->
-    @if (enTravail() && etapes().length > 0) {
-      <div class="hm-glass hm-glass--pad" data-test="panneau-etapes">
-        <p class="hm-glass__eyebrow">En cours</p>
-        <ol class="hm-spawn__chemin" data-test="chemin">
-          @for (etape of etapes(); track etape.phase) {
-            <li [attr.data-etat]="etape.etat" data-test="etape">{{ etape.libelle }}</li>
-          }
-        </ol>
-      </div>
-    }
-
     <!-- --- Ce que la dernière partie a laissé ---------------------------- -->
     @if (compteRendu()) {
       <div class="hm-glass hm-glass--pad" data-test="panneau-partie">

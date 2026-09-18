@@ -25,12 +25,12 @@ l'image.
 
 ## Les contraintes, et pourquoi elles existent
 
-| Contrainte              | Raison                                                                                                                                                                                                                                                                               |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1920 × 1080 au moins    | En dessous, `background-size: cover` étire sur un écran ordinaire, et le flou du verre fait ressortir les artefacts.                                                                                                                                                                 |
-| WebP, qualité ~80       | Le launcher embarque ces fichiers : un PNG de 1920×1080 pèse plusieurs mégaoctets, contre quelques dizaines de kilooctets ici.                                                                                                                                                       |
+| Contrainte                  | Raison                                                                                                                                                                                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1920 × 1080 au moins        | En dessous, `background-size: cover` étire sur un écran ordinaire, et le flou du verre fait ressortir les artefacts.                                                                                                                             |
+| WebP, qualité ~80           | Le launcher embarque ces fichiers : un PNG de 1920×1080 pèse plusieurs mégaoctets, contre quelques dizaines de kilooctets ici.                                                                                                                   |
 | Pas de contrainte de clarté | Le voile n'est **plus** borné par le bas : ce qui tient le contraste est le dégradé de la scène et l'épaisseur du verre, qui s'épaissit de lui-même quand le voile s'amincit. Une image claire est donc permise — c'en est même une aujourd'hui. |
-| Peu de détail au centre | C'est là que passent les cartes et le bouton. Un détail chargé sous du texte le rend illisible, quel que soit le voile.                                                                                                                                                              |
+| Peu de détail au centre     | C'est là que passent les cartes et le bouton. Un détail chargé sous du texte le rend illisible, quel que soit le voile.                                                                                                                          |
 
 ## Après remplacement : rien à remesurer
 

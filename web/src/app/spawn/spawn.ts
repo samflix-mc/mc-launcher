@@ -31,6 +31,16 @@ interface Pastille {
  * barre du bas de la fenêtre, qui est de la coque. Cette page ne décide donc
  * plus rien de ce qui se lance ; elle dit ce qui EST.
  *
+ * ## La cinématique n'est plus ici non plus
+ *
+ * Elle y était pendant le travail, dans un panneau sous celui du modpack, et
+ * elle en a été retirée à la recette. Le motif est juste : le bouton porte déjà
+ * la progression globale, son pourcentage et son débit, et la phrase au-dessus
+ * de lui NOMME l'étape en cours. La liste des onze phases disait donc une
+ * troisième fois ce que deux éléments disaient déjà — au prix d'un panneau qui
+ * apparaissait et disparaissait sous le regard, à l'endroit même où l'on suit
+ * l'avancement.
+ *
  * ## Pourquoi l'ancienne version était illisible
  *
  * Elle empilait sept blocs conditionnels dans une colonne : des pastilles, une
@@ -53,8 +63,6 @@ export class Spawn {
   private readonly nouvelles = inject(Nouvelles);
 
   protected readonly etat = this.pack.etat;
-  protected readonly etapes = this.pack.etapes;
-  protected readonly bouton = this.pack.bouton;
   protected readonly partie = this.pack.derniereePartie;
 
   protected readonly epinglee = this.nouvelles.epinglee;
@@ -63,9 +71,6 @@ export class Spawn {
   protected readonly Check = Check;
   protected readonly Clock = Clock;
   protected readonly TriangleAlert = TriangleAlert;
-
-  /** Vrai pendant que le rattrapage tourne : la cinématique n'a de sens qu'alors. */
-  protected readonly enTravail = computed(() => this.bouton() === 'occupe');
 
   /** L'état du pack, en une pastille. */
   protected readonly pastille = computed<Pastille>(() => {

@@ -166,3 +166,36 @@ async fn les_billets_de_demonstration_sont_des_arbres() {
         "du HTML a fui dans le corps"
     );
 }
+
+/// **La forme de ce que rend une commande qui peut échouer.**
+///
+/// `#[tauri::command]` déballe le `Result` : le succès part comme la valeur
+/// NUE, l'erreur rejette avec la valeur d'erreur telle quelle. Sérialiser le
+/// `Result` tel quel donnait `{"Ok": {…}}` — une réponse qui a l'air d'une
+/// réussite, qui porte un code 200, et dont le front lit un champ qui
+/// n'existe pas.
+///
+/// Le symptôme était illisible : la page de configuration ouvrait un incident
+/// par frappe de curseur — trois cent vingt-six en une session — et rien dans
+/// le serveur ne le disait, puisque de son point de vue tout s'était bien
+/// passé.
+///
+/// Le test porte sur la fonction et non sur une commande, et c'est délibéré :
+/// `enregistrer_reglages` écrit RÉELLEMENT sur le disque du développeur, et un
+/// test qui l'appellerait remplacerait ses préférences par les valeurs par
+/// défaut.
+#[test]
+fn un_resultat_est_deballe_comme_le_pont_le_fait() {
+    let bon: Result<Vec<&str>, String> = Ok(vec!["a", "b"]);
+    let rendu = super::resultat(bon);
+    assert_eq!(rendu.code, 200);
+    assert_eq!(rendu.corps, r#"["a","b"]"#, "la valeur doit partir NUE");
+
+    let mauvais: Result<Vec<&str>, String> = Err("le disque est plein".to_string());
+    let rendu = super::resultat(mauvais);
+    assert_eq!(rendu.code, 500);
+    assert_eq!(
+        rendu.corps, "\"le disque est plein\"",
+        "l'erreur doit avoir la MÊME forme que celle du pont : une chaîne JSON"
+    );
+}

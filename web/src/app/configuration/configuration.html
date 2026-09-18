@@ -6,14 +6,23 @@
     <h1 class="hm-settings__titre">Configuration</h1>
 
     @for (groupe of groupes; track groupe.ancre) {
-      <a
+      <!--
+        Un BOUTON et non une ancre. Avec `withHashLocation()`, le dièse
+        appartient au routeur : un `href="#reglages-…"` écrivait une URL que le
+        routeur essayait de résoudre comme une route, et la navigation partait
+        vers `/spawn` par la route de repli. Rien n'a besoin d'être dans l'URL
+        pour faire défiler.
+      -->
+      <button
+        type="button"
         class="hm-settings__link"
-        [href]="'#reglages-' + groupe.ancre"
+        (click)="allerA(groupe.ancre)"
+        [attr.aria-current]="groupeEnVue() === groupe.ancre ? 'true' : null"
         [attr.data-test]="'rail-' + groupe.ancre"
       >
         <lucide-icon [img]="groupe.icone" [size]="20" [strokeWidth]="1.75" aria-hidden="true" />
         {{ groupe.libelle }}
-      </a>
+      </button>
     }
 
     <p class="hm-settings__pied">
@@ -24,7 +33,7 @@
 
   <div class="hm-settings__body hm-scroll">
     <!-- === Apparence : la fenêtre DU LAUNCHER ========================== -->
-    <section class="hm-glass hm-settings-group" id="reglages-apparence">
+    <section #section class="hm-glass hm-settings-group" data-groupe="apparence">
       <div class="hm-settings-group__head">
         <h3 class="hm-settings-group__title">Apparence</h3>
         <p class="hm-settings-group__desc">La fenêtre du launcher, pas celle du jeu.</p>
@@ -75,12 +84,13 @@
             <input
               type="range"
               class="hm-range"
-              [min]="VOILE_PLANCHER"
+              min="0"
               max="1"
               step="0.01"
               [value]="vue().apparence.voile"
-              [style.--p]="course(vue().apparence.voile, VOILE_PLANCHER, 1)"
+              [style.--p]="course(vue().apparence.voile, 0, 1)"
               (input)="changerVoile($any($event.target).value)"
+              (change)="enregistrer()"
               aria-label="Assombrissement du fond"
               data-test="voile"
             />
@@ -94,7 +104,7 @@
     </section>
 
     <!-- === Fenêtre : celle DU JEU ====================================== -->
-    <section class="hm-glass hm-settings-group" id="reglages-fenetre">
+    <section #section class="hm-glass hm-settings-group" data-groupe="fenetre">
       <div class="hm-settings-group__head">
         <h3 class="hm-settings-group__title">Fenêtre du jeu</h3>
         <p class="hm-settings-group__desc">Comment Minecraft s'ouvre au lancement.</p>
@@ -160,7 +170,7 @@
     </section>
 
     <!-- === Vidéo : les clés fusionnées dans options.txt ================= -->
-    <section class="hm-glass hm-settings-group" id="reglages-video">
+    <section #section class="hm-glass hm-settings-group" data-groupe="video">
       <div class="hm-settings-group__head">
         <h3 class="hm-settings-group__title">Vidéo</h3>
         <p class="hm-settings-group__desc">
@@ -185,6 +195,7 @@
               [value]="vue().jeu.renderDistance"
               [style.--p]="course(vue().jeu.renderDistance, 2, 32)"
               (input)="changerJeu('renderDistance', $any($event.target).value)"
+              (change)="enregistrer()"
               aria-label="Distance de rendu"
               data-test="rendu"
             />
@@ -209,6 +220,7 @@
               [value]="vue().jeu.simulationDistance"
               [style.--p]="course(vue().jeu.simulationDistance, 5, 32)"
               (input)="changerJeu('simulationDistance', $any($event.target).value)"
+              (change)="enregistrer()"
               aria-label="Distance de simulation"
               data-test="simulation"
             />
@@ -234,6 +246,7 @@
               [value]="vue().jeu.maxFps"
               [style.--p]="course(vue().jeu.maxFps, 10, 260)"
               (input)="changerJeu('maxFps', $any($event.target).value)"
+              (change)="enregistrer()"
               aria-label="Images par seconde"
               data-test="fps"
             />
@@ -253,7 +266,7 @@
             class="hm-switch"
             role="switch"
             [checked]="vue().jeu.vsync"
-            (change)="changerJeu('vsync', $any($event.target).checked)"
+            (change)="basculerJeu('vsync', $any($event.target).checked)"
             aria-label="Synchronisation verticale"
             data-test="vsync"
           />
@@ -262,7 +275,7 @@
     </section>
 
     <!-- === Java : rien à régler ========================================= -->
-    <section class="hm-glass hm-settings-group" id="reglages-java">
+    <section #section class="hm-glass hm-settings-group" data-groupe="java">
       <div class="hm-settings-group__head">
         <h3 class="hm-settings-group__title">Java</h3>
         <p class="hm-settings-group__desc">Décidé par le pack, pas par vous — et c'est voulu.</p>
@@ -293,7 +306,7 @@
     </section>
 
     <!-- === Avancé ======================================================= -->
-    <section class="hm-glass hm-settings-group" id="reglages-avance">
+    <section #section class="hm-glass hm-settings-group" data-groupe="avance">
       <div class="hm-settings-group__head">
         <h3 class="hm-settings-group__title">Avancé</h3>
         <p class="hm-settings-group__desc">
@@ -326,6 +339,7 @@
               [value]="memoireGo() ?? 4"
               [style.--p]="course(memoireGo() ?? 4, 1, MEMOIRE_MAX_GO)"
               (input)="changerMemoire($any($event.target).value)"
+              (change)="enregistrer()"
               aria-label="Mémoire allouée au jeu, en gigaoctets"
               data-test="memoire"
             />

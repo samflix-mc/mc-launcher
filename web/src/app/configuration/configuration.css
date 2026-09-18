@@ -40,10 +40,11 @@
   grid-template-columns: 220px 1fr;
 }
 
-/* Les liens du rail sont des ancres : elles mènent à un fragment, donc elles se
-   comportent comme des liens — le design system en dessine des boutons. */
+/* Les entrées du rail sont des BOUTONS, comme le design system les dessine :
+   elles ne mènent nulle part, elles font défiler. Voir le composant pour ce que
+   coûtait l'ancre. */
 .hm-settings__link {
-  text-decoration: none;
+  width: 100%;
 }
 
 .hm-settings__pied {

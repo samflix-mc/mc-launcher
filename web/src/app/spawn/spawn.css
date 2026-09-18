@@ -51,40 +51,6 @@
   color: var(--ink-2);
 }
 
-/* La cinématique. Trois états, trois traitements — et jamais la couleur seule :
-   quelqu'un qui distingue mal les contrastes doit lire la même chose. */
-.hm-spawn__chemin {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 12px;
-  line-height: 16px;
-}
-
-.hm-spawn__chemin li[data-etat='a-venir'] {
-  color: var(--ink-3);
-  opacity: 0.6;
-}
-
-.hm-spawn__chemin li[data-etat='en-cours'] {
-  color: var(--gold);
-  font-weight: 700;
-}
-
-.hm-spawn__chemin li[data-etat='faite'] {
-  color: var(--ink-2);
-}
-
-/* Une étape franchie porte une coche : sans elle, « faite » et « à venir » ne
-   se distinguent que par une nuance de gris. */
-.hm-spawn__chemin li[data-etat='faite']::before {
-  content: '✓ ';
-  color: var(--success);
-}
-
 .hm-spawn__note {
   margin: 0;
   font-size: 12px;

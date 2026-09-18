@@ -110,7 +110,9 @@ pub async fn router(contexte: Arc<Contexte>, requete: Requete) -> Reponse {
         "reglages" => valeur(&crate::commandes::reglages::reglages()),
         "enregistrer_reglages" => match argument(&requete.corps, "reglages") {
             Some(recu) => match serde_json::from_value(recu) {
-                Ok(reglages) => valeur(&crate::commandes::reglages::enregistrer_reglages(reglages)),
+                Ok(reglages) => {
+                    resultat(crate::commandes::reglages::enregistrer_reglages(reglages))
+                }
                 Err(erreur) => Reponse::erreur(500, &format!("réglages illisibles : {erreur}")),
             },
             None => Reponse::erreur(500, "il manque l'argument « reglages »"),
@@ -255,6 +257,42 @@ fn accueil(etat: Etat) -> Reponse {
         .map(str::to_string)
         .collect(),
     })
+}
+
+/// Déballe un `Result`, EXACTEMENT comme le pont Tauri le fait.
+///
+/// **C'est le seul endroit où ce serveur pouvait mentir sur la forme de ce
+/// qu'il rend, et il a menti.** `#[tauri::command]` enveloppe une commande qui
+/// rend un `Result` : le succès part comme la valeur nue, l'erreur rejette la
+/// promesse. Sérialiser le `Result` tel quel donne `{"Ok": {…}}` — une réponse
+/// qui a l'air d'une réussite, qui porte un code 200, et dont le front lit un
+/// champ qui n'existe pas.
+///
+/// Le symptôme est resté longtemps illisible : la page de configuration
+/// enregistrait, recevait un objet d'une forme qu'elle ne connaissait pas, et
+/// ouvrait un incident par frappe de curseur — trois cent vingt-six en une
+/// session. Rien dans le serveur ne le disait, puisque de son point de vue tout
+/// s'était bien passé.
+pub fn resultat<T, E>(resultat: Result<T, E>) -> Reponse
+where
+    T: serde::Serialize,
+    E: serde::Serialize,
+{
+    match resultat {
+        Ok(valeur_rendue) => valeur(&valeur_rendue),
+        // L'erreur est SÉRIALISÉE, pas formatée : c'est ce que fait le pont,
+        // qui rejette avec la valeur d'erreur telle quelle. `Erreur` est un
+        // newtype sur une chaîne, donc cela rend une chaîne JSON — la forme
+        // exacte que `messageDErreur` sait lire des deux côtés.
+        Err(erreur) => match serde_json::to_string(&erreur) {
+            Ok(corps) => Reponse {
+                code: 500,
+                type_mime: "application/json".to_string(),
+                corps,
+            },
+            Err(cause) => Reponse::erreur(500, &format!("erreur non sérialisable : {cause}")),
+        },
+    }
 }
 
 /// Sérialise, ou rend l'échec plutôt que de le taire.

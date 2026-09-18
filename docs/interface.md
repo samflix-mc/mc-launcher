@@ -50,7 +50,7 @@ les deux positions valides. **Ne pas la « corriger ».**
 
 ## Ce que produit le build
 
-Le binaire `samflix-launcher` et, sous `bundle/`, un `.deb`, un `.rpm` et une
+Le binaire `helm` et, sous `bundle/`, un `.deb`, un `.rpm` et une
 `.AppImage`. Les paquets déclarent `libwebkit2gtk-4.1` et `libgtk-3` et posent
 le `.desktop` et les icônes ; l'AppImage les embarque.
 
@@ -60,7 +60,7 @@ programme le fait pour lui-même au tout début de `run()`, et seulement si le
 module noyau `nvidia` est chargé — voir `crates/mc-app/src/webkit.rs`. Poser la
 variable à la main reste possible et l'emporte, dans les deux sens.
 
-`samflix-launcher --diagnostic` répond sans ouvrir de fenêtre : nom, version,
+`helm --diagnostic` répond sans ouvrir de fenêtre : nom, version,
 environnement et sa provenance, DMA-BUF, les quatre emplacements, le
 répertoire des journaux. C'est ce que la CI oppose au tag.
 
@@ -191,6 +191,18 @@ bouton de légende.
 | `/nouvelles` | la tuile vedette et la grille | le badge joueur seul |
 | `/configuration` | Apparence, Fenêtre du jeu, Vidéo, Java, Avancé | aucune |
 
+**Le rail de la Configuration ne met rien dans l'URL.** Ses entrées étaient des
+ancres `#reglages-…` ; avec `withHashLocation()` le dièse appartient au ROUTEUR,
+si bien que cliquer écrivait une URL qu'il essayait de résoudre comme une route
+— et la navigation partait vers `/spawn` par la route de repli. Ce sont des
+boutons qui font défiler, ce que le design system décrit d'ailleurs ainsi.
+
+**Les réglages se règlent en deux temps.** Les contrôles lisent un brouillon
+local ; `(input)` ne met à jour que lui, `(change)` — le relâchement — écrit.
+La première version enregistrait sur `(input)` : tirer un curseur partait en
+trente à cinquante allers-retours par seconde, les réponses revenaient dans le
+désordre, et le nombre affiché restait figé pendant qu'on tirait.
+
 Ce que porte la barre du bas est une **donnée de route** — `data: { bas }` — et
 non un test sur l'URL : une chaîne comparée à `'/spawn'` se casse le jour où une
 route gagne un paramètre, et le symptôme est une barre du bas vide que rien
@@ -260,10 +272,17 @@ sont des outils d'outilleur, et l'un ne doit pas déclencher l'autre.
 Onze phases, chacune portant son état : faite, en cours, à venir. C'est ce qui
 distingue « on en est à la moitié » de « il se passe quelque chose ».
 
-Elle n'apparaît que **pendant le travail**, dans un panneau de Spawn. Au repos
-elle n'a rien à dire, et l'afficher en permanence remplissait l'écran d'une
-liste grise que personne ne lisait. Les libellés ont été réécrits au passage :
-« Pack » et « Verrou » ne voulaient rien dire pour un joueur.
+**Elle ne s'affiche nulle part**, et c'est une décision de recette. Le bouton
+porte déjà la progression globale, son pourcentage et son débit ; la phrase
+au-dessus de lui NOMME l'étape en cours. Une liste des onze phases disait donc
+une troisième fois ce que deux éléments disaient déjà, au prix d'un panneau qui
+apparaissait et disparaissait sous le regard, à l'endroit même où l'on suit
+l'avancement.
+
+Le modèle reste — `Pack.etapes` annote chaque phase de son état, et
+`etapeCourante` donne « 5 sur 9 · Fichiers du jeu ». C'est ce dernier que la
+barre du bas affiche. Les libellés ont été réécrits au passage : « Pack » et
+« Verrou » ne voulaient rien dire pour un joueur.
 
 | | |
 |---|---|
@@ -499,7 +518,7 @@ L'inspecteur **n'existe pas en release**. Pour l'ouvrir :
 
 ```bash
 cd crates/mc-app && cargo tauri build --debug --no-bundle
-../../target/debug/samflix-launcher
+../../target/debug/helm
 # puis clic droit dans la fenêtre → Inspecter l'élément
 ```
 
@@ -719,6 +738,6 @@ Puis, au moins une fois avant de fusionner une modification de l'interface :
 
 ```bash
 cd crates/mc-app && cargo tauri build --debug --no-bundle
-../../target/debug/samflix-launcher    # et lire la ligne « CSP servi »
+../../target/debug/helm    # et lire la ligne « CSP servi »
 pnpm --dir web verifier:prefixes       # le préfixe, dans le CSS compilé
 ```

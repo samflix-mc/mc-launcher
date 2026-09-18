@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChildren,
+} from '@angular/core';
 import { LucideAngularModule, type LucideIconData } from 'lucide-angular';
 
 import {
@@ -9,7 +18,7 @@ import {
   SlidersHorizontal,
   Terminal,
 } from '../noyau/icones';
-import type { Dossier, Fond, ModeFenetre } from '../noyau/contrats';
+import type { Dossier, Fond, ModeFenetre, Reglages as ReglagesVue } from '../noyau/contrats';
 import { Incidents } from '../noyau/incidents';
 import { Notifications } from '../noyau/notifications';
 import { Pack } from '../noyau/pack';
@@ -23,29 +32,38 @@ interface Groupe {
   readonly icone: LucideIconData;
 }
 
-/**
- * Le plancher du voile, recopié de `mc-reglages::bornes::VOILE_PLANCHER`.
- *
- * ## Pourquoi il est écrit ici aussi
- *
- * Rust borne de toute façon — c'est lui qui décide. Mais un curseur qui propose
- * une valeur que Rust remonterait rend un geste qui SAUTE : on tire, la valeur
- * revient. C'est exactement ce que Sam a décrit par « le slider du voile
- * déconne », à l'époque où le curseur descendait à 0,35 et Rust remontait à
- * 0,44.
- *
- * Il vaut zéro depuis que le contraste est tenu par l'épaisseur du verre et non
- * par le voile — voir `VOILE_PLANCHER` côté Rust et `--glass-epaisseur` dans
- * `styles.css`. Les deux nombres doivent rester égaux ; si le plancher bouge
- * d'un seul côté, le symptôme revient tel quel.
- */
-const VOILE_PLANCHER = 0;
-
 /** Le plafond du curseur de mémoire, en gigaoctets. Voir `bornes::MEMOIRE`. */
 const MEMOIRE_MAX_GO = 64;
 
 /**
  * Les réglages, en cinq groupes, avec le rail du design system.
+ *
+ * ## Le brouillon, et pourquoi il n'est pas un détail
+ *
+ * Les contrôles lisent un ÉTAT LOCAL, pas le service. `(input)` ne fait que
+ * mettre à jour cet état ; c'est `(change)` — le relâchement — qui enregistre.
+ *
+ * La première version liait tout directement au service, et enregistrait sur
+ * `(input)`. Tirer un curseur d'un bout à l'autre partait alors en trente à
+ * cinquante allers-retours par seconde, chacun écrivant le fichier ; les
+ * réponses revenaient dans le désordre, la plus ancienne écrasait la plus
+ * récente, et le nombre affiché restait figé pendant qu'on tirait. C'est
+ * exactement ce que Sam a décrit : « ça déplace le bouton, mais ça ne change
+ * pas la valeur ».
+ *
+ * Le brouillon sépare les deux temps : ce qu'on VOIT suit le doigt sans passer
+ * par le réseau, ce qu'on ÉCRIT part une fois, au relâchement. Et comme Rust
+ * rend ce qu'il a réellement écrit — une valeur ramenée dans ses bornes l'est
+ * visiblement — le brouillon se resynchronise sur sa réponse.
+ *
+ * ## Le rail ne met rien dans l'URL
+ *
+ * Les liens étaient des ancres `#reglages-…`. Avec `withHashLocation()`, le
+ * dièse appartient au ROUTEUR : cliquer y écrivait une URL que le routeur
+ * essayait de résoudre comme une route, et la navigation partait vers `/spawn`
+ * par la route de repli. Ce sont maintenant des boutons qui font défiler, ce
+ * que le design system décrit d'ailleurs ainsi — « les liens du rail font
+ * défiler jusqu'au groupe et marquent celui qui est en vue ».
  *
  * ## La correspondance des groupes, qui ne va pas de soi
  *
@@ -71,8 +89,7 @@ const MEMOIRE_MAX_GO = 64;
  *
  * Il y en avait deux — « rapide » et « complète ». La rapide ne comparait que
  * les tailles : elle disait « tout est en place » sur un fichier corrompu de la
- * bonne longueur, ce qui est le seul cas où l'on vérifie. Il n'en reste qu'une,
- * la vraie, et elle annonce qu'elle prend du temps.
+ * bonne longueur, ce qui est le seul cas où l'on vérifie.
  */
 @Component({
   selector: 'app-configuration',
@@ -88,7 +105,15 @@ export class Configuration {
   private readonly pont = inject(Pont);
   private readonly pack = inject(Pack);
 
-  protected readonly vue = this.reglages.vue;
+  /**
+   * Ce que les contrôles affichent — le brouillon.
+   *
+   * Initialisé depuis le service, et resynchronisé par l'`effect` ci-dessous à
+   * chaque fois que celui-ci change : au chargement, et après chaque
+   * enregistrement, puisque Rust rend ce qu'il a réellement écrit.
+   */
+  protected readonly vue = signal<ReglagesVue>(this.reglages.vue());
+
   protected readonly ecran = this.reglages.ecran;
   protected readonly etatDuPack = this.pack.etat;
 
@@ -96,7 +121,11 @@ export class Configuration {
   protected readonly verification = signal<string[] | null>(null);
   protected readonly verificationEnCours = signal(false);
 
-  protected readonly VOILE_PLANCHER = VOILE_PLANCHER;
+  /** Le groupe actuellement en vue, marqué dans le rail. */
+  protected readonly groupeEnVue = signal<string>('apparence');
+
+  private readonly sections = viewChildren<ElementRef<HTMLElement>>('section');
+
   protected readonly MEMOIRE_MAX_GO = MEMOIRE_MAX_GO;
 
   protected readonly ShieldCheck = ShieldCheck;
@@ -140,57 +169,119 @@ export class Configuration {
     return mo === null ? null : Math.round((mo / 1024) * 10) / 10;
   });
 
+  constructor() {
+    // Le brouillon suit le service, jamais l'inverse. C'est ce qui fait qu'une
+    // valeur ramenée dans ses bornes par Rust se voit tout de suite.
+    effect(() => this.vue.set(this.reglages.vue()));
+
+    // Et l'écran suit le brouillon : tirer le curseur du voile doit éclaircir
+    // l'image SOUS LE DOIGT, alors que l'écriture n'a lieu qu'au relâchement.
+    // Sans cela, on règlerait un assombrissement à l'aveugle.
+    effect(() => this.reglages.refleter(this.vue()));
+
+    // Le rail marque le groupe en vue, y compris quand on défile à la molette
+    // et non par un clic. Sans cela, il ne marquerait que le dernier cliqué —
+    // c'est-à-dire qu'il mentirait dès le premier coup de molette.
+    effect((suppression) => {
+      const sections = this.sections();
+      if (sections.length === 0) {
+        return;
+      }
+      const observateur = new IntersectionObserver(
+        (entrees) => {
+          const vue = entrees
+            .filter((entree) => entree.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          const groupe = (vue?.target as HTMLElement | undefined)?.dataset['groupe'];
+          if (groupe) {
+            this.groupeEnVue.set(groupe);
+          }
+        },
+        // Une bande au tiers haut de la zone : c'est là que l'œil se pose, et
+        // c'est ce qui évite qu'un groupe à peine entré par le bas prenne la
+        // marque alors qu'on lit encore le précédent.
+        { rootMargin: '0px 0px -66% 0px', threshold: [0, 0.25, 0.5] },
+      );
+      for (const section of sections) {
+        observateur.observe(section.nativeElement);
+      }
+      suppression(() => observateur.disconnect());
+    });
+  }
+
   /** Le pourcentage de course d'un curseur — le design system le lit dans `--p`. */
   protected course(valeur: number, bas: number, haut: number): string {
     return `${((valeur - bas) / (haut - bas)) * 100}%`;
   }
 
+  /**
+   * Fait défiler jusqu'à un groupe.
+   *
+   * Aucune URL n'est touchée : pas d'ancre, donc rien que le routeur puisse
+   * confondre avec une route. `block: 'start'` avec la marge de défilement
+   * posée en CSS arrête le titre sous le bord de la zone et non collé dessus.
+   */
+  protected allerA(ancre: string): void {
+    this.groupeEnVue.set(ancre);
+    const cible = this.sections().find(
+      (element) => element.nativeElement.dataset['groupe'] === ancre,
+    );
+    cible?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   // --- Les changements -----------------------------------------------------
   //
-  // Un `<select>` et un `<input type="range">` se lient par `[value]` et
-  // `(input)`, et NON par `model()` : `model()` ne crée pas de liaison vers un
-  // contrôle natif.
+  // Deux temps, et c'est tout le sujet :
   //
-  // `(input)` et non `(change)` sur les curseurs : `change` n'arrive qu'au
-  // relâchement, si bien que le nombre affiché restait figé pendant qu'on
-  // tirait. C'est la seconde moitié de « le slider déconne ».
+  //   `(input)`  → `changer…` : le brouillon seul. Aucun réseau, aucun disque.
+  //   `(change)` → `enregistrer()` : une écriture, au relâchement.
+  //
+  // Un `<select>` et une case à cocher n'ont qu'un temps — `(change)` fait les
+  // deux d'un coup, puisqu'il n'y a pas de geste continu à suivre.
 
-  protected async changerFond(valeur: string): Promise<void> {
-    const apparence = { ...this.vue().apparence, fond: valeur as Fond };
-    await this.incidents.pendant(() => this.reglages.modifier({ apparence }));
+  protected changerFond(valeur: string): void {
+    this.vue.update((vu) => ({ ...vu, apparence: { ...vu.apparence, fond: valeur as Fond } }));
+    void this.enregistrer();
   }
 
-  protected async changerVoile(valeur: string): Promise<void> {
-    const apparence = { ...this.vue().apparence, voile: Number(valeur) };
-    await this.incidents.pendant(() => this.reglages.modifier({ apparence }));
+  protected changerVoile(valeur: string): void {
+    this.vue.update((vu) => ({ ...vu, apparence: { ...vu.apparence, voile: Number(valeur) } }));
   }
 
-  protected async changerMode(valeur: string): Promise<void> {
-    const fenetre = { ...this.vue().fenetre, mode: valeur as ModeFenetre };
-    await this.incidents.pendant(() => this.reglages.modifier({ fenetre }));
+  protected changerMode(valeur: string): void {
+    this.vue.update((vu) => ({ ...vu, fenetre: { ...vu.fenetre, mode: valeur as ModeFenetre } }));
+    void this.enregistrer();
   }
 
-  protected async changerTaille(champ: 'largeur' | 'hauteur', valeur: string): Promise<void> {
-    const fenetre = { ...this.vue().fenetre, [champ]: Number(valeur) };
-    await this.incidents.pendant(() => this.reglages.modifier({ fenetre }));
+  protected changerTaille(champ: 'largeur' | 'hauteur', valeur: string): void {
+    this.vue.update((vu) => ({ ...vu, fenetre: { ...vu.fenetre, [champ]: Number(valeur) } }));
+    void this.enregistrer();
   }
 
-  protected async changerJeu(champ: string, valeur: string | boolean): Promise<void> {
-    const jeu = {
-      ...this.vue().jeu,
-      [champ]: typeof valeur === 'boolean' ? valeur : Number(valeur),
-    };
-    await this.incidents.pendant(() => this.reglages.modifier({ jeu }));
+  protected changerJeu(champ: string, valeur: string | number): void {
+    this.vue.update((vu) => ({ ...vu, jeu: { ...vu.jeu, [champ]: Number(valeur) } }));
   }
 
-  protected async changerMemoire(valeur: string): Promise<void> {
-    const lanceur = { ...this.vue().lanceur, memoireMo: Math.round(Number(valeur) * 1024) };
-    await this.incidents.pendant(() => this.reglages.modifier({ lanceur }));
+  protected basculerJeu(champ: string, valeur: boolean): void {
+    this.vue.update((vu) => ({ ...vu, jeu: { ...vu.jeu, [champ]: valeur } }));
+    void this.enregistrer();
   }
 
-  protected async changerReduction(valeur: boolean): Promise<void> {
-    const lanceur = { ...this.vue().lanceur, reduireAuLancement: valeur };
-    await this.incidents.pendant(() => this.reglages.modifier({ lanceur }));
+  protected changerMemoire(valeur: string): void {
+    this.vue.update((vu) => ({
+      ...vu,
+      lanceur: { ...vu.lanceur, memoireMo: Math.round(Number(valeur) * 1024) },
+    }));
+  }
+
+  protected changerReduction(valeur: boolean): void {
+    this.vue.update((vu) => ({ ...vu, lanceur: { ...vu.lanceur, reduireAuLancement: valeur } }));
+    void this.enregistrer();
+  }
+
+  /** Écrit le brouillon. Appelée au relâchement, jamais pendant le geste. */
+  protected async enregistrer(): Promise<void> {
+    await this.incidents.pendant(() => this.reglages.enregistrer(this.vue()));
   }
 
   // --- Le groupe Avancé ----------------------------------------------------

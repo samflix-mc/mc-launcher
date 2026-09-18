@@ -79,6 +79,18 @@ export class Reglages {
    * Deux propriétés personnalisées, et rien d'autre : la mise en forme reste
    * dans les feuilles, et ce service ne fait qu'y injecter deux valeurs.
    */
+  /**
+   * Pose ce qu'un réglage change dans le DOM, sans rien écrire.
+   *
+   * Publique parce que la page de configuration s'en sert pour PRÉVISUALISER :
+   * tirer le curseur du voile doit éclaircir l'image sous le doigt, alors que
+   * l'écriture n'a lieu qu'au relâchement. Sans cela, on règlerait un
+   * assombrissement à l'aveugle.
+   */
+  refleter(reglages: ReglagesVue): void {
+    this.appliquer(reglages);
+  }
+
   private appliquer(reglages: ReglagesVue): void {
     const racine = document.documentElement;
     racine.dataset['fond'] = reglages.apparence.fond;
