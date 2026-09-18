@@ -51,19 +51,32 @@ async fn un_runtime_trop_vieux_n_est_pas_retenu() {
 /// Ce test portait l'ancienne règle, et il la portait bien : il est retourné
 /// plutôt que supprimé, pour qu'on lise le renversement plutôt que de croire
 /// à un oubli.
+///
+/// **La majeure demandée est [`MAJEUR_INTROUVABLE`], et cela n'est pas un
+/// détail de confort.** La première écriture demandait 17 et posait un faux
+/// Java annonçant 21 : elle passait sur ce poste et ÉCHOUAIT sur un runner,
+/// qui livre plusieurs JDK — dont un vrai 17. `detect` le trouvait par le
+/// `PATH`, le retenait à bon droit, et le test accusait le code d'un défaut
+/// qui était le sien. C'est exactement le piège que le commentaire de
+/// `MAJEUR_INTROUVABLE` décrit, et auquel ce test avait échappé.
 #[cfg(unix)]
 #[tokio::test]
 async fn un_runtime_plus_recent_ne_convient_pas() {
     let _atelier = crate::essais::atelier();
     let arbre = Arbre::neuf("detect-recent");
     faux_java(
-        &arbre.racine.join("temurin-17").join("bin").join("java"),
-        "21.0.5+11",
+        &arbre
+            .racine
+            .join(format!("temurin-{MAJEUR_INTROUVABLE}"))
+            .join("bin")
+            .join("java"),
+        &format!("{}.0.5+11", MAJEUR_INTROUVABLE + 1),
     );
 
     assert!(
-        detect(17, &arbre.racine).await.is_none(),
-        "un Java 21 a été retenu là où le pack exige exactement 17"
+        detect(MAJEUR_INTROUVABLE, &arbre.racine).await.is_none(),
+        "un Java {} a été retenu là où le pack exige exactement {MAJEUR_INTROUVABLE}",
+        MAJEUR_INTROUVABLE + 1
     );
 }
 
