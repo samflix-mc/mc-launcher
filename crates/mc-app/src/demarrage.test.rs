@@ -6,19 +6,32 @@ use std::time::Duration;
 /// manque.
 ///
 /// C'est le cas qui a motivé la règle : mesuré sur le poste de Sam, le front
-/// signalait au bout d'environ six cents millisecondes, et l'écran de démarrage
-/// passait trop vite pour être lu — il se remarquait comme un clignotement, et
-/// non comme un démarrage.
+/// signalait au bout d'environ cinq cents millisecondes, et l'écran de
+/// démarrage passait trop vite pour être lu — il se remarquait comme un
+/// clignotement, et non comme un démarrage.
+///
+/// Les attentes sont exprimées PAR RAPPORT à `DUREE_MINIMALE` et non en
+/// nombres. Le plancher est un réglage de confort qu'on ajuste à l'œil — il a
+/// déjà bougé une fois — et des nombres écrits en dur obligeraient à réécrire
+/// ce test à chaque ajustement. Un test qu'il faut réparer pour changer une
+/// valeur de confort finit par décourager de la changer.
 #[test]
 fn un_front_rapide_est_retenu_du_temps_qui_manque() {
-    assert_eq!(
-        reste_a_attendre(Duration::from_millis(600)),
-        Duration::from_millis(900)
-    );
-    assert_eq!(
-        reste_a_attendre(Duration::from_millis(100)),
-        Duration::from_millis(1400)
-    );
+    for ecoule in [
+        Duration::from_millis(0),
+        Duration::from_millis(100),
+        Duration::from_millis(500),
+        DUREE_MINIMALE / 2,
+    ] {
+        assert_eq!(
+            reste_a_attendre(ecoule),
+            DUREE_MINIMALE - ecoule,
+            "écoulé {ecoule:?}"
+        );
+        // Et la propriété qui compte vraiment : l'écran de démarrage tient
+        // exactement le plancher, quel que soit le temps qu'a pris le front.
+        assert_eq!(ecoule + reste_a_attendre(ecoule), DUREE_MINIMALE);
+    }
 }
 
 /// Un front plus lent que le plancher n'attend PAS.

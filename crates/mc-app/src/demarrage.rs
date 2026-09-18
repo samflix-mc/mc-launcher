@@ -47,15 +47,16 @@ use tauri::{AppHandle, Manager};
 /// Combien de temps l'écran de démarrage reste affiché AU MINIMUM.
 ///
 /// Mesuré sur ce poste, le front signale son premier rendu au bout d'environ
-/// six cents millisecondes. C'est assez court pour qu'on n'ait le temps de
+/// cinq cents millisecondes. C'est assez court pour qu'on n'ait le temps de
 /// rien lire : l'écran apparaît et disparaît, ce qui se remarque comme un
 /// clignotement et non comme un démarrage.
 ///
-/// Une seconde et demie est le seuil au-delà duquel une attente cesse d'être
-/// perçue comme un raté et devient une transition. C'est un choix de rythme,
-/// pas une contrainte technique — et il est donc écrit ici, seul, pour qu'on
-/// puisse le changer sans rien relire d'autre.
-const DUREE_MINIMALE: Duration = Duration::from_millis(1500);
+/// **C'est un choix de rythme, pas une contrainte technique.** Il se règle à
+/// l'œil, et il a déjà bougé : une seconde et demie d'abord, deux ensuite. La
+/// valeur est donc seule sur sa ligne, et les tests l'expriment PAR RAPPORT à
+/// elle plutôt qu'en nombres — sans quoi la changer obligerait à réécrire la
+/// suite à chaque fois, ce qui finit par décourager de l'ajuster.
+const DUREE_MINIMALE: Duration = Duration::from_millis(2000);
 
 /// Au bout de combien de temps on montre la fenêtre sans attendre le front.
 ///
