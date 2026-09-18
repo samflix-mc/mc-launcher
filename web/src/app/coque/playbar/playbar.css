@@ -1,0 +1,19 @@
+:host {
+  display: block;
+}
+
+/* Le bouton est un `<button>` réel, donc il peut porter `disabled` — ce que le
+   design system n'a pas à dire, puisque ses exemples sont du HTML statique.
+   `disabled` retire le bouton de la tabulation, ce qu'`aria-disabled` seul ne
+   fait pas ; les deux sont posés, l'un pour le clavier, l'autre pour ce que les
+   technologies d'assistance annoncent. */
+.hm-play:disabled {
+  cursor: not-allowed;
+}
+
+/* `.hm-play--busy` n'est pas un bouton désactivé : il travaille. Le design
+   system lui donne `cursor: progress` ; il faut le redire ici, parce que
+   `:disabled` ci-dessus gagnerait autrement par ordre d'écriture. */
+.hm-play--busy:disabled {
+  cursor: progress;
+}

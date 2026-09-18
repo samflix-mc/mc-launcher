@@ -68,13 +68,13 @@ impl Phase {
         match self {
             Phase::Connexion => "Compte Microsoft",
             Phase::Licence => "Licence Minecraft",
-            Phase::Pack => "Pack",
-            Phase::Chargeur => "Version de NeoForge",
+            Phase::Pack => "Lecture du pack",
+            Phase::Chargeur => "Version du chargeur",
             Phase::Minecraft => "Fichiers du jeu",
             Phase::Java => "Java",
-            Phase::NeoForge => "Chargeur NeoForge",
+            Phase::NeoForge => "Installation de NeoForge",
             Phase::Mods => "Mods",
-            Phase::Verrou => "Verrou",
+            Phase::Verrou => "Finalisation",
             Phase::Pret => "Prêt à jouer",
             Phase::Lancement => "Jeu lancé",
         }

@@ -32,9 +32,19 @@ pub const FPS: (u16, u16) = (10, 260);
 pub const ECHELLE: (u8, u8) = (0, 4);
 
 /// Mémoire de la JVM, en mégaoctets. 1 Go est le plancher sous lequel un
-/// modpack ne démarre pas ; 32 Go le plafond au-delà duquel on alloue plus que
-/// la machine n'a, et le système se met à échanger sur le disque.
-pub const MEMOIRE: (u32, u32) = (1024, 32768);
+/// modpack ne démarre pas.
+///
+/// Le plafond était à 32 Go, sur l'idée qu'au-delà on alloue plus que la
+/// machine n'a. L'idée était juste, le nombre non : une machine de 64 Go — ce
+/// que Sam a — voyait son curseur s'arrêter à 32, sans que rien ne dise
+/// pourquoi. Un plafond fixe ne peut pas tenir ce raisonnement ; seul le
+/// total de la machine le pourrait, et le launcher ne le connaît pas encore.
+///
+/// 64 Go est donc une borne de SÉCURITÉ et non un conseil : elle empêche une
+/// valeur absurde d'arriver jusqu'à la JVM, sans prétendre savoir ce que la
+/// machine porte. Le jour où le total sera lu — voir la tâche R6 — c'est lui
+/// qui bornera, et cette constante redeviendra un simple garde-fou.
+pub const MEMOIRE: (u32, u32) = (1024, 65_536);
 
 /// Taille de la fenêtre du jeu. Le plancher est celui sous lequel l'interface
 /// de Minecraft se chevauche.
@@ -43,40 +53,44 @@ pub const HAUTEUR: (u32, u32) = (480, 4320);
 
 /// Le plancher du voile.
 ///
-/// **Une mesure, pas un choix — et elle a été refaite.**
+/// **Il vaut zéro, et c'est une décision de conception — pas un renoncement.**
 ///
-/// La première version disait « la valeur en dessous de laquelle le texte
-/// cesse de tenir le contraste sur l'image embarquée la plus claire ». Cette
-/// phrase avait deux défauts. Le premier : mesurée pour de bon, elle rend
-/// ZÉRO, parce que les trois fonds livrés aujourd'hui sont des dégradés
-/// sombres — le texte y tient déjà 10,9:1 sans aucun voile. Le second, plus
-/// grave : elle adosse une garantie d'accessibilité à un jeu d'images qui a
-/// vocation à être remplacé par de vraies captures, et personne ne
-/// remesurerait.
+/// Les deux versions précédentes valaient 0,35 puis 0,44. Toutes les deux
+/// répondaient à la même question : « à partir de quelle opacité le texte
+/// tient-il 4,5:1 sur l'image la plus claire concevable ? » La réponse était
+/// juste ; c'était la QUESTION qui ne l'était plus.
 ///
-/// La borne se mesure donc sur le **pire fond concevable** plutôt que sur
-/// celui d'aujourd'hui : une surface blanche, ce que produit une plaine
-/// enneigée ou un ciel surexposé. Elle ne dépend plus des images, et il n'y a
-/// plus rien à remesurer quand elles changent.
+/// Elle supposait que le contraste se règle en assombrissant l'image. Le design
+/// system y répond autrement, et mieux : « sur une image claire, montez la base
+/// du verre à 60 % du fond sur la racine de la fenêtre plutôt que d'assombrir
+/// le texte ». Autrement dit, ce qu'on épaissit est le PANNEAU, pas l'image.
 ///
-/// La pile, de bas en haut, et chaque terme compte :
+/// La différence n'est pas théorique. Un voile à 0,44 s'applique partout, y
+/// compris là où il n'y a aucun texte — c'est-à-dire sur le milieu de l'écran,
+/// que le design system laisse vide exprès pour que l'image se voie. Le
+/// launcher affichait donc un rectangle noir à l'endroit même que toute sa
+/// direction artistique existe pour montrer.
 ///
-/// | Couche | Valeur |
-/// |---|---|
-/// | fond | `rgb(255, 255, 255)`, le pire cas |
-/// | voile | `oklch(13% 0.012 260)` à l'opacité cherchée |
-/// | verre | `base-100` à **0,32** — celui du menu, le plus léger de l'interface |
-/// | texte | `base-content`, `rgb(236, 239, 242)` |
+/// La garantie de contraste n'a pas disparu, elle a changé de couche. Elle est
+/// tenue en trois endroits, tous dans `web/src/` :
 ///
-/// À 0,44 le contraste vaut 4,61:1, au-dessus du seuil AA de 4,5:1 pour du
-/// texte ordinaire ; à 0,43 il tombe en dessous. Le défaut, 0,55, laisse
-/// 6,10:1 — le curseur donne donc au joueur de quoi éclaircir sans jamais
-/// descendre sous le lisible.
+/// 1. `.hm-stage__art::after`, le dégradé du design system — le fond à 52 % en
+///    haut, 36 % au milieu, 80 % en bas. C'est lui qui fait que la barre du bas
+///    se lit quelle que soit l'image, et il n'est pas réglable.
+/// 2. `--glass-base`, qui s'ÉPAISSIT quand le voile s'amincit : de 46 % du fond
+///    à 72 %. À voile nul et sur une image blanche, `ink-3` — la teinte la plus
+///    claire que le design system autorise — tient encore 4,5:1 sur un panneau.
+///    C'est la parade que le design system prescrit, appliquée automatiquement.
+/// 3. Les ombres portées des textes qui n'ont pas de panneau sous eux : les
+///    titres de tuile et l'indication du bouton de jeu.
 ///
-/// À remesurer si l'on change la couleur du texte, celle du voile, ou
-/// l'opacité du verre — c'est-à-dire trois valeurs de `styles.css`, pas trois
-/// fichiers binaires.
-pub const VOILE_PLANCHER: f32 = 0.44;
+/// Le voile redevient donc ce qu'un réglage d'apparence doit être : une
+/// préférence, qui ne peut pas rendre l'interface illisible parce que ce n'est
+/// plus lui qui la rend lisible.
+///
+/// À rouvrir si l'on retire la compensation de `--glass-base` — et dans ce cas,
+/// c'est la mesure du point 2 qu'il faut refaire, pas celle d'avant.
+pub const VOILE_PLANCHER: f32 = 0.0;
 
 fn borner<T: PartialOrd>(valeur: T, bornes: (T, T)) -> T {
     if valeur < bornes.0 {

@@ -1,0 +1,57 @@
+<div class="hm-playbar" data-test="playbar">
+  <!--
+    La phrase qui dit POURQUOI le bouton est ce qu'il est. Le design system la
+    veut au-dessus, en douze pixels, avec une ombre portée : elle est posée sur
+    l'image, pas sur un panneau.
+  -->
+  <span
+    class="hm-playbar__hint"
+    [class.hm-playbar__hint--danger]="indication().danger"
+    data-test="indication"
+  >
+    @if (indication().danger) {
+      <lucide-icon [img]="WifiOff" [size]="12" [strokeWidth]="2" aria-hidden="true" />
+    }
+    {{ indication().texte }}
+  </span>
+
+  <button
+    type="button"
+    class="hm-play"
+    [class.hm-play--busy]="allure() === 'occupe'"
+    [class.hm-play--disabled]="allure() === 'inerte'"
+    [attr.aria-busy]="allure() === 'occupe' ? 'true' : null"
+    [attr.aria-disabled]="allure() === 'inerte' ? 'true' : null"
+    [disabled]="allure() !== 'pret'"
+    [attr.data-etat]="bouton()"
+    (click)="jouer()"
+    data-test="bouton"
+  >
+    @if (allure() === 'occupe') {
+      <!--
+        Le remplissage. `--p` porte le pourcentage ; sans valeur connue, la
+        variante indéterminée glisse, ce qui dit « il se passe quelque chose »
+        sans prétendre savoir où l'on en est.
+
+        C'est la barre du design system, et non un `<progress>` : sous la
+        WebKitGTK du launcher, une barre indéterminée native rendrait un bloc
+        FIGÉ à cinquante pour cent dès qu'on éteint `appearance`.
+      -->
+      @if (remplissage(); as pourcent) {
+        <span class="hm-play__fill" [style.--p]="pourcent" data-test="remplissage"></span>
+      } @else {
+        <span class="hm-play__fill hm-play__fill--indeterminate" data-test="remplissage"></span>
+      }
+    }
+
+    @if (icone(); as marque) {
+      <lucide-icon [img]="marque" [size]="22" [strokeWidth]="2.25" aria-hidden="true" />
+    }
+
+    <span class="hm-play__label">{{ libelle() }}</span>
+
+    @if (meta(); as detail) {
+      <span class="hm-play__meta" data-test="meta">{{ detail }}</span>
+    }
+  </button>
+</div>

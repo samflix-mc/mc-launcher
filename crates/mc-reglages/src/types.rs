@@ -195,7 +195,9 @@ impl Default for Apparence {
     fn default() -> Self {
         Self {
             fond: Fond::Spawn,
-            voile: 0.55,
+            // Assez pour poser l'interface sur l'image sans l'effacer. Le
+            // contraste ne dépend plus de cette valeur — voir `VOILE_PLANCHER`.
+            voile: 0.3,
         }
     }
 }

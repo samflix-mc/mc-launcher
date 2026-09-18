@@ -1,0 +1,40 @@
+:host {
+  display: block;
+}
+
+/* Le badge ancre son menu : le menu est en `position: absolute` par rapport à
+   lui, et non par rapport à la fenêtre. */
+.hm-joueur {
+  position: relative;
+}
+
+/* Le menu s'ouvre AU-DESSUS du badge — il est en bas de la fenêtre, et un menu
+   qui descendrait sortirait du cadre. */
+.hm-joueur__menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + var(--space-2));
+}
+
+/* La couche qui referme. Elle couvre la fenêtre entière, sous le menu et
+   au-dessus du reste ; elle ne dessine rien. */
+.hm-joueur__voile {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-menu) - 1);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* Un élément de menu désactivé doit le dire : `.hm-menu__item` du design system
+   ne porte pas cet état, parce qu'aucun de ses exemples n'en a. */
+.hm-menu__item:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.hm-menu__item:disabled:hover {
+  background: transparent;
+}

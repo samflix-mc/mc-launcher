@@ -139,13 +139,17 @@ fn la_taille_de_fenetre_est_bornee() {
 
 // --- Le voile, et c'est la borne qui compte --------------------------------
 
-/// Le voile est borné PAR LE BAS, et ce n'est pas un confort : en dessous, le
-/// texte cesse de tenir le contraste sur un fond clair, et les libellés
-/// deviennent illisibles sur une partie de l'écran seulement — ce qui
-/// ressemble à un défaut de rendu et non à un réglage.
+/// Une valeur SOUS le plancher remonte au plancher.
+///
+/// Le plancher vaut zéro depuis que le contraste est tenu par le verre et non
+/// par le voile — voir `VOILE_PLANCHER`. Ce test ne garde donc plus une
+/// garantie d'accessibilité ; il garde le fait qu'une valeur négative, qu'un
+/// fichier modifié à la main peut porter, ne descend pas dans le CSS. Une
+/// opacité négative y serait ignorée en silence, et le réglage cesserait
+/// d'avoir un effet sans que rien ne le dise.
 #[test]
 fn le_voile_ne_descend_pas_sous_le_plancher() {
-    for donne in [0.0, 0.1, VOILE_PLANCHER - 0.01] {
+    for donne in [-1.0, -0.01, VOILE_PLANCHER - 0.01] {
         let mut apparence = Apparence {
             voile: donne,
             ..Apparence::default()
@@ -155,10 +159,14 @@ fn le_voile_ne_descend_pas_sous_le_plancher() {
     }
 }
 
-/// À la borne et juste au-dessus, rien ne bouge.
+/// À la borne et au-dessus, rien ne bouge.
+///
+/// Zéro compris : c'est une valeur que le joueur peut demander, et le launcher
+/// ne doit pas la lui reprendre — l'image se voit alors en entier, ce qui est
+/// exactement ce que le curseur promet à cette extrémité.
 #[test]
 fn le_voile_au_plancher_et_au_dessus_ne_bouge_pas() {
-    for donne in [VOILE_PLANCHER, VOILE_PLANCHER + 0.01, 0.9, 1.0] {
+    for donne in [VOILE_PLANCHER, VOILE_PLANCHER + 0.01, 0.3, 0.9, 1.0] {
         let mut apparence = Apparence {
             voile: donne,
             ..Apparence::default()
@@ -244,6 +252,7 @@ fn le_plein_ecran_se_deduit_du_mode() {
 /// enregistrement : le joueur verrait sa valeur changer toute seule, sans que
 /// rien ne l'explique. Et un défaut ÉGAL au plancher ne laisserait aucune
 /// marge pour éclaircir — le curseur existerait sans servir dans ce sens-là.
+/// Le plancher vaut zéro ; le défaut doit donc rester strictement positif.
 #[test]
 fn le_defaut_laisse_de_la_marge_au_dessus_du_plancher() {
     assert!(
@@ -257,7 +266,9 @@ fn le_defaut_laisse_de_la_marge_au_dessus_du_plancher() {
 ///
 /// Au-delà d'environ deux tiers, l'image de fond ne se distingue plus d'un
 /// aplat : le plancher aurait alors supprimé la fonctionnalité qu'il est censé
-/// rendre lisible.
+/// rendre lisible. La borne basse n'est plus interdite d'être nulle — c'est
+/// même la valeur qu'elle porte — mais elle ne peut pas être négative, sous
+/// peine qu'une opacité négative parte dans le CSS.
 #[test]
 fn le_plancher_reste_un_voile() {
     // En bloc `const` : les deux comparaisons portent sur une constante, et
@@ -266,7 +277,10 @@ fn le_plancher_reste_un_voile() {
     // l'intention plus juste : ce n'est pas un comportement qu'on éprouve,
     // c'est une borne qu'on interdit de franchir.
     const {
-        assert!(VOILE_PLANCHER > 0.0, "un plancher nul ne garantit rien");
+        assert!(
+            VOILE_PLANCHER >= 0.0,
+            "une opacité négative n'a pas de sens"
+        );
         assert!(
             VOILE_PLANCHER <= 0.66,
             "au-delà, l'image de fond ne se voit plus : autant ne pas en avoir"

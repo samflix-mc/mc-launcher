@@ -3,7 +3,15 @@
 [← README](../README.md)
 
 L'application : une fenêtre **Tauri 2** dont le front est en **Angular 22**
-sans zone, avec **Tailwind 4** et **daisyUI 5**.
+sans zone, habillé par le design system **Helm**.
+
+Il n'y a **ni Tailwind ni daisyUI**, et ce n'est pas un allègement : le design
+system est complet — son propre socle, ses jetons, et six cent vingt lignes de
+composants. Faire cohabiter deux systèmes coûtait deux fois, une fois en octets
+et une fois en incohérences. Il y avait en plus un piège de cascade :
+`@import "tailwindcss"` range ses utilitaires dans une couche, et du CSS SANS
+couche l'emporte sur toute couche — un utilitaire posé sur un élément décrit par
+le design system aurait été ignoré **en silence**.
 
 ```bash
 pnpm --dir web install                 # une fois
@@ -75,8 +83,9 @@ crates/            tout le Rust, un seul workspace
 
 web/               tout le front
 ├── src/app/       les pages, la coque, et `noyau/` — les services
-├── src/styles.css le global, réduit à ce qui n'appartient à aucun composant
-├── public/        les assets servis tels quels, dont `splash.html`
+├── src/design/    le design system, deux COPIES : tokens.css et helm.css
+├── src/styles.css les polices, les trois imports, et le socle du launcher
+├── public/        les assets servis tels quels, dont `splash.html` et les fonds
 └── dist/          la sortie de build (ignorée)
 
 target/            la sortie de Cargo (ignorée)
@@ -159,14 +168,38 @@ curseur sans rien acheter.
 La capacité déclare nommément `minimize`, `toggle-maximize`, `close`,
 `start-dragging` et `is-maximized` : `core:window:default` ne les contient pas.
 
+**Ce qui manquait n'était pas le geste mais le curseur.** Le gestionnaire GTK
+redimensionne bien, mais rien dans le document ne demandait `ns-resize` ou
+`ew-resize`, et WebKit dessine le sien par-dessus celui de GTK. Huit zones de
+huit pixels — `.hm-bords` — portent donc le curseur et **aucun gestionnaire**.
+Elles disparaissent quand la fenêtre est maximisée : la garde `!is_maximized()`
+du runtime désarme le geste, et promettre ce que rien n'exécute est pire que de
+ne rien promettre.
+
+La barre porte, de gauche à droite : le nom du launcher en face pixel, un
+séparateur, le nom du modpack, puis la cloche des notifications et les trois
+contrôles. Les contrôles font quarante-six pixels, la largeur des boutons de
+légende de Windows ; la cloche en fait trente-deux, parce que ce n'est pas un
+bouton de légende.
+
 ## Les quatre pages
 
-| Route | Ce qu'on y fait |
-|---|---|
-| `/connexion` | ouvrir la session Microsoft, et l'état « ce compte ne possède pas le jeu » |
-| `/spawn` | le bouton, l'avancement, la cinématique, la dernière news |
-| `/nouvelles` | le fil complet |
-| `/configuration` | Apparence, Fenêtre, Vidéo, Java, Avancé |
+| Route | Ce qu'on y fait | Barre du bas |
+|---|---|---|
+| `/connexion` | une MODALE : la session Microsoft, et l'état « ce compte ne possède pas le jeu » | aucune, et pas de coque non plus |
+| `/spawn` | la nouvelle épinglée, l'état du pack, la cinématique pendant le travail | le bouton et le badge joueur |
+| `/nouvelles` | la tuile vedette et la grille | le badge joueur seul |
+| `/configuration` | Apparence, Fenêtre du jeu, Vidéo, Java, Avancé | aucune |
+
+Ce que porte la barre du bas est une **donnée de route** — `data: { bas }` — et
+non un test sur l'URL : une chaîne comparée à `'/spawn'` se casse le jour où une
+route gagne un paramètre, et le symptôme est une barre du bas vide que rien
+n'explique.
+
+**Tant que la session n'est pas jouable, il n'y a pas de coque** : ni pilule de
+navigation, ni bouton de jeu, ni badge joueur. Montrer un menu et un bouton « se
+déconnecter » à quelqu'un qui n'est pas connecté était le premier reproche de la
+recette.
 
 Toutes en `loadComponent`, et l'historique en `withHashLocation()`.
 
@@ -192,14 +225,24 @@ récupère le verrou publié — quelques kilooctets — et compare son empreint
 la forme canonique et non sur les octets reçus, à celle du verrou posé. Il sait
 donc, avant de proposer quoi que ce soit, s'il y a quelque chose à rattraper.
 
+Il vit dans la **coque** et non dans Spawn : ce n'est pas une décision de la
+page, c'est l'état du disque et celui de la session qui le pilotent. Le design
+system le place au centre de la barre du bas.
+
 | Ce que le disque dit | Ce que le bouton dit |
 |---|---|
-| on ne sait pas encore | « … » — et surtout pas « Installer » |
-| rien d'installé | **INSTALLER** |
-| installé et conforme | **JOUER** |
-| installé, verrou différent | **JOUER**, et il rattrape d'abord |
-| une opération en cours | occupé |
-| le jeu tourne | en partie |
+| on ne sait pas encore | « Vérification… », et surtout pas « Installer » |
+| rien d'installé | **Installer** |
+| installé et conforme | **Jouer** |
+| installé, verrou différent | **Mettre à jour et jouer** |
+| génération changée | **Réinstaller et jouer** |
+| une opération en cours | le remplissage, le pourcentage et le débit |
+| le jeu tourne | « En jeu », inerte |
+| hors ligne et rien d'installé | inerte, avec la raison |
+
+**La phrase au-dessus du bouton n'est pas décorative** : c'est elle qui dit
+POURQUOI le bouton est ce qu'il est. Sans elle, l'écran demande de deviner — ce
+qui était exactement le reproche fait à l'ancienne page Spawn.
 
 Entre l'affichage de la page et la réponse de `etat_du_pack()`, le bouton dit
 qu'il regarde. Une valeur par défaut « Installer » produirait un clignotement
@@ -214,21 +257,25 @@ sont des outils d'outilleur, et l'un ne doit pas déclencher l'autre.
 
 ## La cinématique
 
-Onze phases, dessinées **en entier dès l'ouverture**, chacune portant son état :
-faite, en cours, à venir. C'est ce qui distingue « on en est à la moitié » de
-« il se passe quelque chose ».
+Onze phases, chacune portant son état : faite, en cours, à venir. C'est ce qui
+distingue « on en est à la moitié » de « il se passe quelque chose ».
+
+Elle n'apparaît que **pendant le travail**, dans un panneau de Spawn. Au repos
+elle n'a rien à dire, et l'afficher en permanence remplissait l'écran d'une
+liste grise que personne ne lisait. Les libellés ont été réécrits au passage :
+« Pack » et « Verrou » ne voulaient rien dire pour un joueur.
 
 | | |
 |---|---|
 | Compte Microsoft | session reprise du trousseau, ou ouverte par code d'appareil |
 | Licence Minecraft | `Auth::owns_game` |
-| Pack | manifeste, verrou, et la purge si la génération a changé |
-| Version de NeoForge | `latest` résolu tout de suite, pour que le verrou porte un numéro |
+| Lecture du pack | manifeste, verrou, et la purge si la génération a changé |
+| Version du chargeur | `latest` résolu tout de suite, pour que le verrou porte un numéro |
 | Fichiers du jeu | client, bibliothèques, assets |
 | Java | détecté, ou Temurin posé à la majeure **exacte** du verrou |
-| Chargeur NeoForge | l'installateur officiel, dans le Java ci-dessus |
+| Installation de NeoForge | l'installateur officiel, dans le Java ci-dessus |
 | Mods | résolus, téléchargés, répartis client/serveur |
-| Verrou | écrit en dernier : il décrit ce qui a réellement été fait |
+| Finalisation | le verrou, écrit en dernier : il décrit ce qui a réellement été fait |
 | Prêt à jouer | le bouton s'allume |
 | Jeu lancé | |
 
@@ -265,37 +312,84 @@ octets descendus du réseau, et le poids des fichiers déjà conformes sur le
 disque. Sans les seconds, une réinstallation resterait à zéro de bout en bout
 alors que tout est déjà là.
 
-La barre elle-même est un `<progress>` en `appearance: none` — obligatoire pour
-la direction artistique — et son animation indéterminée est **réécrite** : la
-feuille d'agent de WebKitGTK ne porte aucune règle `:indeterminate`, et ce qui
-anime une barre native relève précisément du rendu que `appearance: none`
-éteint. Sans cette réécriture, on aurait un bloc figé à 50 %. La valeur passe
-par `[attr.value]` et non `[value]` : le setter IDL pose l'attribut même pour
-`null`, coercé en 0, ce qui rendrait une barre à zéro au lieu d'une barre
-indéterminée.
+La barre elle-même **n'est pas un `<progress>`**, et pour une raison qui a coûté
+un essai : la feuille d'agent de WebKitGTK ne porte aucune règle
+`:indeterminate`, et ce qui anime une barre native relève précisément du rendu
+que `appearance: none` éteint — or `appearance: none` est obligatoire pour la
+direction artistique. On aurait donc eu un bloc **figé à 50 %**, c'est-à-dire le
+mensonge exact qu'une jauge existe pour ne pas dire.
 
-## Le fond, le voile, le verre
+Ce sont les barres du design system : `.hm-progress__fill` pour une valeur
+connue, `--indeterminate` pour une valeur qui ne l'est pas, et `.hm-play__fill`
+à l'intérieur même du bouton pendant l'installation. Le pourcentage passe par
+`[style.--p]`, une propriété personnalisée que le CSS consomme.
 
-L'écran est une **image plein cadre** sur laquelle flottent la barre de titre,
-le menu et le contenu. Trois couches, dans cet ordre : l'image sur `body`, un
-voile sur `body::before`, et des surfaces en verre dépoli sur le reste.
+## Le design system, et ce qu'il décide
 
-**Le voile est borné par le bas, et c'est la seule borne qui ne soit pas un
-confort.** La mesure : à travers le verre le plus léger de l'interface (0,32) et
-sur le pire fond concevable — une surface blanche —, il faut **0,44** pour que
-le texte tienne 4,5:1. En dessous, les libellés deviennent illisibles sur une
-partie de l'écran seulement, ce qui ressemble à un défaut de rendu et non à un
-réglage. Le curseur va donc de 0,44 à 1, et le défaut est 0,55.
+Tout ce qui se voit vient de `docs/helm-design-system.zip`, recopié dans
+`web/src/design/` en **deux fichiers qu'on remplace en entier** :
 
-La borne ne dépend **pas** du jeu d'images : remplacer les fonds n'oblige à rien
-remesurer. Elle dépend de trois valeurs de `styles.css` — la couleur du texte,
-celle du voile, l'opacité du verre — et c'est écrit dans `mc-reglages`.
+| Fichier | Ce qu'il porte |
+|---|---|
+| `tokens.css` | les couleurs, les échelles, les rayons, les ombres, les familles |
+| `helm.css` | les composants, préfixés `hm-` |
+
+Deux écarts avec le zip, et ils sont écrits dans les en-têtes des copies :
+
+1. **L'`@import` vers Google Fonts a été retiré.** `default-src 'self'`
+   refuserait la requête, et une fenêtre hors ligne — ce qui arrive à un
+   launcher — se retrouverait sans police. Les trois familles (Manrope,
+   Pixelify Sans, JetBrains Mono) sont servies par le paquet, depuis
+   `@fontsource`, en sous-ensembles `latin` et `latin-ext`.
+2. **Un bloc du launcher est ajouté à la fin de `helm.css`**, sous une barre qui
+   le dit : la fenêtre du système n'est pas un rectangle dans une page de
+   démonstration, et les pages d'aperçu posent leur grille en `style=`, ce qu'un
+   gabarit Angular n'a pas à recopier.
+
+Le reste est verbatim. Une correction faite ailleurs que dans le bloc ajouté
+disparaîtrait à la copie suivante sans que rien ne s'en aperçoive.
+
+## La scène, le voile, le verre
+
+L'écran est une **scène** — `.hm-stage` : l'image du serveur, puis le dégradé de
+lisibilité du design system (le fond à 52 % en haut, 36 % au milieu, 80 % en
+bas). Par-dessus flottent la barre de titre, la pilule de navigation, les
+panneaux en verre et la barre du bas. **Le milieu de la page est laissé vide à
+dessein** : c'est par là que l'image passe, et c'est le seul endroit de l'écran
+où elle se voit.
 
 `fond` est un **identifiant énuméré**, jamais un chemin : sinon le front
 posséderait la liste et Rust persisterait une valeur qu'il ne sait pas valider.
 Le service de réglages pose `data-fond` et `--voile` sur `<html>` — un style de
 composant ne peut pas déclarer sur `:root`, que l'encapsulation émulée
 réécrirait en `:root[_ngcontent-…]`.
+
+### Le voile ne tient plus le contraste, et c'est le point important
+
+Il l'a tenu, à 0,35 puis à 0,44, sur une mesure juste : « à partir de quelle
+opacité le texte tient-il 4,5:1 sur l'image la plus claire concevable ? »
+C'était la **question** qui ne l'était plus. Elle supposait que le contraste se
+règle en assombrissant l'image ; le design system y répond autrement, et
+mieux — « sur une image claire, montez la base du verre plutôt que d'assombrir
+le texte ». Ce qu'on épaissit est le **panneau**, pas l'image.
+
+La différence n'est pas théorique. Un voile à 0,44 s'applique partout, y compris
+là où il n'y a aucun texte : le launcher affichait un rectangle noir à l'endroit
+même que toute sa direction artistique existe pour montrer.
+
+La garantie a donc changé de couche, et elle tient en trois endroits :
+
+1. `.hm-stage__art::after`, le dégradé du design system — non réglable ;
+2. `--glass-epaisseur` dans `styles.css`, qui **épaissit le verre quand le voile
+   s'amincit** : de 46 % du fond à 72 %. À voile nul et sur une image blanche,
+   `ink-3` — la teinte la plus claire que le design system autorise — tient
+   encore 4,5:1 sur un panneau ;
+3. les ombres portées des textes sans panneau sous eux : les titres de tuile et
+   l'indication du bouton de jeu.
+
+`VOILE_PLANCHER` vaut donc **zéro**, et le curseur va de « image nette » à
+« image effacée ». À rouvrir si l'on retire la compensation du point 2 — et dans
+ce cas, c'est cette mesure-là qu'il faut refaire, pas celle d'avant.
 
 ### `-webkit-backdrop-filter`, et le piège qui se referme des semaines plus tard
 
@@ -308,14 +402,15 @@ Safari 18. D'où la ligne :
 ```
 
 Son motif n'est pas la syntaxe moderne — le launcher ne tourne que dans
-WebKitGTK, WKWebView et WebView2 — c'est de **forcer le préfixe**. Sans elle,
-chaque `backdrop-blur-*` de Tailwind ne fait rien dans la fenêtre, et le verre
-dépoli est un aplat.
+WebKitGTK, WKWebView et WebView2 — c'est de **forcer le préfixe**. Sans elle, le
+verre dépoli est un aplat dans toute la fenêtre.
 
-Le piège : écrire `-webkit-backdrop-filter` à la main dans un essai le fait
-réussir — esbuild ne retire pas un préfixe écrit à la main — puis rend plat une
-fois passé par Tailwind, sans un message. `pnpm --dir web verifier:prefixes`
-regarde donc le CSS **compilé**, sous `web/dist/`, et pas les sources.
+Le design system écrit lui-même les deux formes, ce qui rend la ligne moins
+critique qu'elle ne l'était : c'est une ceinture pour le CSS que nous écrivons —
+les styles de composant — et non plus pour des utilitaires produits par un
+outil. `pnpm --dir web verifier:prefixes` regarde le CSS **compilé**, sous
+`web/dist/`, et pas les sources : un préfixe écrit à la main dans un essai le
+ferait passer sans que le reste suive.
 
 ## Le CSP, et ce qui est réellement servi
 
@@ -444,9 +539,10 @@ INFO recette du build : les sept points passent
 | Point | Ce qui le prouve |
 |---|---|
 | le CSS est servi par `<link>` | `feuilles` ≥ 1 |
-| **un style de composant s'applique** | `verre` porte une valeur calculée — c'est le test du desserrage de `style-src` |
+| le verre dépoli rend | `verre` porte une valeur calculée — c'est le test du préfixe `-webkit-` |
 | **un fragment paresseux se charge** | `route_montee` — c'est le test de `script-src` face à `import()`, longtemps affirmé sans preuve |
-| le thème daisyUI est appliqué | `theme` porte `--color-primary` |
+| les jetons du design system sont servis | `theme` porte `--gold` |
+| **un style de composant s'applique** | `style_composant` porte le repère d'`app.css` |
 | `color-mix()` est résolu par le moteur | une sonde jetable dans le DOM, dont la couleur ressort en `rgb(…)` |
 | aucune violation de CSP | un collecteur posé **avant le document**, par un script d'initialisation de greffon |
 | le bundle initial tient le budget | lu dans la sortie du build : **352,69 kB** pour 500 kB d'avertissement |
@@ -459,12 +555,16 @@ coûté un essai :
   build parfaitement sain ;
 - **elle n'utilise pas la Resource Timing API.** Le protocole d'actifs de Tauri
   ne la renseigne pas : compter les `.js` chargés rendait zéro ;
-- **elle ne cherche pas `data-theme`.** Le thème samflix est déclaré
-  `default: true` dans le bloc `@plugin` ; il n'y a aucun attribut à observer,
-  et en chercher un signalerait un manquement là où tout va.
+- **elle ne cherche pas `data-theme`.** L'attribut est écrit en dur dans
+  `index.html` et y serait même si `tokens.css` n'était pas servi : le trouver
+  ne prouverait rien. Ce qui se vérifie est qu'un jeton est arrivé.
 
-Si le budget venait à approcher les 500 kB, la réponse est `include:` dans le
-bloc `@plugin daisyui` — **pas** de relever le budget.
+Le repère de style de composant mérite un mot, parce qu'il a l'air inutile :
+`--recette-style-composant` est déclarée dans `web/src/app/app.css` et nulle
+part ailleurs. Le point portait avant sur le `backdrop-filter` de la barre de
+titre ; il ne le prouve plus, puisque le verre vient maintenant de la feuille
+globale du design system, servie par un `<link>`, qui passerait même si tous les
+styles de composant étaient rejetés. **Son inutilité est ce qu'il mesure.**
 
 ### Sans décorations : ce qu'on perd, constaté
 
@@ -595,8 +695,9 @@ priorité si le runtime CEF devient fiable.
 
 ## Trois familles d'attributs, et une seule est un contrat
 
-`class` n'est lue que par le navigateur. `data-<état>` est lue par Tailwind
-**et** par les tests. `data-test` est lue par les tests seuls.
+`class` n'est lue que par le navigateur — et par le design system, qui les
+possède toutes. `data-<état>` est lue par le style **et** par les tests.
+`data-test` est lue par les tests seuls.
 
 Un test qui vise une classe se casse au premier changement de mise en forme —
 et, pire, il décourage de la changer. C'est le second invariant de

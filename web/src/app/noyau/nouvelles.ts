@@ -30,6 +30,24 @@ export class Nouvelles {
   /** Le billet le plus récent, pour la carte de Spawn. */
   readonly derniere = computed(() => this.fil()?.billets[0] ?? null);
 
+  /**
+   * Le billet mis en avant : l'épinglé s'il y en a un, sinon le plus récent.
+   *
+   * C'est la règle du design system, et elle a une raison : la tuile vedette
+   * est le seul endroit où celui qui publie peut faire passer quelque chose
+   * devant la chronologie. Sans épinglage, elle se contente d'être la plus
+   * récente, ce qui est déjà ce que le fil dit.
+   *
+   * Rust trie déjà — épinglés d'abord, puis par date décroissante — si bien que
+   * le premier élément suffit. On le redit ici plutôt que de s'y fier en
+   * silence : un fil dont le tri changerait rendrait cette page fausse sans
+   * qu'aucun test ne s'en plaigne.
+   */
+  readonly epinglee = computed(() => {
+    const billets = this.fil()?.billets ?? [];
+    return billets.find((billet) => billet.epinglee) ?? billets[0] ?? null;
+  });
+
   /** Charge le fil, une fois pour la session. */
   async charger(): Promise<void> {
     if (this.fil() || this.chargement() || !this.pont.disponible) {

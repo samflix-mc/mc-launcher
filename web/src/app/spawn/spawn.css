@@ -1,113 +1,120 @@
 :host {
   display: block;
+  min-height: 0;
+}
+
+/* La tuile épinglée prend la hauteur de la colonne d'à côté : c'est ce que
+   `.hm-news--pinned { height: 100% }` attend de sa cellule. */
+.hm-spawn__vedette {
+  min-height: 240px;
+}
+
+.hm-spawn__vide {
   height: 100%;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  border-radius: var(--radius-xl);
 }
 
-/* Le verre dépoli des cartes posées sur le fond.
-
-   Une classe et non un utilitaire recopié : trois composants la portent, et
-   `backdrop-blur-verre backdrop-saturate-150` écrit trois fois diverge au
-   premier ajustement.
-
-   Le préfixe `-webkit-` n'est pas écrit ici : esbuild l'ajoute, parce que la
-   `browserslist` du projet reste sous Safari 18. L'écrire à la main ferait
-   passer `pnpm verifier:prefixes` tout en laissant les utilitaires Tailwind
-   inopérants ailleurs — on perdrait le contrôle qui nous avertit. */
-.verre {
-  backdrop-filter: blur(var(--blur-verre-fin)) saturate(140%);
+/* Le titre du panneau et sa pastille, sur la même ligne, la pastille poussée à
+   droite. Sur un panneau étroit, la pastille passe DESSOUS plutôt que d'écraser
+   le titre — c'est le défaut de mise en page qui rendait l'ancienne page
+   illisible sur une fenêtre réduite. */
+.hm-spawn__tete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 }
 
-/* --- La cinématique -------------------------------------------------------
-   Trois états, trois opacités. La couleur seule ne suffirait pas à quelqu'un
-   qui distingue mal les contrastes ; le gras ajoute un second signal. */
-
-li[data-etat='a-venir'] {
-  opacity: 0.35;
+/* `.hm-glass__title` porte une marge basse, faite pour un panneau dont le titre
+   est seul sur sa ligne. Ici il partage la ligne avec la pastille, et la marge
+   décalerait les deux l'un par rapport à l'autre. */
+.hm-spawn__titre {
+  margin: 0;
 }
 
-li[data-etat='en-cours'] {
-  opacity: 1;
-  font-weight: 600;
-  color: var(--color-primary);
+.hm-spawn__faits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
 }
 
-li[data-etat='faite'] {
+.hm-spawn__fait {
+  gap: var(--space-1);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+
+/* La cinématique. Trois états, trois traitements — et jamais la couleur seule :
+   quelqu'un qui distingue mal les contrastes doit lire la même chose. */
+.hm-spawn__chemin {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.hm-spawn__chemin li[data-etat='a-venir'] {
+  color: var(--ink-3);
   opacity: 0.6;
 }
 
-/* --- La jauge -------------------------------------------------------------
-
-   ## Pourquoi `appearance: none` était inévitable
-
-   La feuille d'agent de la WebKitGTK installée tient en quatre règles et ne
-   contient AUCUNE règle `:indeterminate` — elle pose
-   `::-webkit-progress-value { inline-size: 50% }` et rien d'autre. Ce qui anime
-   une barre indéterminée relève du rendu natif que sélectionne
-   `appearance: auto`, c'est-à-dire exactement ce que la direction artistique
-   nous fait éteindre.
-
-   Sans l'animation ci-dessous, une barre indéterminée serait donc un bloc vert
-   FIGÉ À CINQUANTE POUR CENT : le mensonge précis qu'une jauge existe pour ne
-   pas dire. On réécrit donc l'animation nous-mêmes, sur la piste. */
-
-progress {
-  appearance: none;
-  -webkit-appearance: none;
-  block-size: 6px;
-  inline-size: 100%;
-  border: none;
-  border-radius: 999px;
-  overflow: hidden;
-  background: oklch(100% 0 0 / 0.1);
+.hm-spawn__chemin li[data-etat='en-cours'] {
+  color: var(--gold);
+  font-weight: 700;
 }
 
-progress::-webkit-progress-bar {
-  background: oklch(100% 0 0 / 0.1);
+.hm-spawn__chemin li[data-etat='faite'] {
+  color: var(--ink-2);
 }
 
-progress::-webkit-progress-value {
-  background: var(--color-primary);
-  border-radius: 999px;
-  /* La transition est sur la VALEUR et non sur l'élément : c'est elle qui
-     bouge, et l'animer sur `progress` ne ferait rien. */
-  transition: inline-size 200ms linear;
+/* Une étape franchie porte une coche : sans elle, « faite » et « à venir » ne
+   se distinguent que par une nuance de gris. */
+.hm-spawn__chemin li[data-etat='faite']::before {
+  content: '✓ ';
+  color: var(--success);
 }
 
-/* La barre indéterminée : pas d'attribut `value`, donc pas de
-   `::-webkit-progress-value` à montrer. On anime la piste elle-même, en
-   faisant glisser un dégradé. */
-progress:not([value]) {
-  background-image: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--color-primary) 35%,
-    var(--color-primary) 65%,
-    transparent 100%
-  );
-  background-size: 40% 100%;
-  background-repeat: no-repeat;
-  animation: glisse 1.1s ease-in-out infinite;
+.hm-spawn__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-2);
 }
 
-@keyframes glisse {
-  from {
-    background-position: -40% 0;
-  }
-  to {
-    background-position: 140% 0;
-  }
+/* Une alerte DANS un panneau ne rempile pas un verre sur un verre : le design
+   system l'interdit au-delà de deux épaisseurs, et trois donnent une boîte
+   grise. On lui retire sa base et son flou, on lui laisse sa teinte. */
+.hm-spawn__alerte {
+  margin-top: var(--space-3);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: none;
 }
 
-/* Une barre qui glisse sans fin est exactement ce que « mouvement réduit »
-   demande d'éviter. On la remplace par une pulsation d'opacité, qui dit la
-   même chose sans déplacer quoi que ce soit. */
-@media (prefers-reduced-motion: reduce) {
-  progress:not([value]) {
-    animation: none;
-    background-position: 50% 0;
-    background-size: 100% 100%;
-  }
-  progress::-webkit-progress-value {
-    transition: none;
-  }
+.hm-spawn__alerte::before,
+.hm-spawn__alerte::after {
+  display: none;
+}
+
+/* La colonne de droite ne s'étire PAS à la hauteur de la tuile.
+
+   Par défaut, un élément de grille s'étire sur toute la rangée : le panneau
+   « Modpack » faisait alors deux cent quarante pixels de haut pour trois lignes
+   de contenu, avec un grand vide sous elles. `align-content: start` lui rend sa
+   hauteur naturelle — et ce qui est gagné retourne à l'image, ce qui est
+   précisément l'intention de cette page. */
+.hm-stack {
+  align-content: start;
 }

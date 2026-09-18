@@ -1,32 +1,29 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 
+import { Bell, Copy, Minus, Square, X } from '../../noyau/icones';
 import { Fenetre } from '../../noyau/fenetre';
-import { Copy, Minus, Square, X } from '../../noyau/icones';
 import { Marque } from '../../noyau/marque';
+import { Notifications } from '../../noyau/notifications';
+import { Pack } from '../../noyau/pack';
 
 /**
  * La barre de titre du launcher, à la place de celle du système.
+ *
+ * ## Ce qu'elle porte, dans l'ordre du design system
+ *
+ * Le nom du launcher en face pixel, un séparateur, le nom du pack en cours ;
+ * puis, poussés à droite, la cloche des notifications et les trois contrôles de
+ * fenêtre. Les contrôles font quarante-six pixels de large parce que c'est la
+ * largeur des boutons de légende de Windows — un launcher qui la change se
+ * remarque, et jamais en bien.
  *
  * ## Ce qu'on n'a PAS eu à écrire
  *
  * Le redimensionnement par les bords. `tauri-runtime-wry` branche de lui-même
  * un gestionnaire sur la WebView sous Linux, avec une bande de cinq pixels
- * multipliée par le facteur d'échelle. Écrire des zones DOM ferait double
- * emploi et se battrait avec lui.
- *
- * ## La contrainte des huit pixels
- *
- * Aucune cible de clic ne commence à moins de huit pixels du bord. C'est
- * pourquoi le gabarit porte un `pt-bord-fenetre` et que les boutons ont une
- * marge à droite : sans cela, tirer la fenêtre par le haut la REDIMENSIONNE au
- * lieu de la déplacer, parce que le gestionnaire GTK s'exécute avant que
- * WebKit ne dispatche le `mousedown`.
- *
- * Et le piège dans le piège : la garde `!is_maximized()` de
- * `tauri-runtime-wry` fait que la bande redevient cliquable une fois la
- * fenêtre maximisée. Un même bouton se comporte donc différemment selon
- * l'état — et aucun test jsdom ne le verra jamais.
+ * multipliée par le facteur d'échelle. Ce qui manquait n'était pas le geste
+ * mais le CURSEUR, et il est posé par `.hm-bords`, dans la coque.
  *
  * ## Pas de `pointer-events: none` sur les enfants
  *
@@ -45,8 +42,23 @@ import { Marque } from '../../noyau/marque';
 })
 export class BarreTitre {
   private readonly fenetre = inject(Fenetre);
+  private readonly notifications = inject(Notifications);
+
   protected readonly marque = inject(Marque).vue;
   protected readonly maximisee = this.fenetre.maximisee;
+  protected readonly nonLus = this.notifications.nonLus;
+  protected readonly panneauOuvert = this.notifications.panneauOuvert;
+
+  private readonly etat = inject(Pack).etat;
+
+  /**
+   * Ce qui suit le séparateur : le nom du pack.
+   *
+   * Le design system y met le nom du serveur. Nous n'en avons qu'un, et ce que
+   * le joueur reconnaît est le nom du modpack — c'est ce que le verrou publie,
+   * et c'est ce qui change quand le serveur change de saison.
+   */
+  protected readonly pack = computed(() => this.etat()?.nom ?? null);
 
   // Les nœuds d'icône sont passés au gabarit comme des valeurs : une faute de
   // frappe est alors une erreur TypeScript, là où un registre résolu par nom
@@ -55,6 +67,11 @@ export class BarreTitre {
   protected readonly Square = Square;
   protected readonly Copy = Copy;
   protected readonly X = X;
+  protected readonly Bell = Bell;
+
+  protected basculerNotifications(): void {
+    this.notifications.basculerPanneau();
+  }
 
   protected reduire(): void {
     void this.fenetre.reduire();

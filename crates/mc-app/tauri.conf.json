@@ -14,8 +14,8 @@
       {
         "label": "splash",
         "url": "splash.html",
-        "width": 260,
-        "height": 210,
+        "width": 360,
+        "height": 480,
         "center": true,
         "focus": true,
         "decorations": false,
@@ -27,21 +27,21 @@
         "skipTaskbar": true,
         "visible": true,
         "shadow": true,
-        "backgroundColor": "#191C22"
+        "backgroundColor": "#161411"
       },
       {
         "label": "main",
         "title": "samflix-mc",
-        "width": 900,
-        "height": 820,
-        "minWidth": 720,
-        "minHeight": 560,
+        "width": 1024,
+        "height": 700,
+        "minWidth": 1024,
+        "minHeight": 640,
         "center": true,
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
         "visible": false,
-        "backgroundColor": "#191C22"
+        "backgroundColor": "#0d0c0a"
       }
     ],
     "security": {

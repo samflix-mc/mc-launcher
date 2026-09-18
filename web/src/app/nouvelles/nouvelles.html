@@ -1,84 +1,138 @@
-<section class="mx-auto flex max-w-2xl flex-col gap-5 p-6" data-test="page-nouvelles">
-  <header class="flex items-center gap-3">
-    <h1 class="text-xl font-semibold">Nouvelles</h1>
-
-    @if (fil()?.horsLigne) {
-      <!--
-        Le fil vient de la copie. Le dire est indispensable : une page de news
-        d'hier vaut mieux qu'une page vide, mais une page qui mentirait sur sa
-        fraîcheur serait pire que les deux.
-      -->
-      <span class="badge badge-sm badge-warning" data-test="hors-ligne">hors ligne</span>
-    }
+<section class="hm-nouvelles" data-test="page-nouvelles">
+  <header class="hm-nouvelles__tete">
+    <div>
+      <h1 class="hm-nouvelles__titre">Nouvelles</h1>
+      <p class="hm-field__hint hm-nouvelles__source">
+        <lucide-icon [img]="Globe" [size]="12" [strokeWidth]="2" aria-hidden="true" />
+        @if (fil()?.horsLigne) {
+          <!--
+            Le fil vient de la copie. Le dire est indispensable : une page de
+            nouvelles d'hier vaut mieux qu'une page vide, mais une page qui
+            mentirait sur sa fraîcheur serait pire que les deux.
+          -->
+          <span data-test="hors-ligne">Dernière copie connue — hors ligne</span>
+        } @else {
+          <span>Publié par le serveur du pack</span>
+        }
+      </p>
+    </div>
 
     <button
       type="button"
-      class="btn btn-ghost btn-sm ml-auto"
+      class="hm-btn hm-btn--sm"
       (click)="recharger()"
       [disabled]="chargement()"
+      [attr.aria-busy]="chargement() ? 'true' : null"
       data-test="recharger"
     >
-      @if (chargement()) {
-        <span class="loading loading-spinner loading-xs"></span>
-      } @else {
-        <lucide-icon [img]="RefreshCw" [size]="14" aria-hidden="true" />
-      }
+      <lucide-icon [img]="RefreshCw" [size]="16" [strokeWidth]="2" aria-hidden="true" />
       Actualiser
     </button>
   </header>
 
-  @if (fil(); as contenu) {
-    @if (contenu.billets.length === 0) {
-      <p class="opacity-60" data-test="aucune">Aucune nouvelle pour le moment.</p>
-    }
-
-    @for (billet of contenu.billets; track billet.id) {
-      <article class="card border border-white/10 bg-base-100/40 verre" data-test="billet">
-        @if (billet.image) {
-          <figure>
-            <!--
-              Un `data:` fabriqué par Rust, jamais une URL distante. C'est ce
-              qui évite d'ouvrir `img-src` à un hôte, et ce qui permet de
-              borner la taille et de déduire le type des octets.
-            -->
-            <img [src]="billet.image" [alt]="'Illustration : ' + billet.titre" loading="lazy" />
-          </figure>
+  <div class="hm-nouvelles__corps hm-scroll">
+    @if (fil(); as contenu) {
+      @if (contenu.billets.length === 0) {
+        <div class="hm-alert hm-alert--info" data-test="aucune">
+          <p class="hm-alert__title">Rien de publié pour le moment</p>
+          <p class="hm-alert__text">
+            Les annonces du serveur apparaîtront ici dès qu'il y en aura.
+          </p>
+        </div>
+      } @else {
+        @if (vedette(); as tete) {
+          <app-carte-nouvelle
+            [billet]="tete"
+            variante="vedette"
+            [commeLien]="false"
+            (ouvrir)="lecture.set($event)"
+            data-test="vedette"
+          />
         }
 
-        <div class="card-body gap-3">
-          <div class="flex items-baseline gap-2">
-            <h2 class="card-title text-lg" data-test="titre">{{ billet.titre }}</h2>
-            @if (billet.epinglee) {
-              <span class="badge badge-sm badge-outline" data-test="epinglee">épinglée</span>
-            }
-            <time class="ml-auto text-xs opacity-60" [attr.datetime]="billet.date" data-test="date">
-              {{ quand(billet.date) }}
-            </time>
-          </div>
-
-          <div class="text-sm opacity-90">
-            <app-corps-billet [blocs]="billet.corps" />
-          </div>
-        </div>
-      </article>
-    }
-
-    @if (contenu.ecartes.length > 0) {
-      <!--
-        Un fil à moitié fautif doit se remarquer. Pas un bandeau d'erreur — les
-        billets qui restent s'affichent très bien — mais une note discrète, à
-        la fin, pour qui publie.
-      -->
-      <details class="text-xs opacity-50" data-test="ecartes">
-        <summary>{{ contenu.ecartes.length }} billet(s) écarté(s)</summary>
-        <ul class="list-inside list-disc pt-2">
-          @for (ecart of contenu.ecartes; track ecart) {
-            <li>{{ ecart }}</li>
+        <div class="hm-news-grid">
+          @for (billet of grille(); track billet.id) {
+            <app-carte-nouvelle
+              [billet]="billet"
+              variante="tuile"
+              [commeLien]="false"
+              (ouvrir)="lecture.set($event)"
+              data-test="tuile"
+            />
           }
-        </ul>
-      </details>
+        </div>
+      }
+
+      @if (contenu.ecartes.length > 0) {
+        <!--
+          Un fil à moitié fautif doit se remarquer. Pas un bandeau d'erreur —
+          les billets qui restent s'affichent très bien — mais une note
+          discrète, à la fin, pour qui publie.
+        -->
+        <details class="hm-nouvelles__ecartes" data-test="ecartes">
+          <summary>{{ contenu.ecartes.length }} billet(s) écarté(s)</summary>
+          <ul>
+            @for (ecart of contenu.ecartes; track ecart) {
+              <li>{{ ecart }}</li>
+            }
+          </ul>
+        </details>
+      }
+    } @else if (chargement()) {
+      <!--
+        Trois tuiles de remplacement plutôt qu'un texte : la grille garde sa
+        forme, et rien ne saute quand les vraies arrivent.
+      -->
+      <div class="hm-news-grid" aria-hidden="true" data-test="chargement">
+        @for (creux of [1, 2, 3]; track creux) {
+          <div class="hm-glass hm-news">
+            <div class="hm-news__media hm-news__media--ph"></div>
+            <div class="hm-news__scrim"></div>
+          </div>
+        }
+      </div>
     }
-  } @else if (chargement()) {
-    <p class="opacity-60" data-test="chargement">Chargement du fil…</p>
-  }
+  </div>
 </section>
+
+<!-- --- La lecture d'un billet ------------------------------------------- -->
+@if (lecture(); as billet) {
+  <div
+    class="hm-scrim"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="billet-titre"
+    data-test="lecture"
+  >
+    <div class="hm-dialog hm-nouvelles__lecture">
+      <div class="hm-nouvelles__lecture-tete">
+        <div>
+          <p class="hm-glass__eyebrow">{{ quand(billet.date) }}</p>
+          <h2 class="hm-dialog__title" id="billet-titre">{{ billet.titre }}</h2>
+        </div>
+        <button
+          type="button"
+          class="hm-btn hm-btn--ghost hm-btn--icon hm-btn--sm"
+          (click)="lecture.set(null)"
+          aria-label="Fermer le billet"
+          data-test="fermer-lecture"
+        >
+          <lucide-icon [img]="X" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+        </button>
+      </div>
+
+      @if (billet.image) {
+        <img
+          class="hm-nouvelles__illustration"
+          [src]="billet.image"
+          [alt]="'Illustration : ' + billet.titre"
+          loading="lazy"
+        />
+      }
+
+      <div class="hm-nouvelles__texte hm-scroll">
+        <app-corps-billet [blocs]="billet.corps" />
+      </div>
+    </div>
+  </div>
+}

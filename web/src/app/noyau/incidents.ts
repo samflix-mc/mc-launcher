@@ -1,5 +1,6 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 
+import { Notifications } from './notifications';
 import { messageDErreur } from './pont';
 
 /**
@@ -26,6 +27,8 @@ import { messageDErreur } from './pont';
 @Injectable({ providedIn: 'root' })
 export class Incidents {
   /** Le message affiché, ou `null`. */
+  private readonly notifications = inject(Notifications);
+
   readonly courant = signal<string | null>(null);
 
   readonly ouvert = computed(() => this.courant() !== null);
@@ -37,6 +40,10 @@ export class Incidents {
     // mis en forme pour un joueur, et l'on veut les deux.
     console.error('[incident]', cause);
     this.courant.set(message);
+    // Au centre, mais SANS toast : le dialogue montre déjà l'incident en grand,
+    // et un toast par-dessus dirait deux fois la même chose au même instant.
+    // Ce qu'on gagne est la trace : le dialogue se ferme, le centre garde.
+    this.notifications.archiver('danger', "Quelque chose n'a pas fonctionné", message);
   }
 
   fermer(): void {

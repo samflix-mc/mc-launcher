@@ -17,8 +17,11 @@ coverage/
 # à chaque exécution de la CI.
 pnpm-lock.yaml
 
-# La feuille globale porte des directives Tailwind — `@plugin`, `@source`,
-# `@theme` — que le parseur CSS de Prettier ne connaît pas. Il ne les casse
-# pas, mais il réindente leur corps d'une façon qui rend le diff illisible à
-# chaque ajout de variable de thème.
-src/styles.css
+# Le design system, recopié VERBATIM de `docs/helm-design-system.zip`.
+#
+# Prettier le reformaterait — il y a de quoi : le zip écrit plusieurs règles par
+# ligne. Mais ces deux fichiers se remplacent d'un `cp` à chaque republication,
+# et un reformatage rendrait le diff de la copie suivante illisible d'un bout à
+# l'autre. Ce qui se relit n'est pas leur mise en forme, c'est leur en-tête.
+src/design/tokens.css
+src/design/helm.css

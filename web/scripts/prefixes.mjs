@@ -20,11 +20,16 @@
  *
  * ## Le piège que ce script existe aussi pour fermer
  *
- * Écrire `-webkit-backdrop-filter` à la main quelque part ferait passer le
- * contrôle — esbuild ne retire pas un préfixe écrit à la main — tout en
- * laissant les utilitaires Tailwind inopérants. D'où la vérification : le
- * préfixe est cherché À CÔTÉ de la forme non préfixée, dans le CSS compilé,
- * et c'est leur coexistence qui prouve que la traduction a bien eu lieu.
+ * Le design system écrit lui-même les deux formes, ce qui rend ce contrôle
+ * moins critique qu'il ne l'était du temps des utilitaires produits par un
+ * outil. Il garde son sens pour le CSS que NOUS écrivons — les styles de
+ * composant — où le préfixe n'est jamais écrit à la main : c'est esbuild qui
+ * le pose, et il ne le fait qu'en dessous de Safari 18.
+ *
+ * D'où la vérification dans le CSS COMPILÉ et non dans les sources : un
+ * préfixe écrit à la main quelque part ferait passer le contrôle — esbuild ne
+ * retire pas un préfixe écrit à la main — tout en laissant sans préfixe tout
+ * ce qui ne l'a pas.
  */
 
 import { readFileSync, readdirSync } from 'node:fs';

@@ -6,15 +6,19 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterOutlet, type ActivatedRouteSnapshot } from '@angular/router';
 
 import { Amorce } from './amorce/amorce';
 import { BarreTitre } from './coque/barre-titre/barre-titre';
-import { Menu } from './coque/menu/menu';
-import { Overlay } from './coque/overlay/overlay';
+import { Incident } from './coque/incident/incident';
+import { Joueur } from './coque/joueur/joueur';
+import { Nav } from './coque/nav/nav';
+import { Notifications as PanneauNotifications } from './coque/notifications/notifications';
+import { Playbar } from './coque/playbar/playbar';
 import { Fenetre } from './noyau/fenetre';
 import { Incidents } from './noyau/incidents';
 import { Marque } from './noyau/marque';
+import { Pack } from './noyau/pack';
 import { Pont } from './noyau/pont';
 import { Reglages } from './noyau/reglages';
 import { Session } from './noyau/session';
@@ -22,57 +26,57 @@ import { Session } from './noyau/session';
 /**
  * Le plancher de l'amorce Angular, en millisecondes.
  *
- * Il valait neuf cents quand cette amorce était le SEUL écran de démarrage :
- * il fallait alors couvrir tout le chargement d'Angular, et une durée tenue se
- * remarque moins qu'un clignotement de deux images.
- *
- * Depuis qu'une vraie fenêtre d'écran de démarrage couvre ce chargement — voir
+ * Depuis qu'une vraie fenêtre d'écran de démarrage couvre le chargement — voir
  * `crates/mc-app/src/demarrage.rs` — cette amorce-ci ne couvre plus que
- * l'attente du RÉSEAU, après que la fenêtre s'est affichée. La faire durer
- * neuf cents millisecondes de plus reviendrait à ajouter une attente à une
- * attente.
- *
- * Quatre cents reste un plancher, parce qu'il en faut un : sans lui, une
- * session déjà en cache ferait clignoter l'amorce le temps d'une image.
+ * l'attente du RÉSEAU, après que la fenêtre s'est affichée. Quatre cents reste
+ * un plancher, parce qu'il en faut un : sans lui, une session déjà en cache
+ * ferait clignoter l'amorce le temps d'une image.
  */
 const PLANCHER_AMORCE = 400;
 
 /**
  * Le délai entre le premier rendu et le signal envoyé à Rust.
  *
- * `afterNextRender` se déclenche quand Angular a écrit dans le DOM — pas
- * quand le navigateur a PEINT. Montrer la fenêtre à cet instant précis la
- * ferait apparaître sur une image encore vide, ce qui remplacerait un écran de
+ * `afterNextRender` se déclenche quand Angular a écrit dans le DOM — pas quand
+ * le navigateur a PEINT. Montrer la fenêtre à cet instant précis la ferait
+ * apparaître sur une image encore vide, ce qui remplacerait un écran de
  * démarrage propre par un clignotement.
- *
- * Deux cent cinquante millisecondes couvrent plusieurs images à soixante hertz,
- * y compris le décodage de l'image de fond. C'est le délai que Sam a proposé,
- * et il est juste : plus court, on voit le vide ; plus long, on attend pour
- * rien.
  */
 const AVANT_DE_MONTRER = 250;
 
+/** Ce que la barre du bas porte, selon la page. Voir `routes.ts`. */
+export type Bas = 'jouer' | 'joueur' | 'aucune';
+
 /**
- * La coque : le fond, la barre de titre, le menu, et la page.
+ * La coque : la fenêtre, la scène, la barre de titre, la page.
  *
- * ## La charpente, et ce qu'elle doit au fond
+ * ## La charpente vient du design system, telle quelle
  *
- * Le fond plein cadre vit sur `body`, hors de tout composant. C'est la SEULE
- * surface qui couvre la fenêtre entière, barre de titre comprise, et c'est
- * pourquoi rien ici ne porte d'image : tout ce qui est ici se pose dessus.
+ * `.hm-window` contient `.hm-stage` — l'image et son dégradé de lisibilité —
+ * puis `.hm-titlebar`, qui flotte par-dessus, puis `.hm-page`, dont les trois
+ * rangs sont la pilule de navigation centrée, le contenu, et la barre du bas.
+ * Le MILIEU de la page est laissé vide à dessein : c'est par là que l'image
+ * passe, et c'est le seul endroit de l'écran où elle se voit vraiment.
  *
  * ## L'amorce ne couvre pas la barre de titre
  *
  * Elle occupe la zone de contenu, sous la barre. `statut()` enchaîne deux
- * allers-retours réseau : sur un réseau lent ou derrière un portail captif,
- * une amorce plein écran laisserait une fenêtre sans bouton système — on les a
- * retirés — et sans bouton applicatif — ils seraient dessous. Recette :
- * ouvrir le build packagé SANS RÉSEAU, et fermer pendant l'amorce.
+ * allers-retours réseau : sur un réseau lent ou derrière un portail captif, une
+ * amorce plein écran laisserait une fenêtre sans bouton système — on les a
+ * retirés — et sans bouton applicatif — ils seraient dessous. Recette : ouvrir
+ * le build packagé SANS RÉSEAU, et fermer pendant l'amorce.
+ *
+ * ## Tant que la session n'est pas jouable, il n'y a pas de coque
+ *
+ * Ni pilule de navigation, ni barre du bas, ni badge joueur : la page de
+ * connexion est une modale par-dessus la scène, et rien derrière elle n'est
+ * atteignable. Montrer un menu et un bouton « se déconnecter » à quelqu'un qui
+ * n'est pas connecté était le premier reproche de la recette.
  */
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Amorce, BarreTitre, Menu, Overlay],
+  imports: [RouterOutlet, Amorce, BarreTitre, Nav, Joueur, Playbar, Incident, PanneauNotifications],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -87,36 +91,43 @@ export class App {
   private readonly marque = inject(Marque);
   private readonly reglages = inject(Reglages);
   private readonly fenetre = inject(Fenetre);
+  private readonly pack = inject(Pack);
+  private readonly router = inject(Router);
 
-  /** Faux hors de la fenêtre Tauri : l'écran le dit plutôt que d'échouer. */
+  /** Faux hors de la fenêtre Tauri ET hors du serveur de développement. */
   protected readonly disponible = this.pont.disponible;
 
   /** L'amorce est-elle encore affichée ? */
   protected readonly amorce = signal(true);
 
-  protected readonly incidentOuvert = this.incidents.ouvert;
+  protected readonly maximisee = this.fenetre.maximisee;
+  protected readonly jouable = this.session.jouable;
 
   /**
-   * Le contenu est flouté quand un incident est ouvert.
+   * Ce que la barre du bas porte, lu sur la route courante.
    *
-   * L'attribut porte sur la ZONE DE CONTENU et non sur la coque entière :
-   * flouter la coque flouterait l'overlay avec elle, puisqu'il en est un
-   * descendant — un élément ne peut pas se flouter sans se flouter.
+   * Dans les DONNÉES de la route et non dans un test sur l'URL : une chaîne
+   * comparée à `'/spawn'` se casse le jour où une route gagne un paramètre, et
+   * le symptôme est une barre du bas vide que rien n'explique.
    */
-  protected readonly flou = computed(() => (this.incidentOuvert() ? '' : null));
+  protected readonly bas = signal<Bas>('aucune');
+
+  /** Vrai quand la page occupe les trois rangs, faux quand elle en occupe deux. */
+  protected readonly troisRangs = computed(() => this.bas() !== 'aucune');
 
   constructor() {
+    this.router.events.subscribe((evenement) => {
+      if (evenement instanceof NavigationEnd) {
+        this.bas.set(this.basDe(this.router.routerState.snapshot.root));
+      }
+    });
+
     // Le signal qui referme l'écran de démarrage et montre la fenêtre.
     //
     // Il ne dépend PAS de `demarrer()`, et c'est délibéré : celui-ci interroge
     // le réseau, ce qui peut durer derrière un portail captif. Attendre ses
     // données pour montrer la fenêtre garderait le joueur devant un écran de
-    // démarrage sans le moindre bouton — exactement ce qu'on refuse par
-    // ailleurs en gardant la barre de titre au-dessus de l'amorce.
-    //
-    // La fenêtre apparaît donc dès que l'interface est dessinée, et l'amorce
-    // Angular prend le relais pendant l'attente du réseau. Les deux écrans
-    // sont identiques à l'œil : le passage ne se voit pas.
+    // démarrage sans le moindre bouton.
     afterNextRender(() => {
       setTimeout(() => void this.pont.frontPret().catch(() => {}), AVANT_DE_MONTRER);
     });
@@ -144,6 +155,10 @@ export class App {
         this.reglages.charger(),
         this.fenetre.observer(),
         this.session.ouvrir(),
+        // L'état du pack est de la COQUE et non de Spawn : la barre de titre en
+        // tire le nom du modpack, et le bouton de jeu tout le reste. L'ouvrir
+        // depuis Spawn faisait disparaître le nom dès qu'on changeait de page.
+        this.pack.ouvrir(),
       ]);
     } catch (cause) {
       this.incidents.signaler(cause);
@@ -151,5 +166,19 @@ export class App {
       await plancher;
       this.amorce.set(false);
     }
+  }
+
+  /** La donnée `bas` de la route la plus profonde, ou « aucune » à défaut. */
+  private basDe(racine: ActivatedRouteSnapshot): Bas {
+    let noeud: ActivatedRouteSnapshot | undefined = racine;
+    let trouve: Bas = 'aucune';
+    while (noeud) {
+      const valeur = noeud.data['bas'] as Bas | undefined;
+      if (valeur) {
+        trouve = valeur;
+      }
+      noeud = noeud.firstChild ?? undefined;
+    }
+    return trouve;
   }
 }

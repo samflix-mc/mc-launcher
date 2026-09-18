@@ -1,87 +1,150 @@
-<section class="grid h-full place-items-center p-6" data-test="connexion">
-  <div class="card w-full max-w-md border border-white/10 bg-base-100/40 verre">
-    <div class="card-body gap-4">
-      @if (sansLicence()) {
+<!--
+  Une modale, et rien derrière : ni navigation, ni bouton de jeu, ni badge
+  joueur. La coque ne s'assemble qu'une fois la session jouable.
+-->
+<div
+  class="hm-scrim"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="connexion-titre"
+  data-test="connexion"
+>
+  <div class="hm-dialog">
+    <div class="hm-auth">
+      @if (pas() !== 'sans-licence') {
         <!--
-          Connecté, mais le compte n'a pas le jeu. Un ÉTAT et non une
-          redirection : les deux gardes lisent le même prédicat pour que ce cas
-          ne rebondisse pas entre elles.
+          Les trois pas. C'est la « barre de chargement » demandée à la
+          recette : elle dit où l'on en est d'une suite qui dure, au lieu de
+          laisser croire que rien ne bouge.
         -->
-        <h1 class="card-title text-warning" data-test="sans-licence">
-          Ce compte ne possède pas Minecraft
-        </h1>
-        <p class="text-sm opacity-80">
-          La connexion Microsoft a réussi — le compte
-          <strong>{{ compte()?.pseudo }}</strong> est valide — mais il n'a pas de licence
-          Minecraft&nbsp;: Java Edition. Aucun serveur en ligne ne l'acceptera.
-        </p>
-        <p class="text-sm opacity-60">
-          Rien n'a été téléchargé&nbsp;: il n'y aurait aucun intérêt à installer huit cents
-          mégaoctets pour l'apprendre ensuite.
-        </p>
-        <div class="card-actions justify-end">
-          <button
-            type="button"
-            class="btn btn-ghost btn-sm"
-            (click)="deconnecter()"
-            [disabled]="occupe()"
-            data-test="changer-de-compte"
-          >
-            Utiliser un autre compte
-          </button>
+        <div class="hm-auth__steps" aria-hidden="true" data-test="pas">
+          <span class="hm-auth__step hm-auth__step--done"></span>
+          <span class="hm-auth__step" [class.hm-auth__step--done]="franchis() >= 2"></span>
+          <span class="hm-auth__step"></span>
         </div>
-      } @else if (code(); as attente) {
-        <!-- Le code d'appareil, pendant que Rust attend Microsoft. -->
-        <h1 class="card-title" data-test="attente-code">Autorisez la connexion</h1>
-        <p class="text-sm opacity-80">
-          Une page Microsoft s'est ouverte. Saisissez-y ce code&nbsp;:
-        </p>
+      }
 
-        <!-- Sélectionnable : c'est exactement ce qu'on demande de recopier. -->
-        <p class="selectionnable text-center font-mono text-3xl tracking-widest" data-test="code">
-          {{ attente.code }}
-        </p>
+      @switch (pas()) {
+        @case ('sans-licence') {
+          <!--
+            Connecté, mais le compte n'a pas le jeu. Un ÉTAT et non une
+            redirection : les deux gardes du routeur lisent le même prédicat
+            pour que ce cas ne rebondisse pas entre elles.
+          -->
+          <div class="hm-alert hm-alert--warning" data-test="sans-licence">
+            <lucide-icon
+              class="hm-alert__icon"
+              [img]="TriangleAlert"
+              [size]="20"
+              [strokeWidth]="1.75"
+              aria-hidden="true"
+            />
+            <p class="hm-alert__title" id="connexion-titre">Ce compte ne possède pas Minecraft</p>
+            <p class="hm-alert__text">
+              La connexion a réussi — <strong>{{ compte()?.pseudo }}</strong> est un compte
+              Microsoft valide — mais il n'a pas de licence Minecraft : Java Edition. Aucun serveur
+              en ligne ne l'acceptera.
+            </p>
+          </div>
 
-        <p class="text-sm opacity-60">
-          Si la page ne s'est pas ouverte, elle est à cette adresse&nbsp;:
-        </p>
-        <button
-          type="button"
-          class="btn btn-ghost btn-sm"
-          (click)="ouvrirLaPage(attente.urlDirecte)"
-          data-test="rouvrir"
-        >
-          {{ attente.url }}
-        </button>
+          <p class="hm-field__hint">
+            Rien n'a été téléchargé. Il n'y aurait aucun intérêt à installer huit cents mégaoctets
+            pour l'apprendre ensuite.
+          </p>
 
-        <p class="text-xs opacity-50">
-          Le launcher attend ici jusqu'à ce que vous ayez autorisé, ou que le code expire.
-        </p>
-      } @else {
-        <h1 class="card-title" data-test="titre">Connexion</h1>
-        <p class="text-sm opacity-80">
-          Le launcher a besoin de votre compte Microsoft pour vérifier votre licence Minecraft et
-          lancer le jeu sous votre pseudo.
-        </p>
-        <p class="text-xs opacity-50">
-          Aucun mot de passe ne transite par le launcher&nbsp;: Microsoft donne un code, vous
-          l'autorisez dans votre navigateur.
-        </p>
-        <div class="card-actions justify-end">
+          <div class="hm-dialog__actions">
+            <button
+              type="button"
+              class="hm-btn"
+              (click)="deconnecter()"
+              [disabled]="occupe()"
+              data-test="changer-de-compte"
+            >
+              Utiliser un autre compte
+            </button>
+          </div>
+        }
+
+        @case ('code') {
+          <div>
+            <h2 class="hm-dialog__title" id="connexion-titre">Saisissez ce code</h2>
+            <p class="hm-dialog__text">
+              Une page <strong>microsoft.com/link</strong> s'est ouverte dans votre navigateur.
+              Tapez-y le code, puis autorisez la connexion.
+            </p>
+          </div>
+
+          @if (code(); as attente) {
+            <!-- Sélectionnable : c'est exactement ce qu'on demande de recopier. -->
+            <div class="hm-code hm-selectionnable">
+              <span data-test="code">{{ attente.code }}</span>
+              <button
+                type="button"
+                class="hm-btn hm-btn--sm hm-btn--icon"
+                (click)="copier(attente.code)"
+                aria-label="Copier le code"
+                title="Copier"
+                data-test="copier-code"
+              >
+                <lucide-icon [img]="Copy" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+              </button>
+            </div>
+
+            <!--
+              L'attente est ANNONCÉE. Entre l'autorisation chez Microsoft et le
+              moment où le launcher s'en aperçoit, il s'écoule un intervalle de
+              sondage — environ quatre secondes. Sans cette ligne, ces quatre
+              secondes ressemblent à une panne.
+            -->
+            <div class="hm-auth__wait" data-test="attente">
+              <span class="hm-spinner hm-spinner--sm" aria-hidden="true"></span>
+              En attente de Microsoft…
+            </div>
+
+            <button
+              type="button"
+              class="hm-btn hm-btn--block"
+              (click)="ouvrirLaPage(attente.urlDirecte)"
+              data-test="rouvrir"
+            >
+              <lucide-icon [img]="ExternalLink" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+              Rouvrir {{ attente.url }}
+            </button>
+          }
+        }
+
+        @default {
+          <div>
+            <h2 class="hm-dialog__title" id="connexion-titre">Connectez-vous pour jouer</h2>
+            <p class="hm-dialog__text">
+              Le launcher utilise votre compte Microsoft pour vérifier votre licence Minecraft et
+              lancer le jeu sous votre pseudo. Rien n'est conservé que le jeton de session.
+            </p>
+          </div>
+
+          <!--
+            Le bouton Microsoft, blanc, selon leurs propres consignes de marque.
+            Leur logo N'EST PAS dessiné ici : le design system ne le fournit pas
+            — il faut le prendre dans leur kit « Sign in with Microsoft » et le
+            déposer dans les actifs. Tant qu'il n'y est pas, un emplacement vide
+            ressemblerait à une image cassée ; le libellé suffit.
+          -->
           <button
             type="button"
-            class="btn btn-primary"
+            class="hm-btn hm-btn--lg hm-btn--microsoft hm-btn--block"
             (click)="connecter()"
             [disabled]="occupe()"
+            [attr.aria-busy]="occupe() ? 'true' : null"
             data-test="connecter"
           >
-            @if (occupe()) {
-              <span class="loading loading-spinner loading-sm"></span>
-            }
             Se connecter avec Microsoft
           </button>
-        </div>
+
+          <p class="hm-field__hint hm-connexion__note">
+            Ouvre votre navigateur · aucun mot de passe ne passe par le launcher
+          </p>
+        }
       }
     </div>
   </div>
-</section>
+</div>

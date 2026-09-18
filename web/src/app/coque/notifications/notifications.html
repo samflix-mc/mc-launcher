@@ -1,0 +1,99 @@
+<!--
+  Les toasts, en bas à gauche. Le plus récent EN BAS : la pile monte, et l'œil
+  revient toujours au même endroit.
+-->
+@if (toasts().length > 0) {
+  <div class="hm-toasts" data-test="toasts">
+    @for (avis of toasts(); track avis.id) {
+      <div
+        [class]="'hm-toast hm-toast--' + avis.ton"
+        [attr.role]="avis.ton === 'danger' ? 'alert' : 'status'"
+        [attr.data-ton]="avis.ton"
+        data-test="toast"
+      >
+        <lucide-icon
+          class="hm-toast__icon"
+          [img]="icone(avis.ton)"
+          [size]="20"
+          [strokeWidth]="1.75"
+          aria-hidden="true"
+        />
+        <p class="hm-toast__title">{{ avis.titre }}</p>
+        <button
+          type="button"
+          class="hm-btn hm-btn--ghost hm-btn--icon hm-btn--sm hm-toast__close"
+          (click)="fermer(avis.id)"
+          aria-label="Masquer cette notification"
+          data-test="fermer-toast"
+        >
+          <lucide-icon [img]="X" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+        </button>
+        @if (avis.texte) {
+          <p class="hm-toast__text">{{ avis.texte }}</p>
+        }
+      </div>
+    }
+  </div>
+}
+
+<!-- Le centre, sous la cloche de la barre de titre. -->
+@if (panneauOuvert()) {
+  <!--
+    La couche qui referme au premier clic ailleurs. Elle bloque aussi les clics
+    sur ce qu'elle couvre, ce qu'un panneau ouvert doit faire.
+  -->
+  <button
+    type="button"
+    class="hm-notif__voile"
+    (click)="fermerPanneau()"
+    aria-label="Fermer les notifications"
+    tabindex="-1"
+  ></button>
+
+  <div class="hm-notif" role="dialog" aria-label="Notifications" data-test="centre">
+    <div class="hm-notif__head">
+      <h3 class="hm-notif__title">Notifications</h3>
+      <button
+        type="button"
+        class="hm-btn hm-btn--sm hm-btn--ghost"
+        (click)="vider()"
+        [disabled]="journal().length === 0"
+        data-test="vider"
+      >
+        <lucide-icon [img]="Trash2" [size]="12" [strokeWidth]="2" aria-hidden="true" />
+        Tout effacer
+      </button>
+    </div>
+
+    <div class="hm-notif__list hm-scroll">
+      @for (avis of journal(); track avis.id) {
+        <div
+          [class]="
+            'hm-notif__item hm-notif__item--' +
+            avis.ton +
+            (avis.lu ? '' : ' hm-notif__item--unread')
+          "
+          data-test="ligne"
+        >
+          <span class="hm-notif__dot" aria-hidden="true"></span>
+          <lucide-icon
+            class="hm-notif__icon"
+            [img]="icone(avis.ton)"
+            [size]="20"
+            [strokeWidth]="1.75"
+            aria-hidden="true"
+          />
+          <span class="hm-notif__body">
+            <p class="hm-notif__item-title">{{ avis.titre }}</p>
+            @if (avis.texte) {
+              <p class="hm-notif__text">{{ avis.texte }}</p>
+            }
+          </span>
+          <span class="hm-notif__time">{{ quand(avis.quand) }}</span>
+        </div>
+      } @empty {
+        <p class="hm-notif__empty" data-test="centre-vide">Rien à signaler.</p>
+      }
+    </div>
+  </div>
+}

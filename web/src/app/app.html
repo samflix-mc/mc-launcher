@@ -1,10 +1,45 @@
 <!--
-  La charpente : une colonne, barre de titre en haut, le reste dessous.
+  La fenêtre, telle que le design system la dessine.
 
-  Rien ici ne porte d'image de fond : le fond plein cadre vit sur `body`, qui
-  est la seule surface couvrant la fenêtre entière, barre de titre comprise.
+  `.hm-window--systeme` : ici la fenêtre N'EST PAS un rectangle dans une page,
+  c'est la fenêtre du bureau. Ni rayon ni ombre — avec une fenêtre opaque et
+  sans décorations, des coins arrondis laisseraient voir du noir.
 -->
-<div class="flex h-screen flex-col" data-test="coque">
+<div
+  class="hm-window hm-window--systeme"
+  [class.hm-window--maximisee]="maximisee()"
+  data-test="coque"
+>
+  <!--
+    La scène : l'image du serveur et son dégradé de lisibilité. C'est ELLE qui
+    donne au verre dépoli quelque chose à flouter — sur une couleur plate, le
+    flou ne fait rien et les panneaux rendent comme des boîtes grises.
+
+    L'image vient de `html[data-fond]`, posé par le service de réglages ; voir
+    `styles.css`. Le voile du joueur s'ajoute par-dessus, sur `.hm-stage::after`.
+  -->
+  <div class="hm-stage" aria-hidden="true">
+    <div class="hm-stage__art"></div>
+  </div>
+
+  <!--
+    Les bords, pour le CURSEUR seulement.
+
+    Le geste de redimensionnement est déjà branché par `tauri-runtime-wry` sous
+    Linux ; ce qui manquait, c'est que le pointeur l'annonce. Ces zones ne
+    portent aucun gestionnaire, et ne doivent pas en porter.
+  -->
+  <div class="hm-bords" aria-hidden="true" data-test="bords">
+    <span class="hm-bords__n"></span>
+    <span class="hm-bords__s"></span>
+    <span class="hm-bords__o"></span>
+    <span class="hm-bords__e"></span>
+    <span class="hm-bords__no"></span>
+    <span class="hm-bords__ne"></span>
+    <span class="hm-bords__so"></span>
+    <span class="hm-bords__se"></span>
+  </div>
+
   <!--
     AU-DESSUS de l'amorce, et c'est délibéré : pendant les deux allers-retours
     réseau de `statut()`, la fenêtre doit garder ses boutons. Sans quoi, sur un
@@ -14,46 +49,67 @@
   <app-barre-titre />
 
   @if (amorce()) {
-    <div class="min-h-0 flex-1">
-      <app-amorce />
-    </div>
-  } @else {
+    <app-amorce />
+  } @else if (!jouable()) {
     <!--
-      `data-flou` porte sur la ZONE DE CONTENU et non sur la coque : flouter la
-      coque flouterait l'overlay avec elle, puisqu'il en est un descendant.
+      Pas de coque avant la connexion : la page est une modale par-dessus la
+      scène, et il n'y a derrière elle ni navigation, ni bouton de jeu, ni
+      badge joueur. C'est `router-outlet` seul, et la garde du routeur
+      garantit que ce qu'il y monte est `/connexion`.
     -->
-    <div class="flex min-h-0 flex-1" [attr.data-flou]="flou()" data-test="contenu">
-      <app-menu />
+    <router-outlet />
+  } @else {
+    <div
+      class="hm-page"
+      [class.hm-page--trois-rangs]="troisRangs()"
+      [class.hm-page--deux-rangs]="!troisRangs()"
+      data-test="page"
+    >
+      <div class="hm-topbar">
+        <app-nav />
+      </div>
 
-      <!--
-        `min-h-0` sur le conteneur ET `overflow-y-auto` ici : sans le premier,
-        un enfant flex refuse de rétrécir sous sa taille de contenu, et la page
-        déborde par le bas au lieu de défiler.
-      -->
-      <main class="min-h-0 flex-1 overflow-y-auto" data-test="page">
-        @if (!disponible) {
-          <!--
-            Hors de la fenêtre Tauri — `ng serve` seul. L'écran le dit plutôt
-            que d'échouer sur un `invoke` qui n'existe pas.
-          -->
-          <div class="m-6 alert alert-warning" data-test="hors-tauri">
-            <span>
-              Cette page est ouverte hors du launcher : aucune commande n'est joignable. Lancer
-              <code>cargo tauri dev</code> pour la fenêtre complète.
-            </span>
-          </div>
-        }
-        <router-outlet />
-      </main>
+      <router-outlet />
+
+      @if (troisRangs()) {
+        <!--
+          Trois colonnes égales aux extrémités : c'est ce qui garde le bouton
+          RÉELLEMENT centré, quelle que soit la largeur du badge joueur.
+        -->
+        <div class="hm-bottombar" data-test="barre-basse">
+          <span></span>
+          @if (bas() === 'jouer') {
+            <app-playbar />
+          } @else {
+            <span></span>
+          }
+          <app-joueur />
+        </div>
+      }
     </div>
   }
+
+  @if (!disponible) {
+    <!--
+      Ni fenêtre Tauri, ni serveur de développement. L'écran le dit plutôt que
+      d'échouer sur un `invoke` qui n'existe pas.
+    -->
+    <div class="hm-alert hm-alert--warning" role="alert" data-test="hors-tauri">
+      <p class="hm-alert__title">Aucun backend joignable</p>
+      <p class="hm-alert__text">
+        Lancer <span class="hm-mono">cargo tauri dev</span> pour la fenêtre, ou
+        <span class="hm-mono">cargo run --bin mc-dev-serveur --features dev-serveur</span> pour
+        travailler l'interface dans un navigateur.
+      </p>
+    </div>
+  }
+
+  <!--
+    Les notifications et l'incident vivent au niveau de la FENÊTRE, hors de la
+    page : le verre dépoli de la pilule de navigation crée un contexte
+    d'empilement et ferait d'elle un bloc conteneur pour tout descendant en
+    `position: absolute` — un panneau monté dedans serait borné à sa largeur.
+  -->
+  <app-notifications />
+  <app-incident />
 </div>
-
-<!--
-  HORS de la zone floutée, et hors du menu.
-
-  Le menu porte un `backdrop-filter`, qui crée un contexte d'empilement et fait
-  de lui un bloc conteneur pour ses descendants en `position: fixed` : un
-  overlay monté dedans serait borné à ses cent quatre-vingts pixels de large.
--->
-<app-overlay />

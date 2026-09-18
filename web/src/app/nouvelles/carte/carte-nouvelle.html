@@ -1,27 +1,58 @@
-<a
-  routerLink="/nouvelles"
-  class="card border border-white/10 bg-base-100/40 verre transition-colors hover:bg-base-100/55"
-  data-test="carte-nouvelle"
->
-  <div class="card-body gap-2 py-4">
-    <div class="flex items-baseline gap-2">
-      <span class="badge badge-xs badge-primary" aria-hidden="true"></span>
-      <h2 class="card-title text-base" data-test="titre">{{ billet().titre }}</h2>
+<!--
+  Le contenu d'une tuile, écrit une fois.
+
+  Deux hôtes possibles — une ancre quand la tuile mène ailleurs, un bouton quand
+  elle ouvre quelque chose ici — et le même intérieur. Recopier ce bloc ferait
+  diverger le dégradé, le chevron et l'extrait au premier ajustement.
+-->
+<ng-template #corps>
+  <!--
+    L'image est un `data:` fabriqué par Rust, jamais une URL distante. C'est ce
+    qui évite d'ouvrir `img-src` à un hôte, et ce qui permet de borner la taille
+    et de déduire le type des octets.
+
+    Sans image, le dégradé de remplacement du design system : il porte les mêmes
+    teintes que la scène, donc une tuile sans illustration n'a pas l'air cassée.
+  -->
+  <div
+    class="hm-news__media"
+    [class.hm-news__media--ph]="!billet().image"
+    [style.--illustration]="billet().image ? 'url(' + billet().image + ')' : null"
+    aria-hidden="true"
+  ></div>
+  <div class="hm-news__scrim" aria-hidden="true"></div>
+
+  <span class="hm-news__open" aria-hidden="true">
+    <lucide-icon [img]="ChevronRight" [size]="16" [strokeWidth]="2" />
+  </span>
+
+  <div class="hm-news__body">
+    <div class="hm-news__meta">
       @if (billet().epinglee) {
-        <span class="badge badge-xs badge-outline" data-test="epinglee">épinglée</span>
+        <span class="hm-tag hm-tag--gold" data-test="epinglee">Épinglée</span>
       }
-      <span class="ml-auto text-xs opacity-60" data-test="date">{{ quand() }}</span>
+      <span data-test="date">{{ quand() }}</span>
     </div>
 
-    @if (extrait(); as texte) {
-      <!--
-        `line-clamp-2` : deux lignes, quelle que soit la longueur du billet.
-        Sans borne, un premier paragraphe bavard repousserait le bouton JOUER
-        hors de la fenêtre.
-      -->
-      <p class="line-clamp-2 text-sm opacity-75" data-test="extrait">{{ texte }}</p>
-    }
+    <h3 class="hm-news__title" data-test="titre">{{ billet().titre }}</h3>
 
-    <span class="text-xs text-primary" data-test="lire-la-suite">Toutes les nouvelles →</span>
+    @if (montrerExtrait() && extrait(); as texte) {
+      <p class="hm-news__excerpt" data-test="extrait">{{ texte }}</p>
+    }
   </div>
-</a>
+</ng-template>
+
+@if (commeLien()) {
+  <a [class]="classes()" routerLink="/nouvelles" data-test="carte-nouvelle">
+    <ng-container [ngTemplateOutlet]="corps" />
+  </a>
+} @else {
+  <button
+    type="button"
+    [class]="classes()"
+    (click)="ouvrir.emit(billet())"
+    data-test="carte-nouvelle"
+  >
+    <ng-container [ngTemplateOutlet]="corps" />
+  </button>
+}

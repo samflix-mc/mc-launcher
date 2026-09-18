@@ -1,0 +1,42 @@
+@if (message(); as texte) {
+  <div
+    class="hm-scrim"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="incident-titre"
+    data-test="incident"
+  >
+    <div class="hm-dialog">
+      <div class="hm-alert hm-alert--danger">
+        <lucide-icon
+          class="hm-alert__icon"
+          [img]="TriangleAlert"
+          [size]="20"
+          [strokeWidth]="1.75"
+          aria-hidden="true"
+        />
+        <p class="hm-alert__title" id="incident-titre">Quelque chose n'a pas fonctionné</p>
+        <p class="hm-alert__text">
+          L'action n'a pas abouti. Réessayez ; si cela recommence, copiez le détail ci-dessous et
+          envoyez-le.
+        </p>
+      </div>
+
+      <!--
+        Le détail, sélectionnable : c'est exactement ce qu'on demande au joueur
+        de recopier, et le reste de la fenêtre ne le permet pas.
+      -->
+      <p class="hm-code hm-incident__detail hm-selectionnable" data-test="message">{{ texte }}</p>
+
+      <div class="hm-dialog__actions">
+        <button type="button" class="hm-btn hm-btn--ghost" (click)="copier()" data-test="copier">
+          <lucide-icon [img]="Copy" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+          Copier le détail
+        </button>
+        <button type="button" class="hm-btn hm-btn--primary" (click)="fermer()" data-test="fermer">
+          Fermer
+        </button>
+      </div>
+    </div>
+  </div>
+}

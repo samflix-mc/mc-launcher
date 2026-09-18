@@ -34,18 +34,31 @@ const EVENEMENT: &str = "recette";
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Rapport {
-    /// La valeur de `--color-primary` sur `:root`, ou vide.
+    /// La valeur de `--gold` sur `:root`, ou vide.
     ///
-    /// **La variable, et non l'attribut `data-theme`.** Le thème samflix est
-    /// déclaré `default: true` dans le bloc `@plugin` : il n'y a donc aucun
-    /// attribut à observer, et en chercher un signalerait un manquement là où
-    /// tout va. Ce qui se vérifie est ce qui compte — que les couleurs du
-    /// thème soient posées.
+    /// **Un jeton du design system, et non l'attribut `data-theme`.** Poser
+    /// l'attribut ne prouve rien — il est écrit en dur dans `index.html` et y
+    /// serait même si `tokens.css` n'était pas servi. Ce qui se vérifie est ce
+    /// qui compte : que les jetons soient réellement arrivés dans le document.
+    ///
+    /// `--gold` plutôt qu'une autre : c'est l'accent unique du design system,
+    /// et tout ce qui attire l'œil dans la fenêtre en dépend.
     pub theme: String,
-    /// La valeur CALCULÉE du `backdrop-filter` de la barre de titre — donc la
-    /// preuve qu'un `styleUrl` de composant s'applique, et que le préfixe est
-    /// celui que WebKitGTK comprend.
+    /// La valeur CALCULÉE du `backdrop-filter` d'une surface en verre.
+    ///
+    /// C'est la preuve que le préfixe est celui que WebKitGTK comprend : sans
+    /// lui, toutes les surfaces en verre du launcher rendent en aplat, et rien
+    /// dans la console ne le dit.
     pub verre: String,
+    /// Une propriété qui n'existe QUE dans un `styleUrl` de composant.
+    ///
+    /// C'est le test du desserrage de `style-src`. Il portait avant sur le
+    /// `backdrop-filter` de la barre de titre — ce qui ne vaut plus, puisque le
+    /// verre vient maintenant de la feuille globale du design system et non
+    /// d'un style de composant. Une propriété personnalisée déclarée dans
+    /// `app.css` et nulle part ailleurs distingue les deux sans ambiguïté :
+    /// elle ne peut arriver que par un style de composant.
+    pub style_composant: String,
     /// Une couleur passée par `color-mix()`, telle que le moteur la rend.
     pub color_mix: String,
     /// Un composant de ROUTE est-il monté ?
@@ -70,7 +83,14 @@ pub fn manquements(rapport: &Rapport) -> Vec<String> {
 
     if rapport.theme.is_empty() {
         manques.push(
-            "--color-primary n'est pas posée sur :root : le thème daisyUI n'est pas appliqué"
+            "--gold n'est pas posée sur :root : les jetons du design system ne sont pas servis"
+                .into(),
+        );
+    }
+    if rapport.style_composant.is_empty() {
+        manques.push(
+            "la propriété repère d'app.css n'arrive pas : un style de composant est rejeté, \
+             donc `style-src` ne porte pas 'unsafe-inline'"
                 .into(),
         );
     }
@@ -78,8 +98,8 @@ pub fn manquements(rapport: &Rapport) -> Vec<String> {
     // « none » ; les deux disent la même chose ici — le verre est un aplat.
     if rapport.verre.is_empty() || rapport.verre == "none" {
         manques.push(
-            "le backdrop-filter de la barre de titre ne rend rien : \
-             soit le style de composant est rejeté, soit le préfixe manque"
+            "le backdrop-filter d'une surface en verre ne rend rien : \
+             le préfixe -webkit- manque, et tout le verre dépoli rend en aplat"
                 .into(),
         );
     }
@@ -147,15 +167,17 @@ const OBSERVATION: &str = "(async()=>{\
 const R='app-spawn,app-connexion,app-nouvelles,app-configuration';\
 for(let i=0;i<80&&!document.querySelector(R);i++)\
 await new Promise(r=>setTimeout(r,100));\
-const b=document.querySelector('[data-test=\"barre-titre\"]');\
-const s=b?getComputedStyle(b):null;\
+const v=document.querySelector('.hm-glass,.hm-nav,.hm-dialog,.hm-player,.hm-toast');\
+const s=v?getComputedStyle(v):null;\
 const t=document.createElement('div');\
 t.style.color='color-mix(in oklab, red 50%, blue)';\
 document.body.appendChild(t);\
 const cm=getComputedStyle(t).color;\
 t.remove();\
 const racine=getComputedStyle(document.documentElement);\
-return{theme:racine.getPropertyValue('--color-primary').trim(),\
+return{theme:racine.getPropertyValue('--gold').trim(),\
+styleComposant:getComputedStyle(document.querySelector('app-root'))\
+.getPropertyValue('--recette-style-composant').trim(),\
 verre:s?(s.backdropFilter||s.webkitBackdropFilter||''):'',\
 colorMix:cm,\
 routeMontee:!!document.querySelector(R),\

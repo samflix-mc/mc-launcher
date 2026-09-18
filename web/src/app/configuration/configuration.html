@@ -1,307 +1,448 @@
-<section class="mx-auto flex max-w-2xl flex-col gap-6 p-6" data-test="configuration">
-  <h1 class="text-xl font-semibold">Configuration</h1>
+<div class="hm-settings" data-test="configuration">
+  <!-- --- Le rail ---------------------------------------------------------
+       Les liens ancrent vers le groupe. Pas de sélection à garder : c'est une
+       page qui défile, pas cinq pages. -->
+  <nav class="hm-settings__nav" aria-label="Groupes de réglages">
+    <h1 class="hm-settings__titre">Configuration</h1>
 
-  <!-- === Apparence : la fenêtre DU LAUNCHER ============================ -->
-  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
-    <legend class="fieldset-legend px-2">Apparence du launcher</legend>
+    @for (groupe of groupes; track groupe.ancre) {
+      <a
+        class="hm-settings__link"
+        [href]="'#reglages-' + groupe.ancre"
+        [attr.data-test]="'rail-' + groupe.ancre"
+      >
+        <lucide-icon [img]="groupe.icone" [size]="20" [strokeWidth]="1.75" aria-hidden="true" />
+        {{ groupe.libelle }}
+      </a>
+    }
 
-    <label class="label" for="fond">Image de fond</label>
-    <select
-      id="fond"
-      class="select select-sm w-full"
-      [value]="vue().apparence.fond"
-      (change)="changerFond($any($event.target).value)"
-      data-test="fond"
-    >
-      @for (choix of fonds; track choix.valeur) {
-        <option [value]="choix.valeur">{{ choix.libelle }}</option>
-      }
-    </select>
+    <p class="hm-settings__pied">
+      Tauri 2 · Angular 22<br />
+      Design system Helm
+    </p>
+  </nav>
 
-    <label class="label mt-3" for="voile">
-      Assombrissement — {{ (vue().apparence.voile * 100).toFixed(0) }} %
-    </label>
-    <!--
-      Le curseur démarre au PLANCHER et non à zéro. En dessous, le texte cesse
-      de tenir le contraste sur l'image la plus claire, et les libellés
-      deviennent illisibles sur une partie de l'écran seulement — ce qui
-      ressemble à un défaut de rendu et non à un réglage. Rust borne de toute
-      façon ; le curseur ne propose simplement pas ce qu'il refuserait.
-    -->
-    <input
-      id="voile"
-      type="range"
-      class="range range-sm range-primary"
-      min="0.35"
-      max="1"
-      step="0.05"
-      [value]="vue().apparence.voile"
-      (change)="changerVoile($any($event.target).value)"
-      data-test="voile"
-    />
-  </fieldset>
+  <div class="hm-settings__body hm-scroll">
+    <!-- === Apparence : la fenêtre DU LAUNCHER ========================== -->
+    <section class="hm-glass hm-settings-group" id="reglages-apparence">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Apparence</h3>
+        <p class="hm-settings-group__desc">La fenêtre du launcher, pas celle du jeu.</p>
+      </div>
 
-  <!-- === Fenêtre : celle DU JEU ======================================== -->
-  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
-    <legend class="fieldset-legend px-2">Fenêtre du jeu</legend>
-
-    <label class="label" for="mode">Mode</label>
-    <select
-      id="mode"
-      class="select select-sm w-full"
-      [value]="vue().fenetre.mode"
-      (change)="changerMode($any($event.target).value)"
-      data-test="mode"
-    >
-      @for (choix of modes; track choix.valeur) {
-        <option [value]="choix.valeur">{{ choix.libelle }}</option>
-      }
-    </select>
-
-    @if (vue().fenetre.mode === 'fenetree') {
-      <div class="mt-3 flex gap-3">
-        <div class="flex-1">
-          <label class="label" for="largeur">Largeur</label>
-          <input
-            id="largeur"
-            type="number"
-            class="input input-sm w-full"
-            min="640"
-            max="7680"
-            [value]="vue().fenetre.largeur"
-            (change)="changerTaille('largeur', $any($event.target).value)"
-            data-test="largeur"
-          />
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Image de fond</div>
+          <p class="hm-setting__desc">Ce qui passe derrière les panneaux.</p>
         </div>
-        <div class="flex-1">
-          <label class="label" for="hauteur">Hauteur</label>
-          <input
-            id="hauteur"
-            type="number"
-            class="input input-sm w-full"
-            min="480"
-            max="4320"
-            [value]="vue().fenetre.hauteur"
-            (change)="changerTaille('hauteur', $any($event.target).value)"
-            data-test="hauteur"
-          />
+        <div class="hm-setting__control">
+          <select
+            class="hm-select hm-select--auto"
+            [value]="vue().apparence.fond"
+            (change)="changerFond($any($event.target).value)"
+            aria-label="Image de fond"
+            data-test="fond"
+          >
+            @for (choix of fonds; track choix.valeur) {
+              <option [value]="choix.valeur">{{ choix.libelle }}</option>
+            }
+          </select>
         </div>
       </div>
-    }
 
-    @if (tailleEcran(); as taille) {
-      <p class="label mt-2 text-xs" data-test="zone-utile">
-        Zone utile de votre écran&nbsp;: {{ taille }} — panneaux du bureau déduits.
-      </p>
-    }
-  </fieldset>
-
-  <!-- === Vidéo : les clés fusionnées dans options.txt ================== -->
-  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
-    <legend class="fieldset-legend px-2">Vidéo</legend>
-
-    <label class="label" for="rendu">Distance de rendu — {{ vue().jeu.renderDistance }}</label>
-    <input
-      id="rendu"
-      type="range"
-      class="range range-sm range-primary"
-      min="2"
-      max="32"
-      [value]="vue().jeu.renderDistance"
-      (change)="changerJeu('renderDistance', $any($event.target).value)"
-      data-test="rendu"
-    />
-
-    <label class="label mt-3" for="simulation">
-      Distance de simulation — {{ vue().jeu.simulationDistance }}
-    </label>
-    <input
-      id="simulation"
-      type="range"
-      class="range range-sm range-primary"
-      min="5"
-      max="32"
-      [value]="vue().jeu.simulationDistance"
-      (change)="changerJeu('simulationDistance', $any($event.target).value)"
-      data-test="simulation"
-    />
-
-    <label class="label mt-3" for="fps">Images par seconde — {{ vue().jeu.maxFps }}</label>
-    <input
-      id="fps"
-      type="range"
-      class="range range-sm range-primary"
-      min="10"
-      max="260"
-      step="10"
-      [value]="vue().jeu.maxFps"
-      (change)="changerJeu('maxFps', $any($event.target).value)"
-      data-test="fps"
-    />
-
-    <label class="label mt-3 cursor-pointer justify-start gap-3">
-      <input
-        type="checkbox"
-        class="toggle toggle-sm toggle-primary"
-        [checked]="vue().jeu.vsync"
-        (change)="changerJeu('vsync', $any($event.target).checked)"
-        data-test="vsync"
-      />
-      Synchronisation verticale
-    </label>
-
-    <p class="label mt-2 text-xs">
-      Ces réglages sont fusionnés dans le <code>options.txt</code> de l'instance, sans toucher à vos
-      touches ni à votre volume. Ils s'appliqueront après votre première partie si le fichier
-      n'existe pas encore.
-    </p>
-  </fieldset>
-
-  <!-- === Java : rien à régler ========================================== -->
-  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
-    <legend class="fieldset-legend px-2">Java</legend>
-
-    @if (etatDuPack()?.java; as majeure) {
-      <p class="text-sm" data-test="java">
-        Le pack exige <strong>Java {{ majeure }}</strong
-        >.
-      </p>
-    } @else {
-      <p class="text-sm opacity-60" data-test="java-inconnu">
-        La version exigée sera connue dès que le pack aura été consulté.
-      </p>
-    }
-
-    <p class="label mt-2 text-xs">
-      Il n'y a rien à choisir, et c'est délibéré&nbsp;: la version est une propriété du pack, écrite
-      dans son verrou et vérifiée à chaque lancement. Le launcher installe pour lui-même le Java
-      exact qu'il faut — jamais pour le système entier, et sans toucher à celui que vous avez déjà.
-    </p>
-  </fieldset>
-
-  <!-- === Avancé ======================================================== -->
-  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
-    <legend class="fieldset-legend px-2">Avancé</legend>
-
-    <label class="label" for="memoire">
-      Mémoire allouée au jeu —
-      {{ memoireGo() === null ? 'laissée à la JVM' : memoireGo() + ' Go' }}
-    </label>
-    <input
-      id="memoire"
-      type="range"
-      class="range range-sm range-primary"
-      min="1"
-      max="32"
-      step="0.5"
-      [value]="memoireGo() ?? 4"
-      (change)="changerMemoire($any($event.target).value)"
-      data-test="memoire"
-    />
-    <p class="label text-xs">
-      Sans réglage, la JVM prend un quart de la mémoire de la machine — ce qui ne suffit pas à un
-      modpack, et donne un plantage après vingt minutes.
-    </p>
-
-    <label class="label mt-3 cursor-pointer justify-start gap-3">
-      <input
-        type="checkbox"
-        class="toggle toggle-sm toggle-primary"
-        [checked]="vue().lanceur.reduireAuLancement"
-        (change)="changerReduction($any($event.target).checked)"
-        data-test="reduire"
-      />
-      Réduire le launcher quand le jeu démarre
-    </label>
-
-    <div class="divider my-4"></div>
-
-    <p class="label">Vérifier les fichiers de l'instance</p>
-    <div class="flex flex-wrap gap-2">
-      <button
-        type="button"
-        class="btn btn-sm"
-        (click)="verifier(false)"
-        [disabled]="verificationEnCours()"
-        data-test="verifier-rapide"
-      >
-        <lucide-icon [img]="ShieldCheck" [size]="14" aria-hidden="true" />
-        Vérification rapide
-      </button>
-      <button
-        type="button"
-        class="btn btn-sm btn-outline"
-        (click)="verifier(true)"
-        [disabled]="verificationEnCours()"
-        data-test="verifier-profond"
-      >
-        Vérification complète
-      </button>
-      @if (verificationEnCours()) {
-        <span class="loading loading-spinner loading-sm"></span>
-      }
-    </div>
-    <p class="label text-xs">
-      La vérification complète relit et recalcule l'empreinte de plusieurs centaines de
-      mégaoctets&nbsp;: comptez quelques minutes.
-    </p>
-
-    @if (verification(); as problemes) {
-      @if (problemes.length === 0) {
-        <div class="alert alert-success alert-soft mt-3 text-sm" data-test="verification-ok">
-          <span>Tout est en place.</span>
+      <div class="hm-setting hm-setting--stack">
+        <div>
+          <div class="hm-setting__label">Assombrissement</div>
+          <!--
+            Le curseur descend jusqu'à zéro, et c'est sans danger : ce n'est
+            plus lui qui tient le contraste. Le dégradé de la scène et
+            l'épaisseur du verre s'en chargent, et le verre s'épaissit de
+            lui-même à mesure qu'on éclaircit — voir `--glass-epaisseur`.
+          -->
+          <p class="hm-setting__desc">
+            À zéro, l'image se voit en entier : les panneaux s'épaississent d'eux-mêmes pour rester
+            lisibles.
+          </p>
         </div>
-      } @else {
-        <div class="alert alert-warning alert-soft mt-3 text-sm" data-test="verification-problemes">
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Voile</span>
+              <span class="hm-slider__value" data-test="voile-valeur">
+                {{ (vue().apparence.voile * 100).toFixed(0) }} %
+              </span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              [min]="VOILE_PLANCHER"
+              max="1"
+              step="0.01"
+              [value]="vue().apparence.voile"
+              [style.--p]="course(vue().apparence.voile, VOILE_PLANCHER, 1)"
+              (input)="changerVoile($any($event.target).value)"
+              aria-label="Assombrissement du fond"
+              data-test="voile"
+            />
+            <div class="hm-slider__ticks">
+              <span>image nette</span>
+              <span>image effacée</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- === Fenêtre : celle DU JEU ====================================== -->
+    <section class="hm-glass hm-settings-group" id="reglages-fenetre">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Fenêtre du jeu</h3>
+        <p class="hm-settings-group__desc">Comment Minecraft s'ouvre au lancement.</p>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Mode</div>
+        </div>
+        <div class="hm-setting__control">
+          <select
+            class="hm-select hm-select--auto"
+            [value]="vue().fenetre.mode"
+            (change)="changerMode($any($event.target).value)"
+            aria-label="Mode de la fenêtre du jeu"
+            data-test="mode"
+          >
+            @for (choix of modes; track choix.valeur) {
+              <option [value]="choix.valeur">{{ choix.libelle }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      @if (vue().fenetre.mode === 'fenetree') {
+        <div class="hm-setting">
           <div>
-            <p class="font-medium">{{ problemes.length }} problème(s) :</p>
-            <ul class="list-inside list-disc">
-              @for (probleme of problemes; track probleme) {
-                <li>{{ probleme }}</li>
-              }
-            </ul>
-            <p class="mt-1 opacity-70">Le prochain lancement les rattrapera par différence.</p>
+            <div class="hm-setting__label">Taille</div>
+            @if (tailleEcran(); as taille) {
+              <p class="hm-setting__desc" data-test="zone-utile">
+                Zone utile de votre écran : {{ taille }} — panneaux du bureau déduits.
+              </p>
+            }
+          </div>
+          <div class="hm-setting__control">
+            <span class="hm-input-unit">
+              <input
+                class="hm-input hm-input--num"
+                type="number"
+                min="640"
+                max="7680"
+                [value]="vue().fenetre.largeur"
+                (change)="changerTaille('largeur', $any($event.target).value)"
+                aria-label="Largeur"
+                data-test="largeur"
+              />
+              <span class="hm-input-unit__suffix">×</span>
+              <input
+                class="hm-input hm-input--num"
+                type="number"
+                min="480"
+                max="4320"
+                [value]="vue().fenetre.hauteur"
+                (change)="changerTaille('hauteur', $any($event.target).value)"
+                aria-label="Hauteur"
+                data-test="hauteur"
+              />
+              <span class="hm-input-unit__suffix">px</span>
+            </span>
           </div>
         </div>
       }
-    }
+    </section>
 
-    <div class="divider my-4"></div>
+    <!-- === Vidéo : les clés fusionnées dans options.txt ================= -->
+    <section class="hm-glass hm-settings-group" id="reglages-video">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Vidéo</h3>
+        <p class="hm-settings-group__desc">
+          Fusionné dans l'<span class="hm-mono">options.txt</span> de l'instance, sans toucher à vos
+          touches ni à votre volume.
+        </p>
+      </div>
 
-    <p class="label">Ouvrir un dossier</p>
-    <div class="flex flex-wrap gap-2">
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm"
-        (click)="ouvrirDossier('instance')"
-        data-test="dossier-instance"
-      >
-        Instance de jeu
-      </button>
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm"
-        (click)="ouvrirDossier('donnees')"
-        data-test="dossier-donnees"
-      >
-        Données
-      </button>
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm"
-        (click)="ouvrirDossier('config')"
-        data-test="dossier-config"
-      >
-        Configuration
-      </button>
-      <button
-        type="button"
-        class="btn btn-ghost btn-sm"
-        (click)="ouvrirDossier('journaux')"
-        data-test="dossier-journaux"
-      >
-        Journaux
-      </button>
-    </div>
-  </fieldset>
-</section>
+      <div class="hm-setting hm-setting--stack">
+        <div><div class="hm-setting__label">Distance de rendu</div></div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Chunks</span>
+              <span class="hm-slider__value">{{ vue().jeu.renderDistance }}</span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="2"
+              max="32"
+              [value]="vue().jeu.renderDistance"
+              [style.--p]="course(vue().jeu.renderDistance, 2, 32)"
+              (input)="changerJeu('renderDistance', $any($event.target).value)"
+              aria-label="Distance de rendu"
+              data-test="rendu"
+            />
+            <div class="hm-slider__ticks"><span>2</span><span>32</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div><div class="hm-setting__label">Distance de simulation</div></div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Chunks</span>
+              <span class="hm-slider__value">{{ vue().jeu.simulationDistance }}</span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="5"
+              max="32"
+              [value]="vue().jeu.simulationDistance"
+              [style.--p]="course(vue().jeu.simulationDistance, 5, 32)"
+              (input)="changerJeu('simulationDistance', $any($event.target).value)"
+              aria-label="Distance de simulation"
+              data-test="simulation"
+            />
+            <div class="hm-slider__ticks"><span>5</span><span>32</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div><div class="hm-setting__label">Images par seconde</div></div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Plafond</span>
+              <span class="hm-slider__value">{{ vue().jeu.maxFps }}</span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="10"
+              max="260"
+              step="10"
+              [value]="vue().jeu.maxFps"
+              [style.--p]="course(vue().jeu.maxFps, 10, 260)"
+              (input)="changerJeu('maxFps', $any($event.target).value)"
+              aria-label="Images par seconde"
+              data-test="fps"
+            />
+            <div class="hm-slider__ticks"><span>10</span><span>260</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Synchronisation verticale</div>
+          <p class="hm-setting__desc">Supprime le déchirement, au prix d'un peu de latence.</p>
+        </div>
+        <div class="hm-setting__control">
+          <input
+            type="checkbox"
+            class="hm-switch"
+            role="switch"
+            [checked]="vue().jeu.vsync"
+            (change)="changerJeu('vsync', $any($event.target).checked)"
+            aria-label="Synchronisation verticale"
+            data-test="vsync"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- === Java : rien à régler ========================================= -->
+    <section class="hm-glass hm-settings-group" id="reglages-java">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Java</h3>
+        <p class="hm-settings-group__desc">Décidé par le pack, pas par vous — et c'est voulu.</p>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Version exigée</div>
+          <p class="hm-setting__desc">
+            Le launcher installe pour lui-même le Java exact qu'il faut — jamais pour le système
+            entier, et sans toucher à celui que vous avez déjà.
+          </p>
+        </div>
+        <div class="hm-setting__control">
+          @if (etatDuPack()?.java; as majeure) {
+            <span class="hm-status hm-status--online" data-test="java">
+              <span class="hm-status__dot" aria-hidden="true"></span>
+              Java {{ majeure }}
+            </span>
+          } @else {
+            <span class="hm-status hm-status--unknown" data-test="java-inconnu">
+              <span class="hm-status__dot" aria-hidden="true"></span>
+              Pas encore connue
+            </span>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- === Avancé ======================================================= -->
+    <section class="hm-glass hm-settings-group" id="reglages-avance">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Avancé</h3>
+        <p class="hm-settings-group__desc">
+          Mémoire, vérification, et où le launcher range ses fichiers.
+        </p>
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div>
+          <div class="hm-setting__label">Mémoire allouée au jeu</div>
+          <p class="hm-setting__desc">
+            Sans réglage, la JVM prend un quart de la mémoire de la machine — ce qui ne suffit pas à
+            un modpack, et donne un plantage après vingt minutes.
+          </p>
+        </div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Allouée</span>
+              <span class="hm-slider__value" data-test="memoire-valeur">
+                {{ memoireGo() === null ? 'laissée à la JVM' : memoireGo() + ' Go' }}
+              </span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="1"
+              [max]="MEMOIRE_MAX_GO"
+              step="0.5"
+              [value]="memoireGo() ?? 4"
+              [style.--p]="course(memoireGo() ?? 4, 1, MEMOIRE_MAX_GO)"
+              (input)="changerMemoire($any($event.target).value)"
+              aria-label="Mémoire allouée au jeu, en gigaoctets"
+              data-test="memoire"
+            />
+            <div class="hm-slider__ticks">
+              <span>1 Go</span>
+              <span>{{ MEMOIRE_MAX_GO }} Go</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Réduire le launcher au lancement</div>
+          <p class="hm-setting__desc">La fenêtre s'efface pendant que le jeu tourne.</p>
+        </div>
+        <div class="hm-setting__control">
+          <input
+            type="checkbox"
+            class="hm-switch"
+            role="switch"
+            [checked]="vue().lanceur.reduireAuLancement"
+            (change)="changerReduction($any($event.target).checked)"
+            aria-label="Réduire le launcher au lancement"
+            data-test="reduire"
+          />
+        </div>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Vérifier les fichiers</div>
+          <!--
+            Une seule vérification, et c'est la vraie. La « rapide » ne
+            comparait que les tailles : elle disait « tout est en place » sur un
+            fichier corrompu de la bonne longueur — c'est-à-dire précisément le
+            cas pour lequel on vérifie.
+          -->
+          <p class="hm-setting__desc">
+            Relit et recalcule l'empreinte de plusieurs centaines de mégaoctets. Comptez quelques
+            minutes.
+          </p>
+        </div>
+        <div class="hm-setting__control">
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm"
+            (click)="verifier()"
+            [disabled]="verificationEnCours()"
+            [attr.aria-busy]="verificationEnCours() ? 'true' : null"
+            data-test="verifier"
+          >
+            <lucide-icon [img]="ShieldCheck" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Vérifier
+          </button>
+        </div>
+
+        @if (verification(); as problemes) {
+          @if (problemes.length === 0) {
+            <p class="hm-setting__note hm-configuration__ok" data-test="verification-ok">
+              Tout est en place.
+            </p>
+          } @else {
+            <p class="hm-setting__note" data-test="verification-problemes">
+              {{ problemes.length }} problème(s) — le prochain lancement les rattrapera par
+              différence.
+            </p>
+          }
+        }
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div>
+          <div class="hm-setting__label">Ouvrir un dossier</div>
+          <p class="hm-setting__desc">
+            Là où le launcher range ce qu'il installe et ce qu'il écrit.
+          </p>
+        </div>
+        <div class="hm-setting__control hm-configuration__dossiers">
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm hm-btn--ghost"
+            (click)="ouvrirDossier('instance')"
+            data-test="dossier-instance"
+          >
+            <lucide-icon [img]="FolderOpen" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Instance
+          </button>
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm hm-btn--ghost"
+            (click)="ouvrirDossier('donnees')"
+            data-test="dossier-donnees"
+          >
+            <lucide-icon [img]="FolderOpen" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Données
+          </button>
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm hm-btn--ghost"
+            (click)="ouvrirDossier('config')"
+            data-test="dossier-config"
+          >
+            <lucide-icon [img]="FolderOpen" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Configuration
+          </button>
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm hm-btn--ghost"
+            (click)="ouvrirDossier('journaux')"
+            data-test="dossier-journaux"
+          >
+            <lucide-icon [img]="Terminal" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Journaux
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

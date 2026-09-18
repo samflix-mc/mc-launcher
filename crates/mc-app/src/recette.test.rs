@@ -4,8 +4,9 @@ use super::{Rapport, manquements};
 /// un `tauri build --debug`.
 fn bon() -> Rapport {
     Rapport {
-        theme: "oklch(58% 0.13 133)".into(),
-        verre: "blur(14px) saturate(140%)".into(),
+        theme: "#e6b54a".into(),
+        verre: "blur(24px) saturate(160%)".into(),
+        style_composant: "applique".into(),
         color_mix: "rgb(128, 0, 128)".into(),
         route_montee: true,
         feuilles: 1,
@@ -59,13 +60,30 @@ fn un_fragment_paresseux_manquant_est_signale() {
 }
 
 #[test]
-fn un_theme_absent_est_signale() {
+fn des_jetons_absents_sont_signales() {
     let manques = manquements(&Rapport {
         theme: String::new(),
         ..bon()
     });
     assert_eq!(manques.len(), 1);
-    assert!(manques[0].contains("--color-primary"));
+    assert!(manques[0].contains("--gold"));
+}
+
+/// **Le test du desserrage de `style-src`, et il n'a plus d'autre porteur.**
+///
+/// La propriété repère est déclarée dans `web/src/app/app.css`, c'est-à-dire
+/// dans un `styleUrl` de composant, et nulle part ailleurs. Si elle n'arrive
+/// pas, c'est que la fenêtre a rejeté les styles de composant : les pages
+/// s'affichent alors sans aucune de leurs mises en page, et la console ne dit
+/// rien de plus qu'une violation de CSP qu'on ne lit pas.
+#[test]
+fn un_style_de_composant_rejete_est_signale() {
+    let manques = manquements(&Rapport {
+        style_composant: String::new(),
+        ..bon()
+    });
+    assert_eq!(manques.len(), 1);
+    assert!(manques[0].contains("style-src"), "{manques:?}");
 }
 
 #[test]
@@ -78,9 +96,10 @@ fn une_feuille_de_style_absente_est_signalee() {
     assert!(manques[0].contains("<link>"));
 }
 
-/// `color-mix()` non résolu ressort tel qu'il a été écrit, ou vide. Le CSS
-/// compilé en porte cent trente occurrences : si le moteur ne le résout pas,
-/// c'est tout le thème daisyUI qui tombe.
+/// `color-mix()` non résolu ressort tel qu'il a été écrit, ou vide. Le design
+/// system s'en sert pour la recette du verre, les liserés, les teintes d'état
+/// et le voile : si le moteur ne le résout pas, ce n'est pas une couleur qui
+/// tombe, c'est chaque surface de la fenêtre.
 #[test]
 fn un_color_mix_non_resolu_est_signale() {
     for valeur in ["", "color-mix(in oklab, red 50%, blue)"] {

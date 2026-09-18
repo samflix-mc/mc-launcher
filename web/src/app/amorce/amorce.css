@@ -1,26 +1,38 @@
-/* L'amorce occupe la zone de contenu, et rien de plus.
-
-   `:host { display: block; height: 100% }` : sans la déclaration d'affichage,
-   l'hôte serait `inline` et la hauteur ne ferait rien — le contenu se
-   tasserait en haut de la zone au lieu d'être centré. */
+/* L'amorce occupe la zone de contenu, et rien de plus : la barre de titre reste
+   au-dessus d'elle, pour que la fenêtre garde ses boutons pendant l'attente. */
 :host {
   display: block;
-  height: 100%;
-  position: relative;
-  z-index: 5;
+  position: absolute;
+  inset: var(--space-10) 0 0;
+  z-index: var(--z-page);
 }
 
-/* Une entrée en douceur, mais seulement pour qui la veut : `prefers-reduced-motion`
-   est respecté, et l'amorce apparaît alors d'un coup. Une animation de moins
-   d'une seconde sur un écran qu'on regarde à peine ne vaut pas de contrarier
-   quelqu'un que le mouvement gêne. */
+.hm-splash {
+  height: 100%;
+  /* Pas de fond opaque ici : l'image est déjà derrière, et la couvrir ferait
+     apparaître un rectangle sombre au moment exact où la fenêtre se montre.
+     `.hm-splash` pose `bg-raised` pour la fenêtre de Tauri, qui n'a pas de
+     scène ; ici, on la laisse voir. */
+  background: transparent;
+}
+
+/* Le mot-symbole peut être long — `MC_LAUNCHER_NOM` est réglable à la
+   compilation. Sans cette borne, un nom de vingt caractères déborderait de la
+   fenêtre au lieu de rétrécir. */
+.hm-wordmark {
+  max-width: 100%;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* Une entrée en douceur, mais seulement pour qui la veut. */
 @media (prefers-reduced-motion: no-preference) {
-  [data-test='amorce'] > div {
-    animation: apparition 220ms ease-out;
+  .hm-splash {
+    animation: amorce-apparition 220ms var(--ease-out);
   }
 }
 
-@keyframes apparition {
+@keyframes amorce-apparition {
   from {
     opacity: 0;
     transform: translateY(6px);

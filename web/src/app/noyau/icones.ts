@@ -15,25 +15,56 @@
  * icône oubliée du registre rend un vide, sans erreur de compilation. En
  * passant le nœud d'icône directement, une faute de frappe est une erreur
  * TypeScript — et le tree-shaking ne garde que ce qui est référencé ici.
+ *
+ * ## La liste vient du design system
+ *
+ * `assets/Icons` du design system en fixe quarante-quatre ; celles qui suivent
+ * sont celles que les gabarits emploient réellement. En ajouter une qui n'est
+ * pas dans le design system demande d'abord de vérifier qu'aucune de celles-là
+ * ne dit la même chose.
  */
 export {
-  // La navigation.
-  House,
+  // La pilule de navigation — les trois sections du design system.
+  Compass,
   Newspaper,
-  Settings,
-  Settings2,
-  LogOut,
-  // La barre de titre.
+  SlidersHorizontal,
+  // La barre de titre et les fenêtres.
   Minus,
   Square,
   Copy,
   X,
-  // Les actions.
+  Bell,
+  ChevronDown,
+  // Le bouton de jeu, et ce qui l'entoure.
   Play,
   Download,
   RefreshCw,
-  FolderOpen,
+  Rocket,
+  // Les états.
+  Check,
+  CircleCheck,
+  CircleX,
+  Info,
+  TriangleAlert,
+  WifiOff,
+  Wrench,
+  Clock,
+  Globe,
+  Users,
+  Package,
+  Server,
   ShieldCheck,
-  AlertTriangle,
+  // La configuration.
+  FolderOpen,
+  Terminal,
+  MemoryStick,
+  Monitor,
+  Trash2,
+  // Les nouvelles et le compte.
+  ArrowUpRight,
+  ChevronRight,
   ExternalLink,
+  Pin,
+  LogOut,
+  User,
 } from 'lucide-angular';

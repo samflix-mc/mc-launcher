@@ -1,0 +1,29 @@
+/* `display: contents` : les deux enfants sont déjà positionnés par rapport à la
+   fenêtre, et un hôte `block` interposerait une boîte vide dans la coque. */
+:host {
+  display: contents;
+}
+
+/* La couche qui referme le panneau. Elle couvre la fenêtre, sous le panneau et
+   au-dessus du reste ; elle ne dessine rien. */
+.hm-notif__voile {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-menu) - 1);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* Les lignes du centre ne sont pas cliquables ici : le design system en fait
+   des boutons parce qu'une notification y ouvre l'élément qu'elle annonce, et
+   nous n'avons rien vers quoi ouvrir — un pack mis à jour ne mène nulle part.
+   Le curseur ne doit donc rien promettre. */
+.hm-notif__item {
+  cursor: default;
+}
+
+.hm-notif__item:hover {
+  background: transparent;
+}

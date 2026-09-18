@@ -1,245 +1,205 @@
 /*
- * La feuille globale : le socle Tailwind, le thème, et le fond plein cadre.
+ * La feuille globale : les polices, le design system, et le socle du launcher.
  *
- * ## Ce que cette feuille a le droit de contenir
+ * ## L'ordre des trois imports est un contrat
  *
- * Trois choses, et rien d'autre : le socle de Tailwind, la déclaration du
- * thème daisyUI, et les quelques règles qui portent sur des éléments qu'aucun
- * composant ne possède — `html`, `body`, la racine. Tout le reste appartient
- * au composant qui le dessine, dans son `styleUrl`.
+ * Les polices d'abord — une `@font-face` doit exister avant qu'une règle ne la
+ * nomme, sans quoi le premier rendu se fait avec la police de repli et l'on
+ * voit le texte sauter. Les jetons ensuite, les composants après : `helm.css`
+ * ne contient pas une valeur qui ne vienne de `tokens.css`, et l'inverser
+ * laisserait chaque `var()` non résolue.
  *
- * Le motif n'est pas esthétique : une feuille globale de six cents lignes
- * décrit une interface qu'un seul écran utilise, et se retrouve chargée en
- * entier pour une page de réglages qui n'en emploie rien. Les styles de
- * composant sont chargés avec le morceau paresseux qui les contient.
+ * ## Ce que cette feuille a le droit de contenir, après les imports
  *
- * ## Pourquoi `styleUrl` est désormais permis — la version juste
+ * Ce qui porte sur des éléments qu'AUCUN composant ne possède : `html`, `body`,
+ * la racine. Tout le reste appartient au composant qui le dessine, dans son
+ * `styleUrl`, et les classes du design system s'y emploient telles quelles —
+ * l'encapsulation émulée d'Angular ne réécrit que les sélecteurs des styles
+ * qu'un composant déclare, jamais ceux d'une feuille globale.
  *
- * L'en-tête précédent affirmait qu'Angular injecte ses styles par le
- * JavaScript, que Tauri pose un nonce, et qu'un nonce annule
- * `'unsafe-inline'`. La dernière proposition est vraie — c'est la règle du CSP
- * niveau 3. Les deux premières le sont aussi. Mais l'enchaînement ne tenait
- * pas : Tauri n'injecte un nonce sur `style-src` que s'il TROUVE une balise
- * `<style>` dans le HTML embarqué (tauri-utils/src/html.rs:154-157), et
- * `index.html` n'en a aucune. La garde de tauri/src/manager/mod.rs:140 laisse
- * alors la directive intacte.
+ * ## Pourquoi il n'y a plus ni Tailwind ni daisyUI
  *
- * Ce qui rejetait les styles de composant n'était donc pas un nonce : c'était
- * `style-src 'self'` tout court. La directive porte maintenant
- * `'unsafe-inline'`, et `dangerousDisableAssetCspModification` garde ce
- * mot-clé du jour où l'amorce statique mettra une balise `<style>` dans
- * `index.html` — ce qui réveillerait l'injection de nonce, en production
- * seulement. Ne pas retirer ce réglage en constatant qu'il ne sert à rien
- * aujourd'hui : c'est une ceinture contre une évolution prévue.
+ * Le design system est complet : il porte son propre socle (`box-sizing`, les
+ * marges de `body`, la famille et la taille de base), ses jetons, et six cent
+ * vingt lignes de composants. Faire cohabiter deux systèmes coûtait deux fois :
+ * une fois en octets, et une fois en incohérences — un bouton daisyUI à côté
+ * d'un `.hm-btn` ne se ressemblent pas, et c'est exactement ce qui donnait à
+ * l'interface son air de brouillon.
  *
- * La condition à laquelle le desserrage a été consenti est qu'aucun balisage
- * ne vienne d'ailleurs que du compilateur Angular. Elle est vérifiée par
- * `pnpm invariants`, pas par la bonne volonté.
+ * Il y avait en plus un piège de cascade : `@import "tailwindcss"` range ses
+ * utilitaires dans une couche, et du CSS SANS couche l'emporte sur toute
+ * couche, quelle que soit la spécificité. Un utilitaire posé sur un élément que
+ * `helm.css` décrit aurait donc été ignoré EN SILENCE.
  *
- * `script-src` reste strict, nonce compris : c'est lui qui protège l'origine
- * privilégiée où `invoke` est joignable.
+ * ## Le CSP, et ce qui l'a fait desserrer
+ *
+ * `style-src` porte `'unsafe-inline'`, ce qui autorise les `styleUrl` des
+ * composants. Ce desserrage ne tient qu'à une condition : aucun balisage ne
+ * vient d'ailleurs que du compilateur Angular. Elle est vérifiée par
+ * `pnpm invariants`, pas par la bonne volonté. `script-src` reste strict.
  */
 
-/* `source(none)` : Tailwind ne devine pas où chercher les classes, on le lui
-   dit. Sans cela il remonte jusqu'à la racine du dépôt en scrutant les
-   sources Rust et le répertoire target/, ce qui coûte des secondes à chaque
-   build et finit par émettre des utilitaires tirés d'un commentaire. */
-@import "tailwindcss" source(none);
+/* --- Les polices, servies par le paquet -------------------------------------
 
-/* Les deux seuls endroits où des classes s'écrivent.
+   Le design system les fait venir de Google Fonts. Nous ne le pouvons pas :
+   `default-src 'self'` refuserait la requête, et une fenêtre hors ligne — ce
+   qui arrive à un launcher — se retrouverait sans police quoi qu'il arrive.
 
-   `./index.html` et non `../index.html` : les `@source` se résolvent depuis
-   CE fichier, et `web/index.html` n'existe pas. Mal pointé, le chemin ne
-   produit aucune erreur — il produit une amorce statique sans style, en
-   production seulement, puisque c'est le seul fichier où vivront les classes
-   de l'écran de démarrage. */
-@source "./index.html";
-@source "./app";
+   Les sous-ensembles sont `latin` et `latin-ext`, et pas davantage : le
+   launcher est en français, et le cyrillique ou le grec seraient deux cents
+   kilooctets qu'aucun écran n'affiche.
 
-/* `themes: false` : aucun des trente-cinq thèmes livrés n'est émis. Le seul
-   qui existe est celui d'en dessous. */
-@plugin "daisyui" {
-  themes: false;
-}
+   Les graisses sont exactement celles que `helm.css` nomme. En ajouter une
+   qu'aucune règle ne demande ajoute un fichier au paquet et rien à l'écran. */
 
-/* Le thème, déclaré une fois et lisible depuis n'importe quel style de
-   composant : l'encapsulation émulée d'Angular ne réécrit que les
-   sélecteurs, jamais les valeurs de propriétés personnalisées.
+@import '@fontsource/manrope/latin-400.css';
+@import '@fontsource/manrope/latin-500.css';
+@import '@fontsource/manrope/latin-600.css';
+@import '@fontsource/manrope/latin-700.css';
+@import '@fontsource/manrope/latin-ext-400.css';
+@import '@fontsource/manrope/latin-ext-600.css';
 
-   `default: true` plutôt qu'un `data-theme` posé sur `<html>` : un seul
-   endroit à connaître, et rien à synchroniser entre le HTML et le CSS. */
-@plugin "daisyui/theme" {
-  name: "samflix";
-  default: true;
-  prefersdark: true;
-  color-scheme: dark;
+/* Pixelify Sans : une seule graisse, la 500, et jamais sous vingt-deux pixels.
+   En dessous, la face pixel cesse d'être une lettre et devient une texture. */
+@import '@fontsource/pixelify-sans/latin-500.css';
+@import '@fontsource/pixelify-sans/latin-ext-500.css';
 
-  /* Le vert de Minecraft, déjà celui du README et du bouton JOUER. */
-  --color-primary: oklch(58% 0.13 133);
-  --color-primary-content: oklch(98% 0.01 133);
+/* JetBrains Mono : tout ce qui se met à jour — un pourcentage, un débit, un
+   compteur — et le code d'appareil. */
+@import '@fontsource/jetbrains-mono/latin-400.css';
+@import '@fontsource/jetbrains-mono/latin-500.css';
 
-  --color-secondary: oklch(70% 0.14 133);
-  --color-secondary-content: oklch(20% 0.02 133);
+/* --- Le design system ------------------------------------------------------
 
-  --color-accent: oklch(70% 0.14 133);
-  --color-accent-content: oklch(20% 0.02 133);
+   Deux copies, remplaçables d'un `cp` depuis `docs/helm-design-system.zip`.
+   Voir leurs en-têtes pour ce qui a été changé et pourquoi. */
 
-  --color-neutral: oklch(28% 0.01 260);
-  --color-neutral-content: oklch(95% 0.005 260);
-
-  /* Les trois fonds, du plus proche au plus lointain. Volontairement peu
-     saturés : ce qui donne la couleur de l'écran est l'image de fond, pas le
-     thème, et un fond teinté sous une photographie fait de la boue. */
-  --color-base-100: oklch(21% 0.012 260);
-  --color-base-200: oklch(17% 0.012 260);
-  --color-base-300: oklch(13% 0.012 260);
-  --color-base-content: oklch(95% 0.005 260);
-
-  --color-info: oklch(70% 0.11 230);
-  --color-info-content: oklch(15% 0.02 230);
-  --color-success: oklch(70% 0.14 150);
-  --color-success-content: oklch(15% 0.02 150);
-  --color-warning: oklch(78% 0.13 80);
-  --color-warning-content: oklch(20% 0.02 80);
-  --color-error: oklch(65% 0.16 25);
-  --color-error-content: oklch(98% 0.01 25);
-
-  --radius-selector: 0.5rem;
-  --radius-field: 0.5rem;
-  --radius-box: 0.75rem;
-
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-
-  --border: 1px;
-  --depth: 0;
-  --noise: 0;
-}
-
-/* Ce que le thème daisyUI ne nomme pas et que la fenêtre emploie partout.
-
-   `@theme` et non `@theme inline` : les utilitaires produits portent alors la
-   valeur et non un `var()`, ce qui rend une classe utilisable dans un style de
-   composant sans que la variable ait à y être résolue. Si le CSS compilé
-   montrait des `var(--…)` non résolus, c'est ici qu'il faudrait passer en
-   `inline`. */
-@theme {
-  /* Les épaisseurs de flou du verre dépoli. Trois valeurs et pas une échelle :
-     une épaisseur par couche d'interface — le menu, la barre de titre, une
-     carte posée dessus. */
-  --blur-verre: 18px;
-  --blur-verre-fin: 10px;
-  --blur-verre-epais: 28px;
-
-  /* La bande qu'aucune cible de clic ne franchit, sous peine que le
-     gestionnaire de fenêtres GTK prenne le clic pour un redimensionnement. Il
-     y branche une zone de cinq pixels multipliée par le facteur d'échelle ;
-     huit laisse la marge d'un écran HiDPI. Écrite comme une variable parce que
-     trois composants s'y conforment, et qu'un nombre recopié trois fois
-     diverge. */
-  --spacing-bord-fenetre: 8px;
-
-  /* La hauteur de la barre de titre, lue par la coque pour réserver sa place
-     et par la barre elle-même. */
-  --spacing-barre-titre: 38px;
-}
+@import './design/tokens.css';
+@import './design/helm.css';
 
 /* --- Le socle, et rien d'autre ---------------------------------------------
 
-   Tout ce qui suit porte sur des éléments qu'AUCUN composant ne possède :
-   l'élément racine, le corps du document. Le reste appartient au composant qui
-   le dessine, dans son `styleUrl`. */
+   Tout ce qui suit porte sur des éléments qu'AUCUN composant ne possède. */
 
 :root {
   color-scheme: dark;
 
-  /* Posé par le service de réglages, sur cet élément.
+  /* Le voile entre l'image et l'interface, posé par le service de réglages SUR
+     CET ÉLÉMENT.
+
      Un style de composant ne PEUT PAS déclarer ici : l'encapsulation émulée
-     d'Angular réécrirait `:root` en `:root[_ngcontent-…]`, qui ne désigne
-     rien. */
-  --voile: 0.55;
+     d'Angular réécrirait `:root` en `:root[_ngcontent-…]`, qui ne désigne rien.
+
+     Ce n'est PLUS lui qui tient le contraste — voir `--glass-base` juste en
+     dessous, et `VOILE_PLANCHER` côté Rust. C'est une préférence, et elle peut
+     donc descendre à zéro sans rien casser. */
+  --voile: 0.3;
+}
+
+/* --- La compensation du verre ----------------------------------------------
+
+   C'est la parade que le design system prescrit, et elle est ici automatique :
+   « sur une image claire, montez la base du verre à 60 % du fond sur la racine
+   de la fenêtre plutôt que d'assombrir le texte ».
+
+   Le raisonnement tient en une phrase : ce qu'il faut rendre lisible, ce sont
+   les PANNEAUX, pas l'image. Assombrir l'image pour sauver le texte assombrit
+   aussi le milieu de l'écran, que le design system laisse vide exprès pour
+   qu'elle s'y voie — c'est-à-dire qu'on paie la lisibilité à l'endroit précis
+   où il n'y a rien à lire.
+
+   La base du verre s'épaissit donc à mesure que le voile s'amincit : 46 % du
+   fond — la valeur du design system — quand le voile est à 0,44 ou plus, et
+   jusqu'à 72 % quand il est nul. À 72 %, sur une image BLANCHE, `ink-3` — la
+   teinte la plus claire que le design system autorise pour du texte — tient
+   encore 4,5:1 sur un panneau.
+
+   `clamp` aux deux bouts : sans lui, un voile à 1 rendrait un verre à 18 %,
+   c'est-à-dire des panneaux presque transparents posés sur une image déjà
+   noire — l'inverse exact de ce qu'on cherche. */
+:root {
+  /* Une COULEUR, pas un pourcentage : `--glass-base` est consommée comme un
+     fond (`background: var(--glass-face), var(--glass-base)`), et une valeur
+     de pourcentage y serait invalide — le panneau rendrait alors transparent,
+     sans une erreur. Le pourcentage n'est que l'opacité du mélange. */
+  --glass-epaisseur: clamp(46%, calc(46% + (0.44 - var(--voile)) * 59%), 72%);
+  --glass-base: color-mix(in srgb, var(--bg) var(--glass-epaisseur), transparent);
 }
 
 html,
 body {
-  margin: 0;
   height: 100%;
   /* Une fenêtre d'application ne défile pas : ce sont ses panneaux qui
-     défilent, chacun dans sa zone. Sans cela, le fond glisserait sous le menu
-     fixe. */
+     défilent, chacun dans sa zone. */
   overflow: hidden;
 }
 
 body {
-  font-family: system-ui, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
-
   /* Rien à sélectionner dans une fenêtre d'application, sauf ce qu'on recopie.
-     Les exceptions sont déclarées par les composants qui les portent — le code
-     d'appareil, le détail d'une erreur — et non listées ici, où elles
-     deviendraient une liste à tenir à jour depuis l'extérieur. */
+     Les exceptions portent `.hm-selectionnable`, déclarée dans `helm.css`. */
   user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
 }
 
-/* --- Le fond, plein cadre --------------------------------------------------
-
-   Sur `body` et non dans un composant : c'est la seule surface qui couvre la
-   fenêtre entière, barre de titre comprise, et tout le reste se pose dessus.
-
-   `fixed` et non `scroll` : avec `fixed`, l'image est cadrée sur la fenêtre et
-   non sur le bloc, ce qui la garde immobile quand un panneau défile. */
-body {
-  background-color: oklch(13% 0.012 260);
-  background-position: center;
-  background-size: cover;
-  background-attachment: fixed;
-  background-repeat: no-repeat;
+/* L'hôte d'Angular occupe la fenêtre : sans cela il serait `inline`, et la
+   hauteur de la coque ne se calculerait sur rien. */
+app-root {
+  display: block;
+  height: 100%;
 }
 
-/* Les fonds livrés. L'attribut est posé par le service de réglages, qui ne
-   connaît que des identifiants — jamais un chemin. */
-html[data-fond='spawn'] body {
+/* --- Les images de fond ----------------------------------------------------
+
+   Elles sont posées sur `.hm-stage__art`, à l'intérieur de la coque, et non sur
+   `body` : la scène du design system porte le dégradé de lisibilité qui fait
+   que la barre du bas se lit et que le milieu montre l'image. Un fond posé sur
+   `body` passerait sous ce dégradé et l'annulerait.
+
+   L'attribut est posé sur `<html>` par le service de réglages, qui ne connaît
+   que des identifiants — jamais un chemin. */
+
+html[data-fond='spawn'] .hm-stage__art {
   background-image: url('/fonds/spawn.webp');
 }
-html[data-fond='nether'] body {
+
+html[data-fond='nether'] .hm-stage__art {
   background-image: url('/fonds/nether.webp');
 }
-html[data-fond='fin'] body {
+
+html[data-fond='fin'] .hm-stage__art {
   background-image: url('/fonds/fin.webp');
 }
-/* « uni » n'a pas d'image : un dégradé, pour qui trouve les photographies
-   bruyantes ou qui a un écran lent. */
-html[data-fond='uni'] body {
-  background-image: radial-gradient(
-      120% 70% at 50% -10%,
-      oklch(58% 0.13 133 / 0.22),
-      transparent 60%
+
+/* « uni » n'a pas d'image : le dégradé de repli du design system, pour qui
+   trouve les photographies bruyantes ou qui a un écran lent. Il est déjà écrit,
+   sur `.hm-stage__art--fallback` ; l'attribut le rappelle ici pour que la page
+   n'ait pas à choisir sa classe en fonction d'un réglage. */
+html[data-fond='uni'] .hm-stage__art {
+  background-image:
+    radial-gradient(
+      60% 55% at 78% 22%,
+      color-mix(in srgb, var(--gold) 26%, transparent) 0%,
+      transparent 70%
     ),
-    linear-gradient(180deg, oklch(17% 0.012 260) 0%, oklch(13% 0.012 260) 55%);
+    radial-gradient(
+      70% 60% at 18% 80%,
+      color-mix(in srgb, var(--info) 22%, transparent) 0%,
+      transparent 70%
+    ),
+    linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg) 100%);
 }
 
 /* Le voile, entre l'image et l'interface.
 
-   Sur un pseudo-élément de `body` plutôt que sur un div : rien à monter dans
-   l'arbre, et il ne peut pas se retrouver au mauvais endroit de l'empilement.
-
-   Son opacité est bornée PAR LE BAS côté Rust — voir `mc-reglages` : en
-   dessous du plancher, le texte cesse de tenir le contraste sur l'image la
-   plus claire, et les libellés deviennent illisibles sur une partie de l'écran
-   seulement. Ce qui ressemble à un défaut de rendu, et non à un réglage. */
-body::before {
+   Sur la scène et non sur un div à monter dans l'arbre : il ne peut alors pas
+   se retrouver au mauvais endroit de l'empilement. Il s'ajoute au dégradé que
+   `.hm-stage__art::after` porte déjà — celui-ci tient la lisibilité de la barre
+   du bas, celui-là est le réglage du joueur. */
+.hm-stage::after {
   content: '';
-  position: fixed;
+  position: absolute;
   inset: 0;
-  background: oklch(13% 0.012 260 / var(--voile));
+  background: color-mix(in srgb, var(--bg) calc(var(--voile) * 100%), transparent);
   pointer-events: none;
-  /* Sous l'interface, au-dessus du fond. */
-  z-index: 0;
-}
-
-/* Une image qu'on n'a pas encore : le défaut du navigateur est un fond blanc
-   le temps du décodage, et il traverserait le voile. */
-body {
-  background-color: oklch(13% 0.012 260);
 }

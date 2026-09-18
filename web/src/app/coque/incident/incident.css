@@ -1,0 +1,23 @@
+/* L'hôte ne dessine rien : son seul enfant est déjà `.hm-scrim`, en position
+   absolue sur la fenêtre. Un hôte `block` interposerait une boîte dans la
+   charpente de la coque, qui décalerait tout d'un cran sans rien afficher. */
+:host {
+  display: contents;
+}
+
+/* Le puits de code du design system est fait pour un code d'appareil : une
+   ligne, vingt-six pixels, centrée. Ici c'est un message d'erreur, qui peut
+   faire plusieurs lignes. On garde le puits — le creux, la bordure, la face
+   mono — et on lui rend une taille et un retour à la ligne de texte. */
+.hm-incident__detail {
+  display: block;
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow: auto;
+}

@@ -66,10 +66,10 @@ const INVARIANTS = [
     extensions: ['.ts'],
     pourquoi: [
       "Trois familles d'attributs, et une seule est un contrat : `class` est",
-      'lue par le navigateur seul, `data-<état>` par Tailwind et les tests,',
-      '`data-test` par les tests seuls. Un test qui vise une classe se casse',
-      'au premier changement de mise en forme — et, pire, il décourage de la',
-      'changer.',
+      'lue par le navigateur et le design system, `data-<état>` par le style et',
+      'les tests, `data-test` par les tests seuls. Un test qui vise une classe',
+      'se casse au premier changement de mise en forme — et, pire, il',
+      'décourage de la changer.',
     ],
   },
 ];

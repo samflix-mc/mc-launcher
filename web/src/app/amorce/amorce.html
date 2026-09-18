@@ -1,27 +1,26 @@
-<div data-test="amorce" class="grid h-full place-items-center" role="status" aria-live="polite">
-  <div class="flex flex-col items-center gap-5">
-    <!--
-      Le sceau tient lieu de logo : deux lettres tirées du nom, exactement
-      comme dans la barre de titre. Une image demanderait un fichier de plus à
-      précharger sur l'écran dont le seul travail est de ne pas faire attendre.
-    -->
-    <div
-      class="grid size-20 place-items-center rounded-box bg-primary text-2xl font-bold text-primary-content shadow-lg"
-      aria-hidden="true"
-      data-test="sceau"
-    >
-      {{ marque().sceau }}
+<!--
+  Le dessin du design system : le mot-symbole dans la moitié haute, la barre
+  sous lui, le statut sous la barre. Pas de titre de page, pas de bouton — rien
+  d'autre que l'attente.
+-->
+<div class="hm-splash" role="status" aria-live="polite" data-test="amorce">
+  <h1 class="hm-wordmark" data-test="nom">
+    {{ marque().nom }}<span class="hm-wordmark__dot" aria-hidden="true"></span>
+  </h1>
+
+  <!--
+    Indéterminée : à cet instant, l'amorce attend le RÉSEAU, et personne ne sait
+    combien de temps cela prend. Une barre qui monterait à un rythme inventé
+    mentirait, et c'est précisément ce qu'une jauge existe pour ne pas faire.
+  -->
+  <div class="hm-progress hm-progress--lg hm-splash__progress">
+    <div class="hm-progress__track">
+      <div class="hm-progress__fill hm-progress__fill--indeterminate" data-test="progression"></div>
     </div>
+  </div>
 
-    <p class="text-lg font-medium" data-test="nom">{{ marque().nom }}</p>
-
-    <!--
-      Le chargeur, SOUS le logo — comme demandé. `loading-dots` de daisyUI :
-      trois points qui pulsent, sans rien à charger.
-    -->
-    <span class="loading loading-dots loading-md text-primary" data-test="chargeur"></span>
-
-    <!-- Et la phrase, sous le chargeur. -->
-    <p class="text-sm opacity-60" data-test="phrase">{{ phrase() ?? parDefaut }}</p>
+  <div class="hm-splash__status" data-test="phrase">
+    <span class="hm-spinner hm-spinner--sm" aria-hidden="true"></span>
+    {{ phrase() ?? parDefaut }}
   </div>
 </div>

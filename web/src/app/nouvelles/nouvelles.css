@@ -1,17 +1,111 @@
 :host {
   display: block;
+  min-height: 0;
+  height: 100%;
 }
 
-.verre {
-  backdrop-filter: blur(var(--blur-verre-fin)) saturate(140%);
+/* Deux rangs : l'en-tête, puis la zone qui défile. La page entière ne défile
+   pas — une fenêtre d'application ne défile pas, ce sont ses panneaux qui le
+   font, chacun dans sa zone. */
+.hm-nouvelles {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-4);
+  height: 100%;
+  min-height: 0;
+}
+
+.hm-nouvelles__tete {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* `display-lg` du design system : la face pixel, trente-deux pixels. */
+.hm-nouvelles__titre {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-weight: 500;
+  font-size: 32px;
+  line-height: 36px;
+  letter-spacing: 0.01em;
+}
+
+.hm-nouvelles__source {
+  margin: var(--space-1) 0 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.hm-nouvelles__corps {
+  display: grid;
+  grid-auto-rows: max-content;
+  gap: var(--space-4);
+  align-content: start;
+  overflow: auto;
+  min-height: 0;
+  /* La barre de défilement ne doit pas coller au texte : un pas suffit. */
+  padding-right: var(--space-1);
+}
+
+/* La note de fin, pour qui publie. Discrète à dessein : les billets qui restent
+   s'affichent très bien, et ceci ne concerne pas le joueur. */
+.hm-nouvelles__ecartes {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-3);
+}
+
+.hm-nouvelles__ecartes summary {
+  cursor: pointer;
+}
+
+.hm-nouvelles__ecartes ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
+
+/* --- Le dialogue de lecture ---------------------------------------------- */
+
+/* Plus large que les quatre cent vingt pixels d'un dialogue de décision : on y
+   lit un texte, et le design system veut soixante à soixante-dix caractères par
+   ligne. */
+.hm-nouvelles__lecture {
+  width: 680px;
+  max-height: 80vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.hm-nouvelles__lecture-tete {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--space-4);
 }
 
 /* Les illustrations sont bornées côté Rust à 512 kio, mais rien ne borne leurs
    DIMENSIONS : un hôte peut servir une image de trois mille pixels de haut dans
-   512 kio. Sans ce plafond, un billet illustré occuperait toute la fenêtre et
+   512 kio. Sans ce plafond, un billet illustré occuperait tout le dialogue et
    l'on ne verrait plus qu'une image. */
-figure img {
+.hm-nouvelles__illustration {
   width: 100%;
-  max-height: 14rem;
+  max-height: 220px;
   object-fit: cover;
+  border-radius: var(--radius-lg);
+  display: block;
+}
+
+.hm-nouvelles__texte {
+  overflow: auto;
+  min-height: 0;
+  /* Le texte se sélectionne : c'est du contenu à lire et à citer, pas une
+     commande. */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: auto;
 }

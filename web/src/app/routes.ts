@@ -50,6 +50,14 @@ const pasEncoreJouable: CanActivateFn = async () => {
 /**
  * Les routes.
  *
+ * ## La donnée `bas`
+ *
+ * Elle dit ce que la barre du bas de la fenêtre porte : le bouton de jeu et le
+ * badge joueur, le badge seul, ou rien — auquel cas la page occupe deux rangs
+ * au lieu de trois. C'est une DONNÉE de route et non un test sur l'URL : une
+ * chaîne comparée à `'/spawn'` se casse le jour où une route gagne un
+ * paramètre, et le symptôme est une barre du bas vide que rien n'explique.
+ *
  * ## Tout est paresseux, sans exception
  *
  * `loadComponent` sur chacune : le morceau d'une page n'est téléchargé qu'au
@@ -67,21 +75,32 @@ export const ROUTES: Routes = [
   {
     path: 'connexion',
     canActivate: [pasEncoreJouable],
+    // La connexion est une modale par-dessus la scène : pas de coque du tout,
+    // donc pas de barre du bas. Voir `app.html`.
+    data: { bas: 'aucune' },
     loadComponent: () => import('./connexion/connexion').then((m) => m.Connexion),
   },
   {
     path: 'spawn',
     canActivate: [jouable],
+    data: { bas: 'jouer' },
     loadComponent: () => import('./spawn/spawn').then((m) => m.Spawn),
   },
   {
     path: 'nouvelles',
     canActivate: [jouable],
+    // Le badge joueur reste, le bouton de jeu non : le design system garde la
+    // barre du bas sur les Nouvelles, avec rien au centre.
+    data: { bas: 'joueur' },
     loadComponent: () => import('./nouvelles/nouvelles').then((m) => m.PageNouvelles),
   },
   {
     path: 'configuration',
     canActivate: [jouable],
+    // La Configuration LAISSE TOMBER la barre du bas, et le corps prend la
+    // hauteur : c'est une règle explicite du design system, et c'est ce qui
+    // donne à la liste de réglages de quoi défiler.
+    data: { bas: 'aucune' },
     loadComponent: () => import('./configuration/configuration').then((m) => m.Configuration),
   },
   { path: '', pathMatch: 'full', redirectTo: 'spawn' },

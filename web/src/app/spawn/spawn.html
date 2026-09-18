@@ -1,164 +1,126 @@
-<section class="flex h-full flex-col gap-5 p-6" data-test="spawn">
-  <!-- --- L'état du pack, en une carte --------------------------------- -->
-  <div class="card border border-white/10 bg-base-100/40 verre" data-test="carte-etat">
-    <div class="card-body gap-3 py-4">
-      <div class="flex flex-wrap items-center gap-2">
-        @if (etat(); as vu) {
-          @if (vu.version) {
-            <span class="badge badge-sm badge-outline" data-test="version">{{ vu.version }}</span>
-          }
-          @if (vu.mods > 0) {
-            <span class="badge badge-sm badge-ghost" data-test="mods">{{ vu.mods }} mods</span>
-          }
-          @if (vu.java) {
-            <span class="badge badge-sm badge-ghost" data-test="java">Java {{ vu.java }}</span>
-          }
-          @if (vu.horsLigne) {
-            <span class="badge badge-sm badge-warning" data-test="hors-ligne">hors ligne</span>
-          }
-        }
+<!--
+  Deux colonnes en haut, et le MILIEU LAISSÉ VIDE : c'est par là que l'image
+  passe, et c'est le seul endroit de l'écran où elle se voit vraiment. Ne rien y
+  mettre est une décision, pas un oubli.
+-->
+<section class="hm-spawn" data-test="spawn">
+  <!-- --- La nouvelle mise en avant -------------------------------------- -->
+  <div class="hm-spawn__vedette">
+    @if (epinglee(); as billet) {
+      <app-carte-nouvelle [billet]="billet" variante="epinglee" />
+    } @else {
+      <!--
+        Pas de fil, ou pas encore. Une tuile vide serait un trou dans la
+        grille ; un panneau qui le dit tient la place et ne ment pas.
+      -->
+      <div class="hm-glass hm-glass--pad hm-spawn__vide" data-test="sans-nouvelle">
+        <p class="hm-glass__eyebrow">Nouvelles</p>
+        <p class="hm-muted">Rien de publié pour le moment.</p>
       </div>
-
-      @if (resume(); as phrase) {
-        <p class="text-sm opacity-75" data-test="resume">{{ phrase }}</p>
-      }
-    </div>
+    }
   </div>
 
-  <!-- --- La cinématique ------------------------------------------------
-       Conservée : elle est ce qui distingue « on en est à la moitié » de
-       « il se passe quelque chose », et docs/interface.md la décrit. -->
-  @if (etapes().length > 0) {
-    <ol class="flex flex-wrap gap-x-4 gap-y-1 text-xs" data-test="chemin">
-      @for (etape of etapes(); track etape.phase) {
-        <li [attr.data-etat]="etape.etat" data-test="etape">{{ etape.libelle }}</li>
-      }
-    </ol>
-  }
+  <!-- --- Les panneaux d'état --------------------------------------------- -->
+  <div class="hm-stack">
+    <div class="hm-glass hm-glass--pad" data-test="panneau-pack">
+      <div class="hm-spawn__tete">
+        <div>
+          <p class="hm-glass__eyebrow">Modpack</p>
+          <h3 class="hm-glass__title hm-spawn__titre" data-test="nom-pack">
+            {{ etat()?.nom ?? 'Pack inconnu' }}
+          </h3>
+        </div>
 
-  <!-- --- La jauge, pendant le travail ---------------------------------- -->
-  @if (avancement(); as vu) {
-    <div class="flex flex-col gap-2" data-test="jauge">
-      @if (etapeCourante(); as courante) {
-        <p class="text-sm" data-test="etape-courante">
-          {{ courante.numero }} / {{ courante.total }} · {{ courante.libelle }}
-        </p>
-      }
+        <span
+          [class]="'hm-status hm-status--' + pastille().variante"
+          [attr.data-etat]="pastille().variante"
+          data-test="pastille"
+        >
+          <span class="hm-status__dot" aria-hidden="true"></span>
+          {{ pastille().libelle }}
+          @if (pastille().valeur; as version) {
+            <span class="hm-status__value">{{ version }}</span>
+          }
+        </span>
+      </div>
 
-      <!--
-        `[attr.value]` et NON `[value]`.
-
-        Le setter IDL de `<progress>` pose l'attribut même pour `null`, coercé
-        en zéro : la barre afficherait donc zéro pour cent au lieu d'être
-        indéterminée. Avec `attr.`, `null` retire l'attribut, ce qui est la
-        seule façon d'obtenir une barre indéterminée.
-      -->
-      <progress
-        class="progress progress-primary"
-        max="100"
-        [attr.value]="vu.actif ? progression() : null"
-        data-test="progress"
-      ></progress>
-
-      <div class="flex flex-wrap gap-x-4 text-xs opacity-70">
-        @if (vu.fichier) {
-          <span data-test="fichier">{{ vu.fichier }}</span>
-        }
-        @if (vu.actif) {
-          <span data-test="pourcent">{{ pourcent() }} %</span>
-          <span data-test="octets">{{ octets(vu.octets) }} / {{ octets(vu.total) }}</span>
-          <span data-test="debit">{{ debit(vu.debit) }}</span>
-          @if (vu.restant !== null) {
-            <span data-test="restant">{{ duree(vu.restant) }}</span>
+      <div class="hm-spawn__faits">
+        @if (etat(); as vu) {
+          @if (vu.mods > 0) {
+            <span class="hm-row hm-spawn__fait" data-test="mods">
+              <lucide-icon [img]="Package" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+              {{ vu.mods }} mods
+            </span>
+          }
+          @if (vu.java) {
+            <span class="hm-row hm-spawn__fait" data-test="java">
+              <lucide-icon [img]="Clock" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+              Java {{ vu.java }}
+            </span>
+          }
+          @if (vu.installe) {
+            <span class="hm-row hm-spawn__fait" data-test="installe">
+              <lucide-icon [img]="Check" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+              Installé sur ce poste
+            </span>
           }
         }
       </div>
-
-      @if (vu.note) {
-        <p class="text-xs opacity-60" data-test="note">{{ vu.note }}</p>
-      }
     </div>
-  }
 
-  <!-- --- Les notes de la dernière partie -------------------------------- -->
-  @if (purge().length > 0) {
-    <div class="alert alert-info alert-soft text-sm" data-test="purge">
-      <span>
-        Réinstallation complète : {{ purge().join(', ') }} ont été remis à neuf. Vos mondes, vos
-        configurations et vos captures n'ont pas été touchés.
-      </span>
-    </div>
-  }
-
-  @if (introuvables().length > 0) {
-    <div class="alert alert-warning alert-soft text-sm" data-test="introuvables">
-      <div>
-        <p class="font-medium">Des mods n'ont pas été trouvés :</p>
-        <ul class="list-inside list-disc">
-          @for (manque of introuvables(); track manque) {
-            <li>{{ manque }}</li>
+    <!-- --- La cinématique, PENDANT le travail seulement ------------------
+         Elle est ce qui distingue « on en est à la moitié » de « il se passe
+         quelque chose ». Hors travail, elle n'a rien à dire et disparaît. -->
+    @if (enTravail() && etapes().length > 0) {
+      <div class="hm-glass hm-glass--pad" data-test="panneau-etapes">
+        <p class="hm-glass__eyebrow">En cours</p>
+        <ol class="hm-spawn__chemin" data-test="chemin">
+          @for (etape of etapes(); track etape.phase) {
+            <li [attr.data-etat]="etape.etat" data-test="etape">{{ etape.libelle }}</li>
           }
-        </ul>
+        </ol>
       </div>
-    </div>
-  }
+    }
 
-  @if (ecarts().length > 0) {
-    <div class="alert alert-warning alert-soft text-sm" data-test="ecarts">
-      <div>
-        <p class="font-medium">L'installation s'écarte de ce qui était attendu :</p>
-        <ul class="list-inside list-disc">
-          @for (ecart of ecarts(); track ecart) {
-            <li>{{ ecart }}</li>
-          }
-        </ul>
-      </div>
-    </div>
-  }
+    <!-- --- Ce que la dernière partie a laissé ---------------------------- -->
+    @if (compteRendu()) {
+      <div class="hm-glass hm-glass--pad" data-test="panneau-partie">
+        <p class="hm-glass__eyebrow">Dernière installation</p>
 
-  @if (partie(); as vu) {
-    <p class="text-sm opacity-75" data-test="verdict">{{ vu.verdict }}</p>
-  }
+        @if (purge().length > 0) {
+          <p class="hm-spawn__note" data-test="purge">
+            Réinstallation complète : {{ purge().join(', ') }} ont été remis à neuf. Vos mondes, vos
+            configurations et vos captures n'ont pas été touchés.
+          </p>
+        }
 
-  <!-- --- La dernière nouvelle ------------------------------------------- -->
-  @if (derniereNouvelle(); as billet) {
-    <app-carte-nouvelle [billet]="billet" />
-  }
+        @if (introuvables().length > 0) {
+          <div class="hm-alert hm-alert--warning hm-spawn__alerte" data-test="introuvables">
+            <lucide-icon
+              class="hm-alert__icon"
+              [img]="TriangleAlert"
+              [size]="20"
+              [strokeWidth]="1.75"
+              aria-hidden="true"
+            />
+            <p class="hm-alert__title">{{ introuvables().length }} mod(s) introuvable(s)</p>
+            <p class="hm-alert__text">{{ introuvables().join(', ') }}</p>
+          </div>
+        }
 
-  <!-- --- Le bas de l'écran ---------------------------------------------- -->
-  <div class="mt-auto flex items-end gap-4">
-    <!-- LE bouton. Vert, grand, et seul. -->
-    <button
-      type="button"
-      class="btn btn-primary btn-lg flex-1 text-lg tracking-wide"
-      [disabled]="!actif()"
-      [attr.data-etat]="bouton()"
-      (click)="jouer()"
-      data-test="bouton"
-    >
-      @if (icone(); as marque) {
-        <lucide-icon [img]="marque" [size]="20" aria-hidden="true" />
-      } @else {
-        <span class="loading loading-spinner loading-sm"></span>
-      }
-      {{ libelle() }}
-    </button>
-
-    <!--
-      Le pseudo À GAUCHE de la tête, en bas à droite de l'écran — comme
-      demandé.
-    -->
-    @if (compte(); as joueur) {
-      <div class="flex items-center gap-3" data-test="joueur">
-        <span class="text-sm font-medium" data-test="pseudo">{{ joueur.pseudo }}</span>
-        <img
-          [src]="tete(joueur.uuid)"
-          [alt]="'Tête de ' + joueur.pseudo"
-          width="40"
-          height="40"
-          class="size-10 rounded-box"
-          data-test="tete"
-        />
+        @if (ecarts().length > 0) {
+          <div class="hm-alert hm-alert--warning hm-spawn__alerte" data-test="ecarts">
+            <lucide-icon
+              class="hm-alert__icon"
+              [img]="TriangleAlert"
+              [size]="20"
+              [strokeWidth]="1.75"
+              aria-hidden="true"
+            />
+            <p class="hm-alert__title">L'installation s'écarte de ce qui était attendu</p>
+            <p class="hm-alert__text">{{ ecarts().join(', ') }}</p>
+          </div>
+        }
       </div>
     }
   </div>

@@ -1,51 +1,63 @@
 <!--
-  `data-tauri-drag-region` sur l'en-tête entier : c'est lui qui rend la barre
+  `data-tauri-drag-region` sur la barre entière : c'est lui qui la rend
   saisissable. Les boutons sont écartés par le script de Tauri lui-même, sans
   qu'on ait à neutraliser leurs pointeurs.
 -->
-<header
-  data-tauri-drag-region
-  data-test="barre-titre"
-  class="flex h-barre-titre shrink-0 items-center gap-3 pt-bord-fenetre pl-bord-fenetre"
->
-  <span
-    data-tauri-drag-region
-    class="grid size-6 place-items-center rounded-md bg-primary/80 text-[11px] font-bold text-primary-content"
-    aria-hidden="true"
-    >{{ marque().sceau }}</span
-  >
-
-  <span data-tauri-drag-region class="text-sm font-medium opacity-90" data-test="titre">
-    {{ marque().nom }}
+<div class="hm-titlebar" data-tauri-drag-region data-test="barre-titre">
+  <span class="hm-titlebar__title" data-tauri-drag-region>
+    <span class="hm-titlebar__brand" data-tauri-drag-region data-test="titre">
+      {{ marque().nom }}
+    </span>
+    @if (pack(); as nom) {
+      <span class="hm-titlebar__sep" data-tauri-drag-region aria-hidden="true"></span>
+      <span data-tauri-drag-region data-test="pack">{{ nom }}</span>
+    }
   </span>
 
-  <!-- Pousse les boutons à droite, et reste saisissable. -->
-  <span data-tauri-drag-region class="flex-1"></span>
+  <!--
+    La cloche. Trente-deux pixels et non quarante-six : ce n'est pas un bouton
+    de légende, et le design system le distingue pour cette raison.
+  -->
+  <div class="hm-titlebar__tools">
+    <button
+      type="button"
+      class="hm-bell"
+      (click)="basculerNotifications()"
+      [attr.aria-expanded]="panneauOuvert()"
+      aria-label="Notifications"
+      title="Notifications"
+      data-test="cloche"
+    >
+      <lucide-icon [img]="Bell" [size]="16" [strokeWidth]="1.75" aria-hidden="true" />
+      @if (nonLus() > 0) {
+        <!-- Cachée à zéro : une pastille qui dit « 0 » demande à être lue pour
+             apprendre qu'il n'y a rien. -->
+        <span class="hm-bell__count" data-test="non-lus">{{ nonLus() }}</span>
+      }
+    </button>
+  </div>
 
   <!--
     Les trois boutons du système. Leurs permissions ne sont PAS dans
     core:window:default : elles sont déclarées nommément dans
     capabilities/default.json, et leur absence se voit en build packagé
     seulement.
-
-    `mr-bord-fenetre` : la contrainte des huit pixels vaut aussi à droite, où
-    la bande de redimensionnement guette le bouton « fermer ».
   -->
-  <div class="mr-bord-fenetre flex items-center gap-1">
+  <div class="hm-winctl">
     <button
       type="button"
-      class="btn btn-ghost btn-xs px-2"
+      class="hm-winctl__btn hm-winctl__btn--min"
       (click)="reduire()"
       data-test="reduire"
       aria-label="Réduire la fenêtre"
       title="Réduire"
     >
-      <lucide-icon [img]="Minus" [size]="14" aria-hidden="true" />
+      <lucide-icon [img]="Minus" [size]="12" [strokeWidth]="1.5" aria-hidden="true" />
     </button>
 
     <button
       type="button"
-      class="btn btn-ghost btn-xs px-2"
+      class="hm-winctl__btn hm-winctl__btn--max"
       (click)="basculer()"
       data-test="maximiser"
       [attr.aria-label]="maximisee() ? 'Restaurer la fenêtre' : 'Agrandir la fenêtre'"
@@ -55,18 +67,23 @@
         Deux icônes distinctes : « restaurer » n'est pas « agrandir », et un
         même carré pour les deux obligerait le joueur à cliquer pour savoir.
       -->
-      <lucide-icon [img]="maximisee() ? Copy : Square" [size]="13" aria-hidden="true" />
+      <lucide-icon
+        [img]="maximisee() ? Copy : Square"
+        [size]="12"
+        [strokeWidth]="1.5"
+        aria-hidden="true"
+      />
     </button>
 
     <button
       type="button"
-      class="btn btn-ghost btn-xs px-2 hover:bg-error hover:text-error-content"
+      class="hm-winctl__btn hm-winctl__btn--close"
       (click)="fermer()"
       data-test="fermer"
       aria-label="Fermer le launcher"
       title="Fermer"
     >
-      <lucide-icon [img]="X" [size]="14" aria-hidden="true" />
+      <lucide-icon [img]="X" [size]="12" [strokeWidth]="1.5" aria-hidden="true" />
     </button>
   </div>
-</header>
+</div>
