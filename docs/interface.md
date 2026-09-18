@@ -560,7 +560,7 @@ regarde au moins une fois dans un `cargo tauri build`.**
 
 ## La recette du build empaqueté
 
-Sept points décident qu'un build empaqueté rend ce que `ng serve` montre, et
+Huit points décident qu'un build empaqueté rend ce que `ng serve` montre, et
 **aucun ne se voit en développement** : c'est en production seulement que Tauri
 sert la page, réécrit le CSP et applique les `import()` dynamiques.
 
@@ -569,9 +569,9 @@ chaque lancement d'une compilation de développement, et les résume en une
 ligne :
 
 ```
-INFO recette du build : les sept points passent
-     theme="oklch(58% .13 133)" verre="blur(10px) saturate(1.4)"
-     route_montee=true feuilles=6
+INFO recette du build : les huit points passent
+     theme="#e6b54a" verre="blur(24px) saturate(1.6)"
+     route_montee=true feuilles=1
 ```
 
 | Point | Ce qui le prouve |
@@ -583,7 +583,7 @@ INFO recette du build : les sept points passent
 | **un style de composant s'applique** | `style_composant` porte le repère d'`app.css` |
 | `color-mix()` est résolu par le moteur | une sonde jetable dans le DOM, dont la couleur ressort en `rgb(…)` |
 | aucune violation de CSP | un collecteur posé **avant le document**, par un script d'initialisation de greffon |
-| le bundle initial tient le budget | lu dans la sortie du build : **352,69 kB** pour 500 kB d'avertissement |
+| le bundle initial tient le budget | lu dans la sortie du build : **355,61 kB** pour 500 kB d'avertissement |
 
 Trois choses valent d'être connues sur cette sonde, parce qu'elles ont chacune
 coûté un essai :

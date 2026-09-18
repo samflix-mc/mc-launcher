@@ -202,7 +202,7 @@ pub fn sonder(app: &tauri::AppHandle) {
                 verre = rapport.verre,
                 route_montee = rapport.route_montee,
                 feuilles = rapport.feuilles,
-                "recette du build : les sept points passent"
+                "recette du build : les huit points passent"
             );
             return;
         }
