@@ -82,6 +82,10 @@ impl mc_pack::Rapport for VersLaFenetre {
     fn telechargement(&self, avancement: mc_dl::Avancement<'_>) {
         self.suivi.telechargement(avancement);
     }
+
+    fn resolution(&self, faits: usize, total: usize) {
+        self.suivi.resolution(faits, total);
+    }
 }
 
 /// Ce que le joueur a réglé, tel que `mc-pack` l'attend.

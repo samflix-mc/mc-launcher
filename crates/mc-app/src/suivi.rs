@@ -149,6 +149,23 @@ impl Suivi {
         self.oublier_le_lot();
     }
 
+    /// La résolution des mods avance : tant de demandes réglées sur tant.
+    ///
+    /// **Elle ne descend presque rien, et c'est le problème qu'elle corrige.**
+    /// Interroger les API d'un pack de cinquante mods prend une trentaine de
+    /// secondes pour quelques dizaines de kilooctets : la barre d'octets ne
+    /// bougeait pas, le débit restait nul, et l'écran ne se distinguait pas
+    /// d'un écran planté. Le compte de demandes, lui, avance.
+    ///
+    /// Le total d'octets est remis à zéro : c'est ce qui dit à la fenêtre de se
+    /// fonder sur le COMPTE plutôt que sur le poids, pendant ce temps-là. Le
+    /// lot de téléchargement qui suit le réannoncera.
+    pub fn resolution(&self, faits: usize, total: usize) {
+        self.fichiers.store(faits, Ordering::Relaxed);
+        self.fichiers_total.store(total, Ordering::Relaxed);
+        self.total.store(0, Ordering::Relaxed);
+    }
+
     pub fn note(&self, texte: &str) {
         *self.note.lock().expect("note") = Some(texte.to_string());
     }

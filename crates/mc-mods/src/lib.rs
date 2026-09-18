@@ -39,7 +39,9 @@ pub use canal::Channel;
 pub use candidat::{Candidate, DeclaredDep};
 pub use jar::Side;
 pub use origine::Origin;
-pub use resolve::{Installed, Options, Plan, Reason, Registry, Request, resolve, resolve_with};
+pub use resolve::{
+    Installed, Options, Plan, Progres, Reason, Registry, Request, resolve, resolve_with,
+};
 
 #[cfg(test)]
 mod essais;

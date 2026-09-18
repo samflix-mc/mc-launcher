@@ -80,6 +80,36 @@ export function pourcentage(acquis: number, total: number): number {
 }
 
 /**
+ * Où en est l'étape courante, entre zéro et un.
+ *
+ * **Deux mesures, et la seconde n'est pas un pis-aller.** Le poids sert quand
+ * on le connaît : c'est le plus fidèle, puisque les fichiers n'ont pas tous la
+ * même taille. Mais la résolution des mods ne descend presque rien — une
+ * trentaine de secondes d'interrogation d'API pour quelques kilooctets — et
+ * CurseForge ne publie pas les tailles sans clé : le total d'octets vaut alors
+ * zéro, et la fraction restait à zéro pendant tout ce temps.
+ *
+ * Le compte de demandes réglées, lui, avance. Un pack de cinquante mods montre
+ * donc une barre qui bouge cinquante fois plutôt qu'une barre immobile — que
+ * rien ne distingue d'un plantage, et c'est exactement le reproche fait à
+ * l'écran d'installation.
+ */
+export function fractionDuLot(
+  octets: number,
+  total: number,
+  fichiers: number,
+  fichiersTotal: number,
+): number {
+  if (total > 0) {
+    return octets / total;
+  }
+  if (fichiersTotal > 0) {
+    return fichiers / fichiersTotal;
+  }
+  return 0;
+}
+
+/**
  * L'avancement de toute l'installation, et non du seul lot en cours.
  *
  * Chaque étape annonce son propre lot, donc la barre du lot repasse par zéro

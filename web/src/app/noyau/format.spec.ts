@@ -129,3 +129,32 @@ describe('initiales', () => {
     expect(format.initiales('   ')).toBe('?');
   });
 });
+
+/**
+ * **Ce qui fait avancer la barre quand rien ne pèse.**
+ *
+ * La résolution des mods interroge les API l'une après l'autre : une trentaine
+ * de secondes sur un pack de cinquante mods, pour quelques kilooctets. Et
+ * CurseForge ne publie pas les tailles sans clé. Le total d'octets vaut donc
+ * zéro, et la barre restait immobile — ce que rien ne distingue d'un plantage.
+ */
+describe('fractionDuLot', () => {
+  it('se fonde sur le poids quand il est connu', () => {
+    expect(format.fractionDuLot(210, 840, 3, 4)).toBeCloseTo(0.25);
+  });
+
+  /** Le poids l'emporte : il est plus fidèle, les fichiers n'ont pas la même taille. */
+  it('le poids l’emporte sur le compte', () => {
+    expect(format.fractionDuLot(0, 840, 51, 51)).toBe(0);
+  });
+
+  it('à défaut de poids, il compte les demandes réglées', () => {
+    expect(format.fractionDuLot(0, 0, 12, 51)).toBeCloseTo(12 / 51);
+  });
+
+  /** Sans rien du tout, zéro — et surtout pas une division par zéro. */
+  it('sans rien de connu, zéro', () => {
+    expect(format.fractionDuLot(0, 0, 0, 0)).toBe(0);
+    expect(format.fractionDuLot(10, 0, 5, 0)).toBe(0);
+  });
+});

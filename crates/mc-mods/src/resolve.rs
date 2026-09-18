@@ -43,7 +43,7 @@ pub use deploiement::{Deployed, deploy};
 pub use options::Options;
 pub use plan::{Installed, Plan, Unresolved};
 pub use raison::Reason;
-pub use registre::Registry;
+pub use registre::{Progres, Registry};
 
 /// Nombre de tours de rattrapage.
 ///

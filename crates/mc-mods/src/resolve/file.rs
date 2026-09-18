@@ -81,6 +81,16 @@ impl FileDeResolution {
             .retain(|demande| demande.parent.as_ref() != Some(parent));
     }
 
+    /// Combien de demandes attendent encore leur tour.
+    ///
+    /// Sert à annoncer une progression, et rien d'autre : le total qu'on en
+    /// tire BOUGE, puisque résoudre une demande peut en faire naître d'autres.
+    /// C'est assumé — une barre qui recule un peu vaut mieux qu'une fenêtre
+    /// figée pendant les trente-six secondes que dure l'interrogation des API.
+    pub(super) fn restantes(&self) -> usize {
+        self.manifeste.len() + self.derivees.len()
+    }
+
     pub(super) fn est_vide(&self) -> bool {
         self.manifeste.is_empty() && self.derivees.is_empty()
     }

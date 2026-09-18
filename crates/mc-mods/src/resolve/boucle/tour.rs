@@ -38,6 +38,19 @@ pub(super) async fn un_tour(
     etat: &mut Etat<'_>,
 ) -> Result<Suite> {
     // Résolution en largeur : les dépendances déclarées rejoignent la file.
+    //
+    // **C'est ici que passe l'essentiel du temps, et c'était muet.** Chaque
+    // demande interroge une ou deux API, l'une après l'autre : sur un pack de
+    // cinquante mods, une trentaine de secondes pendant lesquelles aucun octet
+    // ne descend — donc aucune barre ne bouge, donc l'écran paraît figé. On
+    // annonce après CHAQUE demande réglée.
+    //
+    // Le total est une estimation qui peut grandir, puisqu'une demande résolue
+    // peut en faire naître d'autres. Assumé : une barre qui recule un peu se
+    // lit, une barre immobile ne se distingue pas d'un plantage.
+    let debut = std::time::Instant::now();
+    let mut faites = 0;
+    registry.annoncer(faites, etat.queue.restantes());
     while let Some(demande) = etat.queue.suivante() {
         retenir(
             registry,
@@ -50,6 +63,24 @@ pub(super) async fn un_tour(
             etat.impasses,
         )
         .await?;
+        faites += 1;
+        registry.annoncer(faites, faites + etat.queue.restantes());
+    }
+
+    // **La durée de CETTE boucle, et pas seulement celle de la descente.**
+    //
+    // Le journal n'annonçait que « N jars téléchargés et analysés en 382 ms »,
+    // ce qui laissait croire que l'étape Mods durait une demi-seconde alors
+    // qu'elle en prenait trente-six. Les trente-cinq autres sont ici : des
+    // appels d'API, l'un après l'autre.
+    if faites > 0 {
+        tracing::info!(
+            tour = pass,
+            demandes = faites,
+            duree_ms = debut.elapsed().as_millis(),
+            "{faites} demandes résolues auprès des API en {} ms (tour {pass})",
+            debut.elapsed().as_millis()
+        );
     }
 
     telecharger_et_lire(registry, etat.chosen, pass).await?;

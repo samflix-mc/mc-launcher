@@ -116,7 +116,7 @@ export class Pack {
     if (!vu) {
       return 0;
     }
-    const fraction = vu.total > 0 ? vu.octets / vu.total : 0;
+    const fraction = format.fractionDuLot(vu.octets, vu.total, vu.fichiers, vu.fichiersTotal);
     return format.progressionGlobale(this.rangDe(vu.phase), fraction, this.etapesUtiles());
   });
 

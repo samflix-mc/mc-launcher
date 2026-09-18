@@ -177,7 +177,22 @@ pub async fn comparer(
     let empreinte_publiee = publie.empreinte().ok();
 
     let ecart = match (&pose.etat, empreinte_publiee) {
-        // Rien de posé : première installation.
+        // **Rien sur le disque : première installation, quoi que dise le
+        // témoin.**
+        //
+        // `etat.json` et l'instance ne meurent pas ensemble : un `rm -rf` sur
+        // `instances/<pack>/minecraft/` laisse le témoin intact, un cran plus
+        // haut dans l'arborescence. On comparait alors l'empreinte du verrou
+        // posé à celle du publié, on les trouvait égales, et l'on concluait « à
+        // jour » — sur un répertoire vide.
+        //
+        // Le bouton disait bien INSTALLER, parce que son `Action` regarde la
+        // présence ; mais l'installation, elle, lit l'ÉCART, et n'avait donc
+        // rien à faire. Cliquer rendait « le pack était déjà à jour : rien à
+        // poser », et avant la séparation des gestes, le jeu se lançait sur une
+        // instance sans mods.
+        _ if !pose.installe => Ecart::Absent,
+        // Aucun témoin : première installation.
         (None, _) => Ecart::Absent,
         // L'empreinte du verrou est incalculable — cas qui ne devrait pas
         // arriver, la sérialisation d'une structure qu'on vient de lire. On

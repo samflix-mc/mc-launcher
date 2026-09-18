@@ -109,6 +109,23 @@ pub trait Rapport: Send + Sync + 'static {
     fn telechargement(&self, avancement: mc_dl::Avancement<'_>) {
         let _ = avancement;
     }
+
+    /// La résolution des mods avance.
+    ///
+    /// **Distinct de [`Rapport::telechargement`], et c'est tout l'objet.** La
+    /// résolution passe l'essentiel de son temps à interroger des API — une
+    /// trentaine de secondes sur un pack de cinquante mods — pour des réponses
+    /// de quelques kilooctets. Aucune barre d'octets ne bouge pendant ce
+    /// temps, et l'écran ne se distingue pas d'un écran planté.
+    ///
+    /// `total` est une estimation qui peut grandir : une demande résolue peut
+    /// en faire naître d'autres.
+    ///
+    /// Ignoré par défaut, comme le téléchargement : un terminal n'en fait rien.
+    #[mutants::skip]
+    fn resolution(&self, faits: usize, total: usize) {
+        let _ = (faits, total);
+    }
 }
 
 /// Un rapport qui n'écoute rien.

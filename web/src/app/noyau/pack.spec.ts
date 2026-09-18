@@ -141,4 +141,30 @@ describe('Pack — la cinématique', () => {
     // Deux étapes utiles sur trois : finir la première fait 50 %.
     expect(Math.round(pack.progression())).toBe(50);
   });
+
+  /**
+   * **La barre avance pendant la résolution, qui ne pèse rien.**
+   *
+   * Trente-six secondes d'interrogation d'API sur le pack de Sam, sans un octet
+   * annoncé : la progression restait clouée au rang de la phase, et l'écran ne
+   * se distinguait pas d'un écran planté.
+   */
+  it('sans octets annoncés, la progression suit le compte des demandes', () => {
+    const pack = TestBed.inject(Pack);
+    pack.chemin.set([
+      { phase: 'mods', libelle: 'Mods', rang: 0 },
+      { phase: 'verrou', libelle: 'Verrou', rang: 1 },
+    ]);
+
+    pack.avancement.set(
+      avancement({ phase: 'mods', octets: 0, total: 0, fichiers: 0, fichiersTotal: 51 }),
+    );
+    const depart = pack.progression();
+
+    pack.avancement.set(
+      avancement({ phase: 'mods', octets: 0, total: 0, fichiers: 25, fichiersTotal: 51 }),
+    );
+
+    expect(pack.progression()).toBeGreaterThan(depart);
+  });
 });

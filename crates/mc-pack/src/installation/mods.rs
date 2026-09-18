@@ -39,7 +39,10 @@ pub(super) async fn poser(
     // mods seraient la seule étape à descendre en silence, et c'est la plus
     // longue après les assets.
     let registry =
-        mc_mods::Registry::observee(layout.cache().join("mods"), super::observateur(rapport))?;
+        mc_mods::Registry::observee(layout.cache().join("mods"), super::observateur(rapport))?
+            // Et qui dit aussi où en est la RÉSOLUTION : c'est elle qui dure,
+            // et elle ne descend presque rien.
+            .qui_annonce(annonceur(rapport));
     let requests = if replay {
         let lock = previous.expect("vérifié plus haut");
         tracing::info!(
@@ -113,3 +116,13 @@ fn ajoutes_par_dependance<'a>(raisons: impl Iterator<Item = &'a mc_mods::Reason>
 #[cfg(test)]
 #[path = "mods.test.rs"]
 mod tests;
+
+/// Le fil qui porte l'avancée de la résolution jusqu'au rapport.
+///
+/// Jumeau de `super::observateur`, pour l'autre moitié du temps passé dans
+/// l'étape Mods : celle où l'on interroge des API plutôt que de descendre des
+/// octets.
+fn annonceur(rapport: &Arc<dyn Rapport>) -> mc_mods::Progres {
+    let rapport = Arc::clone(rapport);
+    Arc::new(move |faits, total| rapport.resolution(faits, total))
+}

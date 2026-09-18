@@ -292,3 +292,44 @@ fn la_photo_se_serialise_en_camel_case() {
     assert_eq!(json["total"], 99);
     assert_eq!(json["phase"], "connexion");
 }
+
+/// **La résolution fait avancer la barre sans descendre un octet.**
+///
+/// Elle interroge les API l'une après l'autre : une trentaine de secondes sur
+/// un pack de cinquante mods, pour quelques kilooctets. Sans ce compte-là,
+/// `photo()` rendait un lot vide — zéro fichier, zéro octet — et la fenêtre
+/// affichait une étape immobile que rien ne distingue d'un plantage.
+#[test]
+fn la_resolution_avance_par_le_compte_des_demandes() {
+    let suivi = Suivi::default();
+
+    suivi.resolution(12, 51);
+    let vu = suivi.photo();
+
+    assert_eq!((vu.fichiers, vu.fichiers_total), (12, 51));
+    assert!(vu.actif, "il reste des demandes à régler");
+    // **Et le total d'octets est nul**, ce qui est la vérité : rien de pesable
+    // n'est annoncé. C'est ce zéro qui dit à la fenêtre de se fonder sur le
+    // compte plutôt que sur le poids.
+    assert_eq!(vu.total, 0);
+}
+
+/// Le lot de téléchargement qui suit reprend la main sur le compte.
+///
+/// Les deux écrivent dans les mêmes compteurs, et dans cet ordre : la
+/// résolution d'abord, la descente ensuite. Si le lot n'écrasait pas, la barre
+/// repartirait d'un compte de demandes qui n'a plus cours.
+#[test]
+fn le_lot_de_telechargement_reprend_la_main_sur_la_resolution() {
+    let suivi = Suivi::default();
+    suivi.resolution(51, 51);
+
+    suivi.telechargement(mc_dl::Avancement::Lot {
+        fichiers: 8,
+        octets: 840_000,
+    });
+    let vu = suivi.photo();
+
+    assert_eq!((vu.fichiers, vu.fichiers_total), (0, 8));
+    assert_eq!(vu.total, 840_000);
+}

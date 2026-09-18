@@ -407,3 +407,56 @@ fn la_regle_du_bouton_est_celle_du_rattrapage() {
         );
     }
 }
+
+/// **Le témoin survit à la disparition de l'instance, et il mentait.**
+///
+/// Scénario réel, rapporté par Sam : un `rm -rf` sur
+/// `instances/samflix/minecraft/` pour repartir propre. `etat.json` vit un cran
+/// plus haut — il est resté.
+///
+/// L'écart se calculait sur ce seul témoin : empreinte posée égale à l'empreinte
+/// publiée, donc « à jour ». Le bouton disait pourtant INSTALLER, parce que son
+/// `Action` regarde la PRÉSENCE. Les deux n'étaient pas d'accord, et c'est
+/// l'écart qui pilote l'installation : cliquer rendait « le pack était déjà à
+/// jour : rien à poser », sur un répertoire vide. Avant la séparation des
+/// gestes, le jeu se lançait là-dessus.
+#[tokio::test]
+async fn une_instance_effacee_a_la_main_se_reinstalle() {
+    let corps = corps_du_verrou(0);
+    let empreinte = crate::lockfile::Lockfile::parse(corps.as_bytes())
+        .unwrap()
+        .empreinte()
+        .unwrap();
+
+    let serveur = mc_essais::Serveur::neuf().await;
+    serveur.json("/pack/samflix.lock.json", &corps);
+    let atelier = Atelier::neuf("comparer-instance-effacee");
+    poser_instance(&atelier, &empreinte, 0);
+
+    // Ce que fait la main de quelqu'un qui veut « repartir de zéro » : le
+    // répertoire de jeu s'en va, le témoin reste.
+    let options = atelier.options();
+    let instance = options.layout.instance("samflix");
+    std::fs::remove_dir_all(instance.mods_dir()).unwrap();
+    assert!(
+        crate::etat::chemin(&instance).exists(),
+        "le témoin doit survivre, sans quoi ce test ne prouve rien"
+    );
+
+    let dl = mc_dl::Downloader::new("essai").unwrap();
+    let vu = comparer(
+        &Source::Remote {
+            url: format!("{}/pack/samflix.json", serveur.base()),
+            cache_dir: options.layout.cache(),
+        },
+        &options,
+        &dl,
+    )
+    .await;
+
+    assert!(!vu.installe);
+    assert_eq!(vu.ecart, Ecart::Absent);
+    assert_eq!(vu.action, Action::Installer);
+    // Et surtout : l'installation, qui lit l'écart, a quelque chose à faire.
+    assert!(super::a_poser(vu.ecart, vu.hors_ligne));
+}
