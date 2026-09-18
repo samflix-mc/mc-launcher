@@ -15,6 +15,19 @@
     {{ indication().texte }}
   </span>
 
+  <!--
+    Ce qui se passe RÉELLEMENT, pendant le travail : le fichier en cours, le
+    compte de fichiers, les octets, le débit et le temps restant.
+
+    Absente au repos, et c'est délibéré : elle ne réserve pas sa place. La
+    barre du bas est centrée et ne porte rien d'autre — une ligne vide qui
+    attendrait d'être remplie décalerait le bouton de seize pixels vers le haut
+    pendant toute la session.
+  -->
+  @if (detail(); as ligne) {
+    <span class="hm-playbar__detail" data-test="detail">{{ ligne }}</span>
+  }
+
   <button
     type="button"
     class="hm-play"
@@ -24,7 +37,7 @@
     [attr.aria-disabled]="allure() === 'inerte' ? 'true' : null"
     [disabled]="allure() !== 'pret'"
     [attr.data-etat]="bouton()"
-    (click)="jouer()"
+    (click)="agir()"
     data-test="bouton"
   >
     @if (allure() === 'occupe') {

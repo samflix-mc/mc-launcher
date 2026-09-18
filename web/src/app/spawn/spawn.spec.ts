@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { EtatDuPack, Partie } from '../noyau/contrats';
+import type { CompteRendu, EtatDuPack } from '../noyau/contrats';
 import { Nouvelles } from '../noyau/nouvelles';
 import { Pack } from '../noyau/pack';
 import { Spawn } from './spawn';
@@ -22,7 +22,7 @@ function etat(dessus: Partial<EtatDuPack> = {}): EtatDuPack {
   };
 }
 
-function partie(dessus: Partial<Partie> = {}): Partie {
+function compteRendu(dessus: Partial<CompteRendu> = {}): CompteRendu {
   return {
     verdict: 'La partie s’est terminée normalement.',
     rattrapee: false,
@@ -140,7 +140,7 @@ describe('Spawn', () => {
    */
   it('une partie sans incident ne laisse aucun panneau', () => {
     pack.etat.set(etat());
-    pack.derniereePartie.set(partie());
+    pack.dernierCompteRendu.set(compteRendu());
     const fixture = monter();
 
     expect(fixture.nativeElement.querySelector('[data-test="panneau-partie"]')).toBeNull();
@@ -148,7 +148,7 @@ describe('Spawn', () => {
 
   it('des mods introuvables se disent, avec leurs noms', () => {
     pack.etat.set(etat());
-    pack.derniereePartie.set(partie({ introuvables: ['sodium', 'iris'] }));
+    pack.dernierCompteRendu.set(compteRendu({ introuvables: ['sodium', 'iris'] }));
     const fixture = monter();
 
     expect(lire(fixture, 'introuvables')).toContain('2 mod(s) introuvable(s)');
@@ -157,7 +157,7 @@ describe('Spawn', () => {
 
   it('une purge se dit, et rassure sur ce qui a été gardé', () => {
     pack.etat.set(etat());
-    pack.derniereePartie.set(partie({ purge: ['mods', 'config'] }));
+    pack.dernierCompteRendu.set(compteRendu({ purge: ['mods', 'config'] }));
     const fixture = monter();
 
     expect(lire(fixture, 'purge')).toContain('mods, config');

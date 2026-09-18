@@ -34,7 +34,9 @@ pub use coherence::mods_client_absents;
 pub use comparaison::{Action, Ecart, EtatDuPack, comparer, presence, verrou_publie};
 pub use etat::{Avant, EtatLocal, Purge};
 pub use installation::install;
-pub use jeu::{Deroulement, Identite, Partie, jouer, mettre_a_jour_et_jouer, preparer};
+pub use jeu::{
+    Deroulement, Identite, Partie, jouer, mettre_a_jour, mettre_a_jour_et_jouer, preparer,
+};
 pub use progression::{Etape, Muet, Rapport};
 pub use verification::verify;
 

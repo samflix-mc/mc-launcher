@@ -206,6 +206,11 @@ async fn un_pack_identique_au_publie_est_a_jour() {
 }
 
 /// Posé mais différent : une mise à jour par différence.
+///
+/// **Et le bouton dit INSTALLER, pas JOUER.** Il a dit JOUER tant que le geste
+/// était unique — « Mettre à jour et jouer » posait la mise à jour puis lançait
+/// Minecraft. Sam l'a repris là-dessus à la recette : dès qu'il y a quelque
+/// chose à poser, le geste est de poser, et jouer demande un second clic.
 #[tokio::test]
 async fn un_verrou_qui_a_bouge_demande_une_mise_a_jour() {
     let serveur = mc_essais::Serveur::neuf().await;
@@ -225,7 +230,7 @@ async fn un_verrou_qui_a_bouge_demande_une_mise_a_jour() {
     )
     .await;
 
-    assert_eq!(vu.action, Action::Jouer);
+    assert_eq!(vu.action, Action::Installer);
     assert_eq!(vu.ecart, Ecart::MiseAJour);
 }
 
@@ -332,4 +337,73 @@ async fn un_pack_local_ne_pretend_pas_connaitre_de_publie() {
 
     assert_eq!(vu.ecart, Ecart::Inconnu);
     assert_eq!(vu.action, Action::Jouer);
+}
+
+/// **La règle du bouton, cas par cas.**
+///
+/// Elle tient en trois lignes et décide de ce qui se passe quand on clique :
+/// poser huit cents mégaoctets, ou lancer Minecraft. Une table plutôt que des
+/// tests séparés parce que c'est la COUVERTURE des cas qui compte ici, et
+/// qu'une table se relit d'un coup d'œil pour vérifier qu'il n'en manque pas.
+#[test]
+fn le_bouton_pose_des_qu_il_y_a_quelque_chose_a_poser() {
+    // (écart, hors ligne, installé) → action attendue
+    let cas = [
+        // Rien de posé : on installe, quel que soit le reste.
+        (Ecart::Absent, false, false, Action::Installer),
+        (Ecart::Inconnu, true, false, Action::Installer),
+        // Posé et à jour : on joue. C'est le cas courant, et le seul.
+        (Ecart::AJour, false, true, Action::Jouer),
+        // Posé mais dépassé : on POSE. Le bouton ne lance plus le jeu dans la
+        // foulée — c'est le retour de recette de Sam.
+        (Ecart::MiseAJour, false, true, Action::Installer),
+        (Ecart::Reinstallation, false, true, Action::Installer),
+        // Hors ligne avec un pack posé : on joue. On n'a pas pu vérifier, et
+        // punir d'une panne de réseau quelqu'un dont le pack est là serait
+        // absurde.
+        (Ecart::Inconnu, true, true, Action::Jouer),
+    ];
+
+    for (ecart, hors_ligne, installe, attendu) in cas {
+        assert_eq!(
+            super::action_pour(ecart, hors_ligne, installe),
+            attendu,
+            "écart={ecart:?}, hors_ligne={hors_ligne}, installé={installe}"
+        );
+    }
+}
+
+/// `a_poser` est la MÊME règle que celle que suit l'installation.
+///
+/// Les deux ont vécu séparément — l'une dans `comparaison`, l'autre dans
+/// `jeu::enchainement` — et c'est exactement le genre de doublon qui diverge
+/// sans bruit : le bouton proposerait de jouer à un pack que l'installation
+/// vient de décider de reposer.
+#[test]
+fn la_regle_du_bouton_est_celle_du_rattrapage() {
+    for (ecart, hors_ligne) in [
+        (Ecart::Absent, false),
+        (Ecart::AJour, false),
+        (Ecart::MiseAJour, false),
+        (Ecart::Reinstallation, false),
+        (Ecart::Inconnu, false),
+        (Ecart::MiseAJour, true),
+    ] {
+        let etat = super::EtatDuPack {
+            action: Action::Jouer,
+            ecart,
+            hors_ligne,
+            installe: true,
+            nom: None,
+            version: None,
+            java: None,
+            mods: 0,
+            generation: 0,
+        };
+        assert_eq!(
+            super::a_poser(ecart, hors_ligne),
+            crate::jeu::doit_rattraper(&etat),
+            "écart={ecart:?}, hors_ligne={hors_ligne}"
+        );
+    }
 }

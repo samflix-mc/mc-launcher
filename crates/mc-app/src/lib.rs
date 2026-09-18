@@ -141,6 +141,7 @@ pub fn run() {
             journal::journal,
             // Le geste unique, et ce qu'il faut pour le dessiner.
             commandes::pack::etat_du_pack,
+            commandes::pack::installer,
             commandes::pack::jouer,
             commandes::pack::verifier_les_fichiers,
             // Les nouvelles du réseau.

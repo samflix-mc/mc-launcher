@@ -5,21 +5,27 @@ use tauri::{AppHandle, State};
 
 use super::{Erreur, Etat};
 
-/// Ce qu'une partie a laissé en s'arrêtant.
+/// Ce qu'un geste a laissé derrière lui.
+///
+/// **Le même type pour les deux gestes**, et c'est délibéré : installer et
+/// jouer laissent exactement les mêmes traces — des mods introuvables, des
+/// écarts au verrou, une purge, un pack distant injoignable. Seul le `verdict`
+/// diffère, et c'est une phrase.
+///
+/// Deux types jumeaux obligeraient l'écran à porter deux chemins d'affichage
+/// pour dire la même chose, et la moitié la moins empruntée finirait par
+/// diverger sans qu'on s'en aperçoive.
 ///
 /// Un COMPTE RENDU et non une chaîne, et c'est une exigence du front : trois
 /// champs qu'il affiche n'ont pas d'autre source. `introuvables` en
 /// particulier est un résultat de résolution, lisible sur aucun disque — il
 /// n'existe que dans le verrou que l'installation vient d'écrire.
-///
-/// Une chaîne obligerait la fenêtre à relire un message pour en tirer une
-/// liste, ce qui est exactement ce qu'on ne veut pas d'un pont.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Partie {
-    /// Ce que le jeu a laissé, dit en une phrase.
+pub struct CompteRendu {
+    /// Ce que le geste a laissé, dit en une phrase.
     pub verdict: String,
-    /// Une installation a-t-elle eu lieu avant la partie ?
+    /// Une installation a-t-elle eu lieu ?
     pub rattrapee: bool,
     /// Les mods que la résolution n'a pas trouvés. Le pack s'installe quand
     /// même, mais NeoForge refusera de démarrer s'ils lui manquent.
@@ -33,38 +39,14 @@ pub struct Partie {
     pub purge: Vec<String>,
 }
 
-/// Ce que le disque et le pack publié disent, sans rien installer.
+/// Le compte rendu d'un déroulement, avec le verdict qui va avec le geste.
 ///
-/// Appelée à l'ouverture de Spawn, et c'est elle qui décide de ce que le
-/// bouton affiche. Quelques dizaines de kilooctets de réseau : le verrou seul.
-#[tauri::command]
-pub async fn etat_du_pack() -> Result<mc_pack::EtatDuPack, Erreur> {
-    Ok(crate::cinematique::etat_du_pack().await?)
-}
-
-/// LE bouton.
-///
-/// Vérifie le pack publié, rattrape ce qui a bougé s'il y a lieu, puis lance
-/// la partie. Ne rend la main qu'à la fin de celle-ci.
-///
-/// Le jeton d'installation est pris ici, et sa raison a changé : il ne protège
-/// plus contre deux installations concurrentes seulement, mais contre deux
-/// PARTIES — deux `mettre_a_jour_et_jouer` écriraient dans les mêmes
-/// répertoires et lanceraient deux jeux sur la même instance.
-#[tauri::command]
-pub async fn jouer(app: AppHandle, etat: State<'_, Etat>) -> Result<Partie, Erreur> {
-    let Some(_jeton) = etat.reserver() else {
-        return Err(Erreur("une partie est déjà en cours".to_string()));
-    };
-
-    let deroulement = crate::cinematique::mettre_a_jour_et_jouer(&app, &etat.suivi).await?;
-
-    Ok(Partie {
-        verdict: deroulement
-            .partie
-            .as_ref()
-            .map(super::verdict)
-            .unwrap_or_else(|| "Partie terminée.".to_string()),
+/// Extraite parce qu'elle est appelée par les DEUX commandes : la recopier
+/// laisserait l'une des deux perdre un champ le jour où l'on en ajoute un, et
+/// ce genre d'oubli ne se voit qu'à l'écran, sur un cas rare.
+fn compte_rendu(deroulement: &mc_pack::Deroulement, verdict: String) -> CompteRendu {
+    CompteRendu {
+        verdict,
         rattrapee: deroulement.installation.is_some(),
         introuvables: deroulement.introuvables(),
         ecarts: deroulement.ecarts(),
@@ -74,7 +56,77 @@ pub async fn jouer(app: AppHandle, etat: State<'_, Etat>) -> Result<Partie, Erre
             .as_ref()
             .map(|pose| pose.purge.vides.clone())
             .unwrap_or_default(),
-    })
+    }
+}
+
+/// Ce que le disque et le pack publié disent, sans rien installer.
+///
+/// Appelée à l'ouverture de Spawn, et c'est elle qui décide de ce que le
+/// bouton affiche. Quelques dizaines de kilooctets de réseau : le verrou seul.
+#[tauri::command]
+pub async fn etat_du_pack() -> Result<mc_pack::EtatDuPack, Erreur> {
+    Ok(crate::cinematique::etat_du_pack().await?)
+}
+
+/// Pose le pack, et **s'arrête là**.
+///
+/// ## Le bouton ne lance plus le jeu tout seul
+///
+/// Il le faisait : vérifier, rattraper, puis démarrer Minecraft, d'un seul
+/// clic. Sam l'a repris là-dessus à la recette — « ça lance le jeu alors qu'on
+/// voulait juste installer le modpack » — et le motif est net : poser huit
+/// cents mégaoctets et jouer sont deux intentions, et la seconde ne se déduit
+/// pas de la première.
+///
+/// Ce que le geste unique avait résolu n'est pas perdu : la vérification reste
+/// en tête des deux chemins, et personne n'attend un téléchargement pour jouer
+/// à un pack déjà à jour.
+///
+/// Le jeton est le même que celui de [`jouer`] : une installation et une partie
+/// écriraient dans les mêmes répertoires.
+#[tauri::command]
+pub async fn installer(app: AppHandle, etat: State<'_, Etat>) -> Result<CompteRendu, Erreur> {
+    let Some(_jeton) = etat.reserver() else {
+        return Err(Erreur("une opération est déjà en cours".to_string()));
+    };
+
+    let deroulement = crate::cinematique::mettre_a_jour(&app, &etat.suivi).await?;
+
+    let verdict = if deroulement.installation.is_some() {
+        "Le pack est installé.".to_string()
+    } else {
+        "Le pack était déjà à jour : rien à poser.".to_string()
+    };
+    Ok(compte_rendu(&deroulement, verdict))
+}
+
+/// LE bouton, quand il dit JOUER.
+///
+/// Vérifie le pack publié, rattrape ce qui a bougé s'il y a lieu, puis lance
+/// la partie. Ne rend la main qu'à la fin de celle-ci.
+///
+/// La vérification reste en tête : la retirer ferait entrer le joueur avec des
+/// registres NeoForge qui ne concordent plus, ce qui se manifeste par une
+/// éjection à la connexion sans message utile.
+///
+/// Le jeton d'installation est pris ici, et sa raison a changé : il ne protège
+/// plus contre deux installations concurrentes seulement, mais contre deux
+/// PARTIES — deux `mettre_a_jour_et_jouer` écriraient dans les mêmes
+/// répertoires et lanceraient deux jeux sur la même instance.
+#[tauri::command]
+pub async fn jouer(app: AppHandle, etat: State<'_, Etat>) -> Result<CompteRendu, Erreur> {
+    let Some(_jeton) = etat.reserver() else {
+        return Err(Erreur("une opération est déjà en cours".to_string()));
+    };
+
+    let deroulement = crate::cinematique::mettre_a_jour_et_jouer(&app, &etat.suivi).await?;
+
+    let verdict = deroulement
+        .partie
+        .as_ref()
+        .map(super::verdict)
+        .unwrap_or_else(|| "Partie terminée.".to_string());
+    Ok(compte_rendu(&deroulement, verdict))
 }
 
 /// Vérifie les fichiers de l'instance posée.

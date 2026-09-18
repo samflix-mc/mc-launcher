@@ -17,3 +17,24 @@
 .hm-play--busy:disabled {
   cursor: progress;
 }
+
+/* La seconde ligne, pendant le travail.
+
+   Le design system n'en a pas : sa maquette de la barre du bas montre un état
+   au repos, où il n'y a rien à dire. Elle reprend donc les valeurs de
+   `.hm-playbar__hint` — même famille, même ombre portée — d'un cran plus bas
+   en taille et en contraste, pour qu'on lise d'abord l'étape et ensuite le
+   détail. */
+.hm-playbar__detail {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  /* Une ligne, jamais deux : un nom de fichier long ferait grandir la barre du
+     bas et remonterait le bouton en cours d'installation. */
+  max-width: min(680px, 80vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

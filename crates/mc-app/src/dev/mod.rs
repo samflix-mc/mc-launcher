@@ -131,7 +131,8 @@ pub async fn router(contexte: Arc<Contexte>, requete: Requete) -> Reponse {
             Reponse::vide()
         }
 
-        "jouer" => jouer(&contexte, etat).await,
+        "jouer" => jouer(&contexte, etat, true).await,
+        "installer" => jouer(&contexte, etat, false).await,
 
         // --- Ce qui n'a pas de sens hors de la fenêtre ------------------------
         //
@@ -203,7 +204,7 @@ async fn connexion(contexte: &Arc<Contexte>) -> Reponse {
 /// Les étapes défilent pour de bon, avec des octets qui montent : c'est le
 /// seul moyen de voir si la barre, les libellés et le débit se tiennent
 /// pendant plusieurs secondes, et non sur une capture figée.
-async fn jouer(contexte: &Arc<Contexte>, etat: Etat) -> Reponse {
+async fn jouer(contexte: &Arc<Contexte>, etat: Etat, avec_partie: bool) -> Reponse {
     use crate::phase::Phase;
 
     let etapes = [
@@ -238,13 +239,16 @@ async fn jouer(contexte: &Arc<Contexte>, etat: Etat) -> Reponse {
         tokio::time::sleep(std::time::Duration::from_millis(900)).await;
     }
 
-    // La partie elle-même, puis le retour à « prêt ».
-    contexte.emettre(
-        crate::cinematique::EVENEMENT_AVANCEMENT,
-        json!({ "phase": Phase::Lancement, "achevee": false, "actif": false,
-                "octets": 0, "total": 0, "fichiers": 0, "fichiersTotal": 0, "debit": 0 }),
-    );
-    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    // La partie elle-même — SEULEMENT si le geste est « jouer ». Le bouton
+    // d'installation s'arrête ici : c'est tout l'objet de la séparation.
+    if avec_partie {
+        contexte.emettre(
+            crate::cinematique::EVENEMENT_AVANCEMENT,
+            json!({ "phase": Phase::Lancement, "achevee": false, "actif": false,
+                    "octets": 0, "total": 0, "fichiers": 0, "fichiersTotal": 0, "debit": 0 }),
+        );
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+    }
 
     *contexte.etat.lock().expect("état non empoisonné") = Etat::PretAJouer;
     contexte.emettre(
@@ -252,7 +256,7 @@ async fn jouer(contexte: &Arc<Contexte>, etat: Etat) -> Reponse {
         serde_json::to_value(Etat::PretAJouer.avancement()).unwrap_or(serde_json::Value::Null),
     );
 
-    valeur(&etat.partie())
+    valeur(&etat.partie(avec_partie))
 }
 
 /// Ce que le serveur dit de lui-même, pour qui ouvre l'adresse à la main.
@@ -274,6 +278,7 @@ fn accueil(etat: Etat) -> Reponse {
             "deconnexion",
             "etat_du_pack",
             "jouer",
+            "installer",
             "verifier_les_fichiers",
             "nouvelles",
             "reglages",

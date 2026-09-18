@@ -199,11 +199,7 @@ pub async fn comparer(
     };
 
     EtatDuPack {
-        action: if pose.installe {
-            Action::Jouer
-        } else {
-            Action::Installer
-        },
+        action: action_pour(ecart, false, pose.installe),
         ecart,
         hors_ligne: false,
         installe: pose.installe,
@@ -212,6 +208,49 @@ pub async fn comparer(
         java: Some(publie.java),
         mods: publie.mods.len(),
         generation: publie.generation,
+    }
+}
+
+/// Y a-t-il quelque chose à poser sur ce disque ?
+///
+/// **La règle est ici, et une seule fois** : `jeu::doit_rattraper` l'appelle,
+/// et le bouton la lit par [`Action`]. Deux copies divergeraient le jour où
+/// l'on ajoute un écart, et le symptôme serait un bouton qui propose de jouer
+/// à un pack qu'il vient de décider de réinstaller.
+///
+/// Hors ligne, on ne pose RIEN, et c'est le point qui se devine mal :
+/// `Ecart::Inconnu` ne veut pas dire « à jour », il veut dire « on ne sait
+/// pas ». Installer sur cette base repartirait du cache pour reposer ce qui est
+/// déjà là — plusieurs minutes de vérification d'empreintes, sans rien
+/// apprendre, au moment précis où le joueur n'a pas de réseau.
+pub fn a_poser(ecart: Ecart, hors_ligne: bool) -> bool {
+    if hors_ligne {
+        return false;
+    }
+    match ecart {
+        Ecart::Absent | Ecart::MiseAJour | Ecart::Reinstallation => true,
+        Ecart::AJour | Ecart::Inconnu => false,
+    }
+}
+
+/// Ce que le bouton doit FAIRE.
+///
+/// ## Le bouton ne lance plus le jeu tout seul
+///
+/// Il disait « Mettre à jour et jouer », et il faisait les deux. Sam l'a repris
+/// là-dessus à la recette : cliquer pour poser un modpack et voir Minecraft
+/// démarrer n'est pas ce qu'on a demandé. Dès qu'il y a quelque chose à poser,
+/// le geste est de POSER — jouer vient après, d'un second clic, quand le joueur
+/// le décide.
+///
+/// `!installe` reste dans la règle, et il n'est pas redondant : hors ligne,
+/// `a_poser` rend faux même quand rien n'est posé, et sans ce terme le bouton
+/// dirait JOUER à quelqu'un qui n'a aucun jeu à lancer.
+fn action_pour(ecart: Ecart, hors_ligne: bool, installe: bool) -> Action {
+    if !installe || a_poser(ecart, hors_ligne) {
+        Action::Installer
+    } else {
+        Action::Jouer
     }
 }
 
@@ -227,11 +266,7 @@ fn sans_reseau(options: &crate::Options, pour: &str) -> EtatDuPack {
     tracing::info!(pour, installe = pose.installe, "comparaison sans réseau");
 
     EtatDuPack {
-        action: if pose.installe {
-            Action::Jouer
-        } else {
-            Action::Installer
-        },
+        action: action_pour(Ecart::Inconnu, true, pose.installe),
         ecart: Ecart::Inconnu,
         hors_ligne: true,
         installe: pose.installe,

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { Avancement, EtatDuPack } from '../../noyau/contrats';
 import { Pack } from '../../noyau/pack';
-import { Playbar } from './playbar';
+import { Playbar, nomDeFichier } from './playbar';
 
 /** Un état de pack plausible, dont chaque test ne change que ce qui l'intéresse. */
 function etat(dessus: Partial<EtatDuPack> = {}): EtatDuPack {
@@ -97,23 +97,30 @@ describe('Playbar', () => {
   });
 
   /**
-   * Le libellé DIT ce qui va se passer. « Jouer » sur un pack qui va d'abord
-   * télécharger quatre-vingts mégaoctets promet une partie immédiate, et ce
-   * qui suit ressemble alors à une panne.
+   * **Le libellé DIT ce qui va se passer, et rien de plus.**
+   *
+   * Il disait « Mettre à jour et jouer », et il faisait les deux : Sam a cliqué
+   * pour poser un modpack et Minecraft a démarré. Le bouton pose, s'arrête, et
+   * devient « Jouer » — c'est un second clic, quand le joueur le décide.
+   *
+   * L'`action` vient de Rust et vaut « installer » dès qu'il y a quelque chose
+   * à poser ; ce test la pose telle que `mc_pack::comparaison` la rendrait.
    */
-  it('mise à jour en attente : le libellé annonce le rattrapage', () => {
-    pack.etat.set(etat({ ecart: 'mise-a-jour' }));
+  it('mise à jour en attente : le bouton POSE, il ne joue pas', () => {
+    pack.etat.set(etat({ action: 'installer', ecart: 'mise-a-jour' }));
     const fixture = monter();
 
-    expect(lire(fixture, 'bouton')).toContain('Mettre à jour et jouer');
+    expect(lire(fixture, 'bouton')).toContain('Mettre à jour');
+    expect(lire(fixture, 'bouton')).not.toContain('jouer');
     expect(lire(fixture, 'indication')).toContain('Mise à jour disponible');
   });
 
   it('génération changée : il annonce une réinstallation, et rassure', () => {
-    pack.etat.set(etat({ ecart: 'reinstallation' }));
+    pack.etat.set(etat({ action: 'installer', ecart: 'reinstallation' }));
     const fixture = monter();
 
-    expect(lire(fixture, 'bouton')).toContain('Réinstaller et jouer');
+    expect(lire(fixture, 'bouton')).toContain('Réinstaller');
+    expect(lire(fixture, 'bouton')).not.toContain('jouer');
     expect(lire(fixture, 'indication')).toContain('vos mondes');
   });
 
@@ -201,5 +208,80 @@ describe('Playbar', () => {
     const fixture = monter();
 
     expect(lire(fixture, 'indication')).toBe('Pas encore installé');
+  });
+
+  /**
+   * **Ce qu'on télécharge, et à quelle vitesse.**
+   *
+   * Le retour de recette était : « on sait à peu près à quelle étape on est,
+   * mais on ne sait pas ce qu'on télécharge, quelle est la vitesse, ni
+   * l'avancée en pourcentage ». Toutes ces valeurs étaient émises cinq fois par
+   * seconde par `Suivi` — aucune n'était affichée.
+   */
+  it('pendant l’installation, la seconde ligne dit tout ce qu’on sait', () => {
+    pack.etat.set(etat({ action: 'installer', ecart: 'mise-a-jour' }));
+    pack.occupe.set(true);
+    pack.avancement.set(avancement({ fichier: '/long/chemin/vers/sodium.jar' }));
+    const fixture = monter();
+
+    const ligne = lire(fixture, 'detail') ?? '';
+    expect(ligne).toContain('sodium.jar');
+    expect(ligne).not.toContain('/long/chemin');
+    expect(ligne).toContain('64 sur 128 fichiers');
+    expect(ligne).toContain('sur 840');
+    expect(ligne).toContain('/s');
+    expect(ligne).toContain('restantes');
+  });
+
+  /**
+   * **Le pourcentage survit aux creux entre deux lots.**
+   *
+   * `actif` retombe à faux pendant la résolution des mods, l'inspection des
+   * jars et l'installateur NeoForge — soit une bonne part du temps. Le bouton
+   * n'affichait alors plus rien du tout, ce qui se lit comme un blocage.
+   *
+   * Le débit, lui, disparaît : il n'a aucun sens quand rien ne descend, et un
+   * chiffre figé y ressemblerait à une mesure.
+   */
+  it('entre deux lots, le pourcentage reste et le débit s’en va', () => {
+    pack.etat.set(etat({ action: 'installer', ecart: 'mise-a-jour' }));
+    pack.occupe.set(true);
+    pack.chemin.set([{ phase: 'mods', libelle: 'Mods', rang: 0 }]);
+    pack.avancement.set(avancement({ actif: false, debit: 0 }));
+    const fixture = monter();
+
+    expect(lire(fixture, 'meta')).toMatch(/\d+ %/);
+    expect(lire(fixture, 'meta')).not.toContain('/s');
+  });
+
+  /**
+   * Pendant la VÉRIFICATION, il n'y a ni pourcentage ni détail à montrer : on
+   * n'a encore rien mesuré. La phrase du haut le dit, et c'est tout.
+   */
+  it('pendant la vérification, aucun chiffre n’est inventé', () => {
+    const fixture = monter();
+
+    expect(lire(fixture, 'indication')).toContain('Lecture de ce qui est installé');
+    expect(lire(fixture, 'meta')).toBeNull();
+    expect(lire(fixture, 'detail')).toBeNull();
+  });
+});
+
+/**
+ * Le nom seul d'un chemin.
+ *
+ * Testé à part parce que c'est une fonction libre : elle n'a besoin ni d'un
+ * composant, ni d'un DOM.
+ */
+describe('nomDeFichier', () => {
+  it('ne garde que la dernière portion', () => {
+    expect(nomDeFichier('/a/b/c/sodium.jar')).toBe('sodium.jar');
+    expect(nomDeFichier('sodium.jar')).toBe('sodium.jar');
+    expect(nomDeFichier('C:\\jeux\\mods\\iris.jar')).toBe('iris.jar');
+  });
+
+  /** Un chemin qui finit par un séparateur ne doit pas rendre une chaîne vide. */
+  it('un chemin qui finit par un séparateur rend le chemin', () => {
+    expect(nomDeFichier('/a/b/')).toBe('/a/b/');
   });
 });

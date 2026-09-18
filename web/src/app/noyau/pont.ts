@@ -11,7 +11,7 @@ import type {
   EtatDuPack,
   Fil,
   Marque,
-  Partie,
+  CompteRendu,
   Reglages,
 } from './contrats';
 import { DANS_TAURI, appeler, ecouter, ouvrirHorsApplication } from './transport';
@@ -178,13 +178,25 @@ export class Pont {
   }
 
   /**
-   * LE bouton : vérifie, rattrape s'il le faut, puis lance la partie.
+   * Pose le pack, et s'arrête là.
    *
-   * Ne rend la main qu'à la fin de la partie. L'avancement arrive par
-   * événement pendant tout ce temps.
+   * **Ne lance pas le jeu**, et c'est un retour de recette : poser huit cents
+   * mégaoctets et jouer sont deux intentions, et la seconde ne se déduit pas de
+   * la première. L'avancement arrive par événement pendant tout ce temps.
    */
-  jouer(): Promise<Partie> {
-    return appeler<Partie>('jouer');
+  installer(): Promise<CompteRendu> {
+    return appeler<CompteRendu>('installer');
+  }
+
+  /**
+   * Vérifie, rattrape s'il le faut, puis lance la partie.
+   *
+   * Ne rend la main qu'à la fin de la partie. La vérification reste en tête :
+   * entrer avec des registres NeoForge qui ne concordent plus se manifeste par
+   * une éjection à la connexion, sans message utile.
+   */
+  jouer(): Promise<CompteRendu> {
+    return appeler<CompteRendu>('jouer');
   }
 
   verifierLesFichiers(profond: boolean): Promise<string[]> {

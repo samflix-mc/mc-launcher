@@ -11,7 +11,7 @@ import { Pack } from '../../noyau/pack';
 type Allure = 'pret' | 'occupe' | 'inerte';
 
 /**
- * LE bouton, et la phrase au-dessus de lui.
+ * LE bouton, et ce qui s'écrit au-dessus de lui.
  *
  * ## Pourquoi il vit dans la coque et non dans Spawn
  *
@@ -20,21 +20,36 @@ type Allure = 'pret' | 'occupe' | 'inerte';
  * services racine. Le design system le place dans la barre du bas de la
  * fenêtre, au centre ; Spawn n'en est que la page qui l'affiche.
  *
- * ## Les six états, et ce qui les distingue
+ * ## Il ne lance plus le jeu tout seul
  *
- * Le design system en dessine six : installer, jouer, mettre à jour et jouer,
- * installation en cours, empêché faute de réseau, empêché pour une autre
- * raison. Ils ne viennent pas d'un seul champ — l'`Action` que Rust rend dit ce
- * que LE DISQUE impose, l'écart dit ce qui sépare le posé du publié, et
- * l'activité s'observe. Les confondre ferait répondre « une installation est
- * déjà en cours » à quelqu'un qui clique pendant sa partie.
+ * Il disait « Mettre à jour et jouer », et il faisait les deux. Sam l'a repris
+ * là-dessus à la recette : cliquer pour poser un modpack et voir Minecraft
+ * démarrer n'est pas ce qu'on a demandé. **Dès qu'il y a quelque chose à poser,
+ * le geste est de poser** ; jouer vient après, d'un second clic.
  *
- * ## La phrase au-dessus n'est pas décorative
+ * La règle n'est pas ici : c'est `mc_pack::comparaison::a_poser`, la même que
+ * suit l'installation, et l'`Action` que Rust rend en est le résultat. Ce
+ * composant n'en tire qu'un libellé — sans quoi le bouton et l'installation
+ * pourraient un jour ne plus être d'accord sur ce qui va se passer.
  *
- * C'est elle qui dit POURQUOI le bouton est ce qu'il est : « le pack n'est pas
- * installé », « une mise à jour est disponible », « hors ligne ». Sans elle,
- * l'écran demande de deviner — ce qui était exactement le reproche fait à
- * l'ancienne page Spawn.
+ * ## Les états, et ce qui les distingue
+ *
+ * Ils ne viennent pas d'un seul champ : l'`Action` dit ce qu'il faut FAIRE,
+ * l'écart dit ce qui sépare le posé du publié, et l'activité s'observe. Les
+ * confondre ferait répondre « une opération est déjà en cours » à quelqu'un qui
+ * clique pendant sa partie, laquelle est le plus long état de la session.
+ *
+ * ## Les deux lignes au-dessus ne sont pas décoratives
+ *
+ * La première dit POURQUOI le bouton est ce qu'il est — « pas encore
+ * installé », « mise à jour disponible », « hors ligne » — ou, pendant le
+ * travail, à quelle étape on en est.
+ *
+ * La seconde n'existe QUE pendant le travail, et c'est l'autre retour de
+ * recette : « on sait à peu près à quelle étape on est, mais pas ce qu'on
+ * télécharge, ni à quelle vitesse ». Elle porte le fichier en cours, le compte
+ * de fichiers, les octets, le débit et le temps restant — toutes des données
+ * que `Suivi` émet cinq fois par seconde et que personne n'affichait.
  */
 @Component({
   selector: 'app-playbar',
@@ -88,22 +103,27 @@ export class Playbar {
     return null;
   });
 
-  /** Le libellé du bouton. */
+  /**
+   * Le libellé du bouton.
+   *
+   * Aucun ne contient plus « et jouer » : ce que le bouton annonce est
+   * exactement ce qu'il fait, et rien de plus.
+   */
   protected readonly libelle = computed(() => {
     switch (this.bouton()) {
       case 'inconnu':
         return 'Vérification…';
       case 'installer':
-        return 'Installer';
-      case 'jouer':
         switch (this.etat()?.ecart) {
           case 'mise-a-jour':
-            return 'Mettre à jour et jouer';
+            return 'Mettre à jour';
           case 'reinstallation':
-            return 'Réinstaller et jouer';
+            return 'Réinstaller';
           default:
-            return 'Jouer';
+            return 'Installer';
         }
+      case 'jouer':
+        return 'Jouer';
       case 'occupe':
         return 'Installation…';
       case 'en-partie':
@@ -120,11 +140,9 @@ export class Playbar {
   protected readonly icone = computed<LucideIconData | null>(() => {
     switch (this.bouton()) {
       case 'installer':
-        return Download;
+        return this.etat()?.ecart === 'absent' ? Download : RefreshCw;
       case 'jouer':
-        return this.etat()?.ecart === 'a-jour' || this.etat()?.ecart === 'inconnu'
-          ? Play
-          : RefreshCw;
+        return Play;
       case 'en-partie':
         return Rocket;
       default:
@@ -135,34 +153,38 @@ export class Playbar {
   /**
    * Ce qui s'écrit après le séparateur, dans le bouton même.
    *
-   * Le pourcentage et le débit pendant le travail, et rien autrement : un
-   * bouton au repos n'a pas de chiffre à porter.
+   * **Le pourcentage reste affiché entre deux lots**, et c'est une correction :
+   * il ne s'affichait que pendant un téléchargement actif, donc il disparaissait
+   * pendant la résolution des mods, l'inspection des jars et l'installateur
+   * NeoForge — c'est-à-dire pendant une bonne partie du temps. Le débit, lui,
+   * n'a de sens que quand quelque chose descend.
    */
   protected readonly meta = computed(() => {
-    const vu = this.avancement();
-    if (!vu || !vu.actif) {
+    if (!this.enInstallation()) {
       return null;
     }
-    return `${Math.round(this.progression())} % · ${format.debit(vu.debit)}`;
+    const pourcent = `${Math.round(this.progression())} %`;
+    const vu = this.avancement();
+    return vu?.actif && vu.debit > 0 ? `${pourcent} · ${format.debit(vu.debit)}` : pourcent;
   });
 
-  /** La phrase au-dessus du bouton, et son ton. */
+  /** La phrase du haut, et son ton. */
   protected readonly indication = computed(() => {
     if (this.empeche() === 'hors-ligne') {
       return { texte: 'Hors ligne — impossible de récupérer le pack.', danger: true };
     }
 
-    const vu = this.avancement();
     if (this.bouton() === 'en-partie') {
       return { texte: 'Le jeu tourne. Le launcher attend sa fin.', danger: false };
     }
-    if (this.bouton() === 'occupe' && vu) {
+
+    if (this.enInstallation()) {
       const etape = this.etapeCourante();
-      const ou = etape ? `${etape.libelle} — ${etape.numero} sur ${etape.total}` : 'Préparation';
-      return {
-        texte: vu.actif ? `${ou} · ${format.octets(vu.octets)} sur ${format.octets(vu.total)}` : ou,
-        danger: false,
-      };
+      const ou = etape
+        ? `${etape.libelle} — étape ${etape.numero} sur ${etape.total}`
+        : 'Préparation';
+      const note = this.avancement()?.note;
+      return { texte: note ? `${ou} · ${note}` : ou, danger: false };
     }
 
     const pack = this.etat();
@@ -179,10 +201,7 @@ export class Playbar {
       case 'a-jour':
         return { texte: `À jour${this.versionSuffixe()}`, danger: false };
       case 'mise-a-jour':
-        return {
-          texte: `Mise à jour disponible${this.versionSuffixe()} — appliquée au lancement`,
-          danger: false,
-        };
+        return { texte: `Mise à jour disponible${this.versionSuffixe()}`, danger: false };
       case 'reinstallation':
         return {
           texte: 'Réinstallation complète — vos mondes et vos configurations sont conservés',
@@ -193,31 +212,117 @@ export class Playbar {
     }
   });
 
-  /** La progression, ou `null` quand elle est indéterminée. */
-  protected readonly remplissage = computed(() => {
-    if (this.bouton() === 'inconnu') {
+  /**
+   * La seconde ligne : ce qui se passe RÉELLEMENT, en ce moment.
+   *
+   * `null` hors travail — un bouton au repos n'a pas de détail à porter — et
+   * composée de segments qui s'omettent quand ils ne sont pas connus, plutôt
+   * que d'afficher « 0 o sur 0 o » ou un point médian orphelin.
+   */
+  protected readonly detail = computed(() => {
+    const vu = this.avancement();
+    if (!this.enInstallation() || !vu) {
       return null;
     }
-    const vu = this.avancement();
-    return vu?.actif ? `${Math.round(this.progression())}%` : null;
+
+    const segments: string[] = [];
+
+    if (vu.fichier) {
+      segments.push(nomDeFichier(vu.fichier));
+    }
+    if (vu.fichiersTotal > 0) {
+      segments.push(`${vu.fichiers} sur ${vu.fichiersTotal} fichiers`);
+    }
+    if (vu.total > 0) {
+      segments.push(`${format.octets(vu.octets)} sur ${format.octets(vu.total)}`);
+    }
+    if (vu.actif && vu.debit > 0) {
+      segments.push(format.debit(vu.debit));
+    }
+    if (vu.restant !== null) {
+      segments.push(`${format.duree(vu.restant)} restantes`);
+    }
+
+    return segments.length > 0 ? segments.join(' · ') : null;
   });
 
-  protected async jouer(): Promise<void> {
+  /**
+   * Le remplissage de la barre, en pourcentage.
+   *
+   * **Il suit la progression GLOBALE, et non celle du lot en cours.** La
+   * distinction a son importance : entre deux lots, la progression d'un lot
+   * saute à cent pour cent alors que l'étape travaille encore — ce qui mentait.
+   * La progression globale, elle, est bornée par la phase atteinte : entre deux
+   * lots elle stagne, ce qui est la vérité.
+   *
+   * Indéterminé tant qu'on ne sait rien du tout : pendant la vérification, ou
+   * avant le premier événement d'avancement.
+   */
+  protected readonly remplissage = computed(() => {
+    if (!this.enInstallation() || !this.avancement()) {
+      return null;
+    }
+    const pourcent = Math.round(this.progression());
+    return pourcent > 0 ? `${pourcent}%` : null;
+  });
+
+  /**
+   * Un geste est-il en cours ?
+   *
+   * **Distinct de « le bouton tourne »** : entre l'affichage de l'écran et la
+   * réponse d'`etat_du_pack()`, le bouton tourne aussi, mais rien n'est en
+   * train d'être posé. Confondre les deux ferait afficher « 0 % », une étape
+   * « Préparation » et une ligne de détail vide à chaque démarrage, à la place
+   * de la phrase qui dit qu'on lit le disque.
+   */
+  private readonly enInstallation = computed(() => this.bouton() === 'occupe');
+
+  /**
+   * LE clic.
+   *
+   * Deux gestes derrière un bouton, et c'est l'`Action` de Rust qui tranche :
+   * s'il y a quelque chose à poser, on pose ; sinon on joue.
+   */
+  protected async agir(): Promise<void> {
     if (this.allure() !== 'pret') {
       return;
     }
-    const partie = await this.incidents.pendant(() => this.pack.jouer());
-    if (!partie) {
+    if (this.bouton() === 'installer') {
+      await this.installer();
       return;
     }
-    if (partie.introuvables.length > 0) {
+    await this.jouer();
+  }
+
+  private async installer(): Promise<void> {
+    const rendu = await this.incidents.pendant(() => this.pack.installer());
+    if (!rendu) {
+      return;
+    }
+    if (rendu.introuvables.length > 0) {
       this.notifications.signaler(
         'warning',
-        `${partie.introuvables.length} mod(s) introuvable(s)`,
-        partie.introuvables.join(', '),
+        `${rendu.introuvables.length} mod(s) introuvable(s)`,
+        rendu.introuvables.join(', '),
       );
-    } else if (partie.rattrapee) {
-      this.notifications.signaler('success', 'Pack mis à jour', partie.verdict);
+      return;
+    }
+    this.notifications.signaler('success', 'Pack installé', rendu.verdict);
+  }
+
+  private async jouer(): Promise<void> {
+    const rendu = await this.incidents.pendant(() => this.pack.jouer());
+    if (!rendu) {
+      return;
+    }
+    if (rendu.introuvables.length > 0) {
+      this.notifications.signaler(
+        'warning',
+        `${rendu.introuvables.length} mod(s) introuvable(s)`,
+        rendu.introuvables.join(', '),
+      );
+    } else if (rendu.rattrapee) {
+      this.notifications.signaler('success', 'Pack mis à jour', rendu.verdict);
     }
   }
 
@@ -226,4 +331,17 @@ export class Playbar {
     const version = this.etat()?.version;
     return version ? ` · ${version}` : '';
   }
+}
+
+/**
+ * Le nom seul d'un chemin.
+ *
+ * Rust peut annoncer un chemin complet, et une ligne d'information qui affiche
+ * `/home/…/shared/libraries/net/neoforged/…/neoforge-21.1.250-universal.jar`
+ * déborde la fenêtre et ne se lit pas. Fonction libre : elle ne dépend de rien
+ * du composant, et c'est ce qui la rend éprouvable seule.
+ */
+export function nomDeFichier(chemin: string): string {
+  const morceaux = chemin.split(/[\\/]/);
+  return morceaux[morceaux.length - 1] || chemin;
 }

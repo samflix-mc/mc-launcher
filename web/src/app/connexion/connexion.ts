@@ -5,7 +5,6 @@ import { LucideAngularModule } from 'lucide-angular';
 import { Check, Copy, ExternalLink, TriangleAlert } from '../noyau/icones';
 import { Incidents } from '../noyau/incidents';
 import { Journal } from '../noyau/journal';
-import { Notifications } from '../noyau/notifications';
 import { Fenetre } from '../noyau/fenetre';
 import { Pont } from '../noyau/pont';
 import { Session } from '../noyau/session';
@@ -53,7 +52,6 @@ type Pas = 'inviter' | 'code' | 'fait' | 'sans-licence';
 export class Connexion {
   private readonly session = inject(Session);
   private readonly incidents = inject(Incidents);
-  private readonly notifications = inject(Notifications);
   private readonly pont = inject(Pont);
   private readonly fenetre = inject(Fenetre);
   private readonly router = inject(Router);
@@ -113,8 +111,6 @@ export class Connexion {
         // le dit. C'est le quatrième état de la page.
         return;
       }
-      this.notifications.signaler('success', 'Connecté', this.compte()?.pseudo ?? null);
-
       // L'écran « c'est fait » AVANT la bascule : sans lui, la connexion
       // réussit et la fenêtre disparaît dans la même image, ce qui se lit comme
       // un plantage plutôt que comme une réussite.

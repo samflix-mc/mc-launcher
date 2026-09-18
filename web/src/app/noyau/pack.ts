@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 
-import type { Avancement, EtapeVue, EtatDuPack, Partie, Phase } from './contrats';
+import type { Avancement, CompteRendu, EtapeVue, EtatDuPack, Phase } from './contrats';
 import { Pont } from './pont';
 import * as format from './format';
 
@@ -49,7 +49,8 @@ export class Pack {
   readonly etat = signal<EtatDuPack | null>(null);
   readonly chemin = signal<EtapeVue[]>([]);
   readonly avancement = signal<Avancement | null>(null);
-  readonly derniereePartie = signal<Partie | null>(null);
+  /** Ce que le dernier geste — installation ou partie — a laissé. */
+  readonly dernierCompteRendu = signal<CompteRendu | null>(null);
 
   /** Vrai pendant que le rattrapage ou la partie tournent. */
   readonly occupe = signal(false);
@@ -160,21 +161,43 @@ export class Pack {
   }
 
   /**
-   * LE geste.
+   * Pose ce qu'il y a à poser, et s'arrête là.
+   *
+   * Le geste du bouton quand quelque chose manque ou a bougé. Il ne lance pas
+   * le jeu : c'est un second clic, sur un bouton qui dira alors « Jouer ».
+   */
+  async installer(): Promise<CompteRendu> {
+    return this.pendantLeGeste(() => this.pont.installer());
+  }
+
+  /**
+   * Vérifie, rattrape s'il le faut, puis lance la partie.
    *
    * `occupe` couvre tout l'appel ; `enPartie` ne s'allume qu'une fois le
    * rattrapage fini — c'est-à-dire quand la cinématique atteint « lancement ».
    * Les distinguer est ce qui permet au bouton de dire « Installation… » puis
    * « En jeu » plutôt qu'un « Occupé » indistinct pendant vingt minutes.
    */
-  async jouer(): Promise<Partie> {
+  async jouer(): Promise<CompteRendu> {
+    return this.pendantLeGeste(() => this.pont.jouer());
+  }
+
+  /**
+   * Ce que les deux gestes ont en commun.
+   *
+   * Extrait parce que les trois temps — lever `occupe`, retenir le compte
+   * rendu, relire le disque — doivent être les mêmes : les recopier laisserait
+   * un jour l'un des deux oublier de rafraîchir, et le bouton garderait le
+   * libellé d'avant l'installation qu'il vient de faire.
+   */
+  private async pendantLeGeste(geste: () => Promise<CompteRendu>): Promise<CompteRendu> {
     this.occupe.set(true);
     try {
-      const partie = await this.pont.jouer();
-      this.derniereePartie.set(partie);
+      const rendu = await geste();
+      this.dernierCompteRendu.set(rendu);
       // Le disque a changé : l'état d'avant ne vaut plus.
       await this.rafraichir();
-      return partie;
+      return rendu;
     } finally {
       this.occupe.set(false);
     }

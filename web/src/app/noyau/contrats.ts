@@ -94,10 +94,17 @@ export interface EtatDuPack {
   readonly generation: number;
 }
 
-/** Ce qu'une partie a laissé en s'arrêtant. */
-export interface Partie {
+/**
+ * Ce qu'un geste a laissé derrière lui.
+ *
+ * **Le même type pour installer et pour jouer** : les deux laissent les mêmes
+ * traces — des mods introuvables, des écarts au verrou, une purge — et seul le
+ * `verdict` diffère. Deux types jumeaux obligeraient l'écran à porter deux
+ * chemins d'affichage pour dire la même chose.
+ */
+export interface CompteRendu {
   readonly verdict: string;
-  /** Une installation a-t-elle eu lieu avant la partie ? */
+  /** Quelque chose a-t-il été posé ? */
   readonly rattrapee: boolean;
   readonly introuvables: readonly string[];
   readonly ecarts: readonly string[];

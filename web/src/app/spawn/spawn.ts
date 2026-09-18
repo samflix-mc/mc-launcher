@@ -75,7 +75,7 @@ export class Spawn {
   private readonly trace = inject(Journal);
 
   protected readonly etat = this.pack.etat;
-  protected readonly partie = this.pack.derniereePartie;
+  protected readonly bilan = this.pack.dernierCompteRendu;
 
   protected readonly epinglee = this.nouvelles.epinglee;
 
@@ -138,14 +138,14 @@ export class Spawn {
     }
   });
 
-  protected readonly introuvables = computed(() => this.partie()?.introuvables ?? []);
-  protected readonly ecarts = computed(() => this.partie()?.ecarts ?? []);
-  protected readonly purge = computed(() => this.partie()?.purge ?? []);
+  protected readonly introuvables = computed(() => this.bilan()?.introuvables ?? []);
+  protected readonly ecarts = computed(() => this.bilan()?.ecarts ?? []);
+  protected readonly purge = computed(() => this.bilan()?.purge ?? []);
 
-  /** Y a-t-il quelque chose à dire de la dernière partie ? */
+  /** Y a-t-il quelque chose à dire du dernier geste ? */
   protected readonly compteRendu = computed(
     () =>
-      this.partie() !== null &&
+      this.bilan() !== null &&
       (this.introuvables().length > 0 || this.ecarts().length > 0 || this.purge().length > 0),
   );
 

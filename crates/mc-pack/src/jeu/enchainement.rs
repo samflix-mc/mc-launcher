@@ -1,17 +1,22 @@
-//! Le geste unique : vérifier, rattraper s'il le faut, puis jouer.
+//! Vérifier, rattraper s'il le faut — et jouer, ou pas.
 //!
-//! ## Ce que cela renverse, et pourquoi
+//! ## Deux entrées, et pourquoi il y en a deux
 //!
-//! `docs/lancement.md`, `docs/interface.md` et l'en-tête de `jeu.rs` posaient
-//! « installer et jouer restent deux gestes », avec un motif juste : enchaîner
-//! les deux ferait attendre huit cents mégaoctets à qui voulait seulement
-//! jouer.
+//! [`mettre_a_jour`] pose ce qu'il faut poser et rend la main. [`mettre_a_jour_et_jouer`]
+//! enchaîne sur la partie. Les deux partagent leur première moitié, et c'est
+//! délibéré : la vérification passe AVANT tout dans les deux cas — lancer
+//! d'abord et vérifier ensuite ferait entrer le joueur avec des registres
+//! NeoForge qui ne concordent plus.
 //!
-//! Ce module RÉSOUT ce motif au lieu de le contredire. Depuis qu'une
-//! comparaison d'empreintes coûte quelques dizaines de kilooctets, le cas
-//! courant — rien n'a bougé — ne fait plus attendre personne. Et le cas où
-//! quelque chose a bougé est précisément celui où ne rien faire donnerait une
-//! éjection à la connexion, sans message utile.
+//! Il n'y a eu qu'une entrée pendant un temps, celle qui enchaîne, sous le nom
+//! de « geste unique ». Sam l'a reprise à la recette : cliquer pour poser un
+//! modpack et voir Minecraft démarrer n'est pas ce qu'on a demandé. Poser huit
+//! cents mégaoctets et jouer sont deux intentions.
+//!
+//! Ce que le geste unique avait résolu n'est pas perdu : la comparaison coûte
+//! quelques dizaines de kilooctets, le cas courant — rien n'a bougé — ne fait
+//! attendre personne, et le cas où quelque chose a bougé est précisément celui
+//! où ne rien faire donnerait une éjection à la connexion sans message utile.
 //!
 //! Le CLI garde ses deux commandes : `install` et `launch` sont des usages
 //! d'outilleur, où l'on veut décider soi-même de ce qui se passe.
@@ -26,7 +31,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use crate::comparaison::{Ecart, EtatDuPack};
+use crate::comparaison::EtatDuPack;
 use crate::progression::Rapport;
 use crate::source::Source;
 use crate::{Options, Outcome};
@@ -78,6 +83,47 @@ impl Deroulement {
     }
 }
 
+/// Vérifie, et rattrape s'il le faut. **Sans lancer le jeu.**
+///
+/// ## Pourquoi les deux gestes se séparent de nouveau
+///
+/// Le geste unique posait qu'un seul bouton vérifie, rattrape et lance. À
+/// l'usage, Sam l'a repris là-dessus, et le motif est net : cliquer pour poser
+/// un modpack et voir Minecraft démarrer tout seul n'est pas ce qu'on a
+/// demandé. Poser huit cents mégaoctets et jouer sont deux intentions, et la
+/// seconde ne se déduit pas de la première.
+///
+/// Ce que le geste unique avait résolu n'est pas perdu pour autant : la
+/// vérification reste en tête des DEUX chemins, elle coûte toujours quelques
+/// dizaines de kilooctets, et personne n'attend un téléchargement pour jouer à
+/// un pack déjà à jour.
+pub async fn mettre_a_jour(
+    source: &Source,
+    options: &Options,
+    rapport: Arc<dyn Rapport>,
+) -> Result<Deroulement> {
+    let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
+
+    // C'est pendant la comparaison que la fenêtre a l'air figée : quelques
+    // centaines de millisecondes de réseau sans qu'aucune étape ne s'allume.
+    rapport.note("Vérification du pack…");
+    let etat = crate::comparaison::comparer(source, options, &dl).await;
+
+    let installation = if doit_rattraper(&etat) {
+        tracing::info!(ecart = ?etat.ecart, "rattrapage du pack");
+        Some(crate::install(source, options, Arc::clone(&rapport)).await?)
+    } else {
+        tracing::info!(ecart = ?etat.ecart, "rien à rattraper");
+        None
+    };
+
+    Ok(Deroulement {
+        etat,
+        installation,
+        partie: None,
+    })
+}
+
 /// Vérifie, rattrape s'il le faut, puis lance la partie.
 ///
 /// L'ordre n'est pas négociable : c'est la comparaison qui décide, et elle
@@ -92,20 +138,9 @@ pub async fn mettre_a_jour_et_jouer(
     confort: super::Confort,
     rapport: Arc<dyn Rapport>,
 ) -> Result<Deroulement> {
-    let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
-
-    // C'est pendant la comparaison que la fenêtre a l'air figée : quelques
-    // centaines de millisecondes de réseau sans qu'aucune étape ne s'allume.
-    rapport.note("Vérification du pack…");
-    let etat = crate::comparaison::comparer(source, options, &dl).await;
-
-    let installation = if doit_rattraper(&etat) {
-        tracing::info!(ecart = ?etat.ecart, "rattrapage avant la partie");
-        Some(crate::install(source, options, Arc::clone(&rapport)).await?)
-    } else {
-        tracing::info!(ecart = ?etat.ecart, "rien à rattraper");
-        None
-    };
+    let Deroulement {
+        etat, installation, ..
+    } = mettre_a_jour(source, options, Arc::clone(&rapport)).await?;
 
     let partie = super::preparer(
         source,
@@ -137,13 +172,7 @@ pub async fn mettre_a_jour_et_jouer(
 /// d'empreintes, sans rien apprendre, au moment précis où le joueur n'a pas de
 /// réseau et veut seulement jouer.
 pub fn doit_rattraper(etat: &EtatDuPack) -> bool {
-    if etat.hors_ligne {
-        return false;
-    }
-    match etat.ecart {
-        Ecart::Absent | Ecart::MiseAJour | Ecart::Reinstallation => true,
-        Ecart::AJour | Ecart::Inconnu => false,
-    }
+    crate::comparaison::a_poser(etat.ecart, etat.hors_ligne)
 }
 
 #[cfg(test)]

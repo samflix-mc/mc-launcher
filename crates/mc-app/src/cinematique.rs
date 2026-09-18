@@ -134,6 +134,28 @@ pub async fn etat_du_pack() -> Result<mc_pack::EtatDuPack> {
     Ok(mc_pack::comparer(&source, &options, &dl).await)
 }
 
+/// Vérifier, rattraper s'il le faut — et **rendre la main sans jouer**.
+///
+/// Le chemin du bouton INSTALLER. La garde d'émission est posée en tête, comme
+/// pour l'autre : c'est pendant la comparaison que la fenêtre a l'air figée.
+pub async fn mettre_a_jour(app: &AppHandle, suivi: &Arc<Suivi>) -> Result<mc_pack::Deroulement> {
+    let (source, options) = ou_installer();
+
+    let _emission = emettre(app.clone(), Arc::clone(suivi));
+
+    let rapport: Arc<dyn mc_pack::Rapport> = Arc::new(VersLaFenetre {
+        suivi: Arc::clone(suivi),
+    });
+
+    let deroulement = mc_pack::mettre_a_jour(&source, &options, rapport)
+        .await
+        .context("installation du pack")?;
+
+    suivi.termine(Phase::Pret);
+    pousser(app, suivi);
+    Ok(deroulement)
+}
+
 /// LE geste : vérifier, rattraper s'il le faut, puis jouer.
 ///
 /// ## La garde d'émission est en TÊTE, et c'est le point

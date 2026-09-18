@@ -155,9 +155,15 @@ impl Etat {
     }
 
     /// Ce qu'une partie rend, une fois le jeu refermé.
-    pub(crate) fn partie(self) -> crate::commandes::pack::Partie {
-        crate::commandes::pack::Partie {
-            verdict: "Partie terminée.".to_string(),
+    pub(crate) fn partie(self, avec_partie: bool) -> crate::commandes::pack::CompteRendu {
+        crate::commandes::pack::CompteRendu {
+            verdict: if avec_partie {
+                "Partie terminée.".to_string()
+            } else if matches!(self, Etat::ARattraper) {
+                "Le pack est installé.".to_string()
+            } else {
+                "Le pack était déjà à jour : rien à poser.".to_string()
+            },
             rattrapee: matches!(self, Etat::ARattraper),
             introuvables: match self {
                 Etat::ModsIntrouvables => vec![

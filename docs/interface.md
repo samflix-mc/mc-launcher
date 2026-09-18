@@ -280,16 +280,29 @@ donc pas de saut à empêcher. Le drapeau, en revanche, exige un
 `router.initialNavigation()` explicite dont l'oubli donne une fenêtre bloquée
 sur son écran de démarrage, **sans une erreur en console**.
 
-## Un seul bouton
+## Un seul bouton, deux gestes
 
-`docs/lancement.md` et les en-têtes de `mc-pack` posaient « installer et jouer
-restent deux gestes », avec un motif juste : enchaîner les deux ferait attendre
-huit cents mégaoctets à qui voulait seulement jouer.
+Le launcher récupère le verrou publié — quelques kilooctets — et compare son
+empreinte, sur la forme canonique et non sur les octets reçus, à celle du verrou
+posé. Il sait donc, avant de proposer quoi que ce soit, s'il y a quelque chose à
+rattraper.
 
-Le bouton unique **résout ce motif au lieu de le contredire**. Le launcher
-récupère le verrou publié — quelques kilooctets — et compare son empreinte, sur
-la forme canonique et non sur les octets reçus, à celle du verrou posé. Il sait
-donc, avant de proposer quoi que ce soit, s'il y a quelque chose à rattraper.
+**Ce qu'il en fait a changé à la recette.** Le bouton a d'abord enchaîné les
+deux : « Mettre à jour et jouer » posait la mise à jour puis lançait Minecraft.
+Sam l'a repris là-dessus — « ça lance le jeu alors qu'on voulait juste installer
+le modpack » — et le motif est net : poser huit cents mégaoctets et jouer sont
+deux intentions, et la seconde ne se déduit pas de la première.
+
+Dès qu'il y a quelque chose à poser, **le bouton pose et s'arrête** ; il devient
+alors « Jouer », et c'est un second clic. Ce que le geste unique avait résolu
+n'est pas perdu pour autant : la vérification reste en tête des deux chemins,
+elle coûte toujours quelques dizaines de kilooctets, et personne n'attend un
+téléchargement pour jouer à un pack déjà à jour.
+
+La règle vit en **un seul endroit** — `mc_pack::comparaison::a_poser` — que
+`Action` expose au front et que `jeu::doit_rattraper` suit. Deux copies
+diraient un jour deux choses différentes, et le bouton proposerait de jouer à un
+pack que l'installation vient de décider de reposer.
 
 Il vit dans la **coque** et non dans Spawn : ce n'est pas une décision de la
 page, c'est l'état du disque et celui de la session qui le pilotent. Le design
@@ -300,15 +313,29 @@ system le place au centre de la barre du bas.
 | on ne sait pas encore | « Vérification… », et surtout pas « Installer » |
 | rien d'installé | **Installer** |
 | installé et conforme | **Jouer** |
-| installé, verrou différent | **Mettre à jour et jouer** |
-| génération changée | **Réinstaller et jouer** |
-| une opération en cours | le remplissage, le pourcentage et le débit |
+| installé, verrou différent | **Mettre à jour** — et rien d'autre |
+| génération changée | **Réinstaller** — et rien d'autre |
+| une opération en cours | le remplissage et le pourcentage, plus le débit quand quelque chose descend |
 | le jeu tourne | « En jeu », inerte |
 | hors ligne et rien d'installé | inerte, avec la raison |
 
-**La phrase au-dessus du bouton n'est pas décorative** : c'est elle qui dit
-POURQUOI le bouton est ce qu'il est. Sans elle, l'écran demande de deviner — ce
-qui était exactement le reproche fait à l'ancienne page Spawn.
+**Les deux lignes au-dessus du bouton ne sont pas décoratives.** La première dit
+POURQUOI le bouton est ce qu'il est ; sans elle, l'écran demande de deviner — ce
+qui était exactement le reproche fait à l'ancienne page Spawn. Pendant le
+travail, elle nomme l'étape et son rang.
+
+La seconde n'existe que pendant le travail, et c'est l'autre retour de recette :
+« on sait à peu près à quelle étape on est, mais pas ce qu'on télécharge, ni à
+quelle vitesse ». Elle porte le fichier en cours, le compte de fichiers, les
+octets, le débit et le temps restant — toutes des valeurs que `Suivi` émettait
+déjà cinq fois par seconde et que personne n'affichait.
+
+Le pourcentage, lui, **survit aux creux entre deux lots**. `actif` retombe à
+faux pendant la résolution des mods, l'inspection des jars et l'installateur
+NeoForge : le bouton n'affichait alors plus aucun chiffre, ce qui se lit comme
+un blocage. Il suit la progression GLOBALE, bornée par la phase atteinte — entre
+deux lots elle stagne, ce qui est la vérité, là où la progression d'un lot
+sauterait à cent pour cent.
 
 Entre l'affichage de la page et la réponse de `etat_du_pack()`, le bouton dit
 qu'il regarde. Une valeur par défaut « Installer » produirait un clignotement
