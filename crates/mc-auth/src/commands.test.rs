@@ -9,6 +9,7 @@ use super::{logout, offline, whoami};
 struct Configuration {
     root: std::path::PathBuf,
     previous: Option<std::ffi::OsString>,
+    previous_keyring: Option<std::ffi::OsString>,
 }
 
 static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -27,10 +28,31 @@ fn configuration(name: &str) -> Configuration {
     std::fs::create_dir_all(&root).unwrap();
 
     let previous = std::env::var_os("XDG_CONFIG_HOME");
+    let previous_keyring = std::env::var_os("SAMFLIX_NO_KEYRING");
     unsafe {
         std::env::set_var("XDG_CONFIG_HOME", &root);
+        // **`XDG_CONFIG_HOME` isolates the FILE, and nothing else.**
+        //
+        // The keyring has no such lever: it belongs to the user's session,
+        // and there is exactly one of it. Without this variable, the
+        // `logout` test below calls `erase`, which finds the keyring
+        // allowed and wipes the REAL `samflix-mc/session-minecraft` entry
+        // of whoever runs the suite.
+        //
+        // That is not a theory. The symptom is a Microsoft sign-in demanded
+        // after every `cargo test`, and it was diagnosed by planting a
+        // known value in the entry, running the suite, and finding it gone.
+        //
+        // `tests/command_line.rs` already sets it for the subprocesses it
+        // spawns. These tests call `logout()` IN PROCESS, so they need it
+        // here too — and that is precisely what had been missed.
+        std::env::set_var("SAMFLIX_NO_KEYRING", "1");
     }
-    Configuration { root, previous }
+    Configuration {
+        root,
+        previous,
+        previous_keyring,
+    }
 }
 
 impl Drop for Configuration {
@@ -39,6 +61,10 @@ impl Drop for Configuration {
             match self.previous.take() {
                 Some(value) => std::env::set_var("XDG_CONFIG_HOME", value),
                 None => std::env::remove_var("XDG_CONFIG_HOME"),
+            }
+            match self.previous_keyring.take() {
+                Some(value) => std::env::set_var("SAMFLIX_NO_KEYRING", value),
+                None => std::env::remove_var("SAMFLIX_NO_KEYRING"),
             }
         }
         std::fs::remove_dir_all(&self.root).ok();

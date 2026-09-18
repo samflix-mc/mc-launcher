@@ -54,6 +54,18 @@ pub use file::path;
 /// Read on every call rather than cached: a suite sets the variable for the
 /// subprocess it spawns, and nothing guarantees the order in which the first
 /// accesses happen.
+///
+/// **Out of mutation scope, and this one is a safety interlock rather than a
+/// difficulty.** `load`, `save` and `erase` are already skipped for talking
+/// to the real wallet — but skipping them is not enough: this predicate is
+/// the SWITCH they consult. A mutant forcing it to `true` puts `erase` back
+/// on the machine's own keyring, whatever `SAMFLIX_NO_KEYRING` says, and the
+/// `logout` test then wipes the session of whoever ran `cargo mutants`.
+///
+/// The four forms the variable accepts are proven by `storage.test.rs`, on
+/// the predicate alone and without touching a wallet. What mutation would
+/// add here is not coverage, it is the ability to sign the user out.
+#[mutants::skip]
 fn keyring_allowed() -> bool {
     !matches!(
         std::env::var("SAMFLIX_NO_KEYRING").as_deref(),
