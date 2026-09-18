@@ -30,6 +30,10 @@ mod cinematique;
 mod commandes;
 mod csp;
 mod demarrage;
+// Le launcher sans sa fenêtre, servi sur HTTP. Derrière une feature qui n'est
+// pas activée par défaut : `cargo tauri build` ne le compile pas.
+#[cfg(feature = "dev-serveur")]
+pub mod dev;
 mod diagnostic;
 mod marque;
 mod navigation;

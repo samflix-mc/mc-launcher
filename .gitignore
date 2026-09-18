@@ -17,6 +17,12 @@
 /web/node_modules
 /web/dist
 /web/.angular
+# Le même cache, quand une commande Angular est lancée depuis la racine.
+/.angular
 
 # Rapports de couverture du front, produits par « pnpm test:couverture ».
 web/coverage/
+
+# Réglages locaux de Claude Code (isolation, permissions) : ils décrivent le
+# poste, pas le projet.
+/.claude/

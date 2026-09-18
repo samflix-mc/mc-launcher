@@ -1,7 +1,5 @@
 import { Injectable } from '@angular/core';
-import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { openUrl } from '@tauri-apps/plugin-opener';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 
 import type {
   Avancement,
@@ -16,6 +14,7 @@ import type {
   Partie,
   Reglages,
 } from './contrats';
+import { DANS_TAURI, appeler, ecouter, ouvrirHorsApplication } from './transport';
 
 const EVENEMENT_CODE = 'auth://code';
 const EVENEMENT_AVANCEMENT = 'cinematique://avancement';
@@ -34,8 +33,15 @@ const EVENEMENT_AVANCEMENT = 'cinematique://avancement';
  */
 @Injectable({ providedIn: 'root' })
 export class Pont {
-  /** Vrai dans la fenêtre Tauri, faux dans un navigateur ordinaire. */
-  readonly disponible = isTauri();
+  /**
+   * Y a-t-il quelqu'un à qui parler ?
+   *
+   * Vrai dans la fenêtre Tauri, et vrai AUSSI dans un navigateur quand le
+   * serveur de développement tourne — c'est ce qui permet de regarder
+   * l'interface ailleurs que dans la fenêtre. Faux dans une suite de tests,
+   * où il n'y a ni l'un ni l'autre.
+   */
+  readonly disponible = DANS_TAURI || serveurDeDeveloppement();
 
   // --- Le démarrage --------------------------------------------------------
 
@@ -50,32 +56,32 @@ export class Pont {
    * son contenu est peint. Le front est le seul à le savoir.
    */
   frontPret(): Promise<void> {
-    return invoke<void>('front_pret');
+    return appeler<void>('front_pret');
   }
 
   // --- Identité du launcher ------------------------------------------------
 
   marque(): Promise<Marque> {
-    return invoke<Marque>('marque');
+    return appeler<Marque>('marque');
   }
 
   chemin(): Promise<EtapeVue[]> {
-    return invoke<EtapeVue[]>('chemin');
+    return appeler<EtapeVue[]>('chemin');
   }
 
   // --- Session -------------------------------------------------------------
 
   statut(): Promise<Compte | null> {
-    return invoke<Compte | null>('statut');
+    return appeler<Compte | null>('statut');
   }
 
   /** Ouvre une session Microsoft. Ne rend la main qu'une fois le code validé. */
   connexion(): Promise<Compte> {
-    return invoke<Compte>('connexion');
+    return appeler<Compte>('connexion');
   }
 
   deconnexion(): Promise<void> {
-    return invoke<void>('deconnexion');
+    return appeler<void>('deconnexion');
   }
 
   /**
@@ -86,14 +92,14 @@ export class Pont {
    * attente.
    */
   surCodeAppareil(recevoir: (code: CodeAppareil) => void): Promise<UnlistenFn> {
-    return listen<CodeAppareil>(EVENEMENT_CODE, (evenement) => recevoir(evenement.payload));
+    return ecouter<CodeAppareil>(EVENEMENT_CODE, recevoir);
   }
 
   // --- Le pack -------------------------------------------------------------
 
   /** Ce que le disque et le pack publié disent. Quelques dizaines de kio. */
   etatDuPack(): Promise<EtatDuPack> {
-    return invoke<EtatDuPack>('etat_du_pack');
+    return appeler<EtatDuPack>('etat_du_pack');
   }
 
   /**
@@ -103,40 +109,40 @@ export class Pont {
    * événement pendant tout ce temps.
    */
   jouer(): Promise<Partie> {
-    return invoke<Partie>('jouer');
+    return appeler<Partie>('jouer');
   }
 
   verifierLesFichiers(profond: boolean): Promise<string[]> {
-    return invoke<string[]>('verifier_les_fichiers', { profond });
+    return appeler<string[]>('verifier_les_fichiers', { profond });
   }
 
   surAvancement(recevoir: (avancement: Avancement) => void): Promise<UnlistenFn> {
-    return listen<Avancement>(EVENEMENT_AVANCEMENT, (evenement) => recevoir(evenement.payload));
+    return ecouter<Avancement>(EVENEMENT_AVANCEMENT, recevoir);
   }
 
   // --- Les nouvelles -------------------------------------------------------
 
   nouvelles(): Promise<Fil> {
-    return invoke<Fil>('nouvelles');
+    return appeler<Fil>('nouvelles');
   }
 
   // --- Les réglages --------------------------------------------------------
 
   reglages(): Promise<Reglages> {
-    return invoke<Reglages>('reglages');
+    return appeler<Reglages>('reglages');
   }
 
   /** Rend ce qui a été ÉCRIT, et non ce qu'on a envoyé. Voir `mc-reglages`. */
   enregistrerReglages(reglages: Reglages): Promise<Reglages> {
-    return invoke<Reglages>('enregistrer_reglages', { reglages });
+    return appeler<Reglages>('enregistrer_reglages', { reglages });
   }
 
   ecran(): Promise<Ecran | null> {
-    return invoke<Ecran | null>('ecran');
+    return appeler<Ecran | null>('ecran');
   }
 
   ouvrirDossier(quoi: Dossier): Promise<void> {
-    return invoke<void>('ouvrir_dossier', { quoi });
+    return appeler<void>('ouvrir_dossier', { quoi });
   }
 
   // --- Le système ----------------------------------------------------------
@@ -149,7 +155,7 @@ export class Pont {
    * façon. C'est le chemin de sortie de tout lien d'un billet.
    */
   ouvrirPage(url: string): Promise<void> {
-    return openUrl(url);
+    return ouvrirHorsApplication(url);
   }
 }
 
@@ -183,4 +189,25 @@ export function messageDErreur(cause: unknown): string {
   } catch {
     return String(cause);
   }
+}
+
+/**
+ * Le serveur de développement est-il censé répondre ?
+ *
+ * On ne peut pas le savoir sans l'interroger, et `disponible` est lu de façon
+ * synchrone par toute l'interface. On se fie donc au contexte : un navigateur
+ * qui sert le front depuis la boucle locale est un poste de développement, et
+ * c'est le seul cas où le serveur existe.
+ *
+ * Dans une suite de tests — jsdom — `location.hostname` est `localhost` mais
+ * il n'y a pas de serveur : les appels échoueront, et c'est voulu. Les tests
+ * qui comptent sur l'absence de pont passent par les services de `noyau/`,
+ * lesquels lisent `disponible` et se taisent. C'est pourquoi `jsdom` est
+ * écarté explicitement.
+ */
+function serveurDeDeveloppement(): boolean {
+  if (typeof window === 'undefined' || navigator.userAgent.includes('jsdom')) {
+    return false;
+  }
+  return ['localhost', '127.0.0.1'].includes(window.location.hostname);
 }

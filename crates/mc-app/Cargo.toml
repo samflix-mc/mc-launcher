@@ -11,6 +11,21 @@ license.workspace = true
 name = "mc_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Le serveur de développement, et la garantie qu'il ne part pas en production.
+#
+# Non activée par défaut, donc `cargo tauri build` ne la voit jamais : le code
+# du serveur n'est pas « désactivé » dans le binaire du launcher, il n'y est
+# pas. Le binaire qui la porte est déclaré plus bas avec `required-features`.
+[features]
+dev-serveur = []
+
+# Le launcher sans sa fenêtre, servi sur HTTP — pour travailler l'interface
+# dans un navigateur ordinaire, avec le rechargement à chaud.
+[[bin]]
+name = "mc-dev-serveur"
+path = "src/bin/dev-serveur.rs"
+required-features = ["dev-serveur"]
+
 [build-dependencies]
 tauri-build.workspace = true
 
