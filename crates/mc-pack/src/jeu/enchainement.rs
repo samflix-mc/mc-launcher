@@ -151,7 +151,7 @@ pub async fn mettre_a_jour_et_jouer(
         Arc::clone(&rapport),
     )
     .await?;
-    let compte_rendu = super::jouer(&partie).await?;
+    let compte_rendu = super::jouer_annonce(&partie, rapport.as_ref()).await?;
 
     Ok(Deroulement {
         etat,

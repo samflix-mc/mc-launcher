@@ -150,6 +150,13 @@ pub async fn router(contexte: Arc<Contexte>, requete: Requete) -> Reponse {
         // ouvrirait en incident, sur un geste qui n'a simplement pas lieu ici.
         "ouvrir_connexion" | "principale_prete" => Reponse::vide(),
 
+        // Arrêter une partie qui n'existe pas dans un navigateur : on répond
+        // comme si c'était fait, pour que le geste soit travaillable ici.
+        "arreter_le_jeu" => {
+            tracing::info!("arrêt du jeu demandé (simulé)");
+            Reponse::vide()
+        }
+
         // Le front journalise ici aussi, sous l'étiquette « navigateur » : il
         // n'y a pas de fenêtre à interroger, et la séquence reste lisible dans
         // le même flux que le reste.
@@ -290,6 +297,7 @@ fn accueil(etat: Etat) -> Reponse {
             "connexion_reussie",
             "principale_prete",
             "journal",
+            "arreter_le_jeu",
         ]
         .into_iter()
         .map(str::to_string)

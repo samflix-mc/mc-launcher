@@ -39,6 +39,7 @@ pub mod dev;
 mod diagnostic;
 mod marque;
 mod navigation;
+mod partie;
 mod phase;
 mod recette;
 mod suivi;
@@ -144,6 +145,8 @@ pub fn run() {
             commandes::pack::installer,
             commandes::pack::jouer,
             commandes::pack::verifier_les_fichiers,
+            // De quoi reprendre la main sur un jeu qui ne répond plus.
+            partie::arreter_le_jeu,
             // Les nouvelles du réseau.
             commandes::nouvelles::nouvelles,
             // Les réglages, et ce que l'écran permet.

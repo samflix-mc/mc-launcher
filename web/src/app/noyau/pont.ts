@@ -199,6 +199,17 @@ export class Pont {
     return appeler<CompteRendu>('jouer');
   }
 
+  /**
+   * Arrête la partie en cours, sans ménagement.
+   *
+   * Pour un jeu qui ne répond plus : c'est le seul cas où ce geste sert, et
+   * c'est aussi celui où demander poliment ne marche pas. `jouer()` rendra la
+   * main peu après, avec le compte rendu d'une partie interrompue.
+   */
+  arreterLeJeu(): Promise<void> {
+    return appeler<void>('arreter_le_jeu');
+  }
+
   verifierLesFichiers(profond: boolean): Promise<string[]> {
     return appeler<string[]>('verifier_les_fichiers', { profond });
   }

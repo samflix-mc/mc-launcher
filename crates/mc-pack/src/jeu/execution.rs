@@ -22,6 +22,20 @@ use super::incidents::{report_game_crash, report_game_error};
 /// se termine. Ce qu'elle en tire est vérifié chez `mc_instance::launch`.
 #[mutants::skip]
 pub async fn jouer(partie: &Partie) -> Result<mc_instance::launch::Report> {
+    jouer_annonce(partie, &crate::progression::Muet).await
+}
+
+/// Le même, en disant à qui écoute que le jeu a démarré.
+///
+/// L'annonce porte le numéro de processus : voir [`Rapport::partie_lancee`].
+/// Sans elle, la fenêtre n'a aucun moyen de distinguer « on prépare » de « ça
+/// tourne » — ce sont deux états du même appel, qui ne rend la main qu'à la
+/// fin de la partie.
+#[mutants::skip]
+pub async fn jouer_annonce(
+    partie: &Partie,
+    rapport: &dyn crate::progression::Rapport,
+) -> Result<mc_instance::launch::Report> {
     let Partie {
         instance,
         lock,
@@ -34,7 +48,8 @@ pub async fn jouer(partie: &Partie) -> Result<mc_instance::launch::Report> {
     // partie précédente, qui enverrait sur une fausse piste.
     let started_at = mc_instance::crash::now();
 
-    let report = mc_instance::launch::run(command).await?;
+    let report =
+        mc_instance::launch::run_observe(command, &|pid| rapport.partie_lancee(pid)).await?;
 
     // Remontées avant le verdict : une erreur survenue pendant une partie qui
     // s'est bien terminée compte autant qu'un plantage, et c'est elle qu'on ne

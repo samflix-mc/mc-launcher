@@ -36,6 +36,6 @@ mod instance;
 mod preparation;
 
 pub use enchainement::{Deroulement, doit_rattraper, mettre_a_jour, mettre_a_jour_et_jouer};
-pub use execution::{jouer, journaux};
+pub use execution::{jouer, jouer_annonce, journaux};
 pub use identite::Identite;
 pub use preparation::{Confort, Partie, preparer};

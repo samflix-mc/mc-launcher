@@ -186,17 +186,40 @@ describe('Playbar', () => {
 
   /**
    * La partie est le plus long état de la session. Confondre « occupé » et
-   * « en jeu » ferait répondre « une installation est déjà en cours » à
-   * quelqu'un qui clique pendant qu'il joue.
+   * « en jeu » ferait répondre « une opération est déjà en cours » à quelqu'un
+   * qui clique pendant qu'il joue.
+   *
+   * **Et le bouton se clique, désormais.** `jouer` ne rend la main qu'à la fin
+   * de la partie : un Minecraft figé sur un écran de chargement laissait le
+   * launcher bloqué là, sans autre issue que le gestionnaire de tâches.
    */
-  it('pendant la partie, le bouton le dit et ne se clique pas', () => {
+  it('pendant la partie, le bouton le dit — et reste cliquable', () => {
     pack.etat.set(etat());
     pack.avancement.set(avancement({ phase: 'lancement', actif: false }));
     const fixture = monter();
 
     expect(lire(fixture, 'bouton')).toContain('En jeu');
-    expect(fixture.nativeElement.querySelector('[data-test="bouton"]').disabled).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-test="bouton"]').disabled).toBe(false);
     expect(lire(fixture, 'indication')).toContain('Le jeu tourne');
+  });
+
+  /**
+   * **L'arrêt se demande deux fois.**
+   *
+   * Tuer le jeu fait perdre ce qui n'a pas été sauvegardé, et ce bouton occupe
+   * le centre de la barre du bas : un clic de trop y est vite arrivé. Le
+   * premier clic pose la question, le second seul agit.
+   */
+  it('le premier clic sur « En jeu » demande confirmation', () => {
+    pack.etat.set(etat());
+    pack.avancement.set(avancement({ phase: 'lancement', actif: false }));
+    const fixture = monter();
+
+    fixture.nativeElement.querySelector('[data-test="bouton"]').click();
+    fixture.detectChanges();
+
+    expect(lire(fixture, 'bouton')).toContain('Arrêter le jeu ?');
+    expect(lire(fixture, 'indication')).toContain('ne sera pas sauvegardée');
   });
 
   /**

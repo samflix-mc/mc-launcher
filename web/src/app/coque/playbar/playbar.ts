@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { LucideAngularModule, type LucideIconData } from 'lucide-angular';
 
-import { Download, Play, RefreshCw, Rocket, WifiOff } from '../../noyau/icones';
+import { Download, Play, RefreshCw, Rocket, Square, WifiOff } from '../../noyau/icones';
 import * as format from '../../noyau/format';
 import { Incidents } from '../../noyau/incidents';
 import { Notifications } from '../../noyau/notifications';
@@ -9,6 +9,14 @@ import { Pack } from '../../noyau/pack';
 
 /** L'allure du bouton, au sens du design system. */
 type Allure = 'pret' | 'occupe' | 'inerte';
+
+/**
+ * Combien de temps le bouton attend la confirmation d'un arrêt.
+ *
+ * Assez pour un second clic délibéré, assez peu pour qu'un bouton oublié sur
+ * « Arrêter le jeu ? » ne devienne pas un piège trois heures plus tard.
+ */
+const DELAI_DE_CONFIRMATION = 4000;
 
 /**
  * LE bouton, et ce qui s'écrit au-dessus de lui.
@@ -80,8 +88,12 @@ export class Playbar {
       case 'occupe':
       case 'inconnu':
         return 'occupe';
+      // **Cliquable, et c'est un ajout de recette.** `jouer` ne rend la main
+      // qu'à la fin de la partie : un Minecraft figé sur un écran de
+      // chargement laissait le launcher bloqué là, sans autre issue que le
+      // gestionnaire de tâches.
       case 'en-partie':
-        return 'inerte';
+        return 'pret';
     }
   });
 
@@ -127,7 +139,7 @@ export class Playbar {
       case 'occupe':
         return 'Installation…';
       case 'en-partie':
-        return 'En jeu';
+        return this.arretDemande() ? 'Arrêter le jeu ?' : 'En jeu';
     }
   });
 
@@ -144,7 +156,7 @@ export class Playbar {
       case 'jouer':
         return Play;
       case 'en-partie':
-        return Rocket;
+        return this.arretDemande() ? Square : Rocket;
       default:
         return null;
     }
@@ -175,7 +187,12 @@ export class Playbar {
     }
 
     if (this.bouton() === 'en-partie') {
-      return { texte: 'Le jeu tourne. Le launcher attend sa fin.', danger: false };
+      return this.arretDemande()
+        ? {
+            texte: 'Cliquez à nouveau pour forcer l’arrêt — la partie ne sera pas sauvegardée.',
+            danger: true,
+          }
+        : { texte: 'Le jeu tourne. Cliquez pour l’arrêter s’il ne répond plus.', danger: false };
     }
 
     if (this.enInstallation()) {
@@ -278,6 +295,20 @@ export class Playbar {
   private readonly enInstallation = computed(() => this.bouton() === 'occupe');
 
   /**
+   * L'arrêt a-t-il été demandé une première fois ?
+   *
+   * **Deux temps plutôt qu'une modale.** Tuer le jeu fait perdre ce qui n'a pas
+   * été sauvegardé, et ce bouton occupe le centre de la barre du bas : un clic
+   * de trop y est vite arrivé. Une modale serait plus lourde qu'il n'y paraît —
+   * il faudrait la fermer au clavier, la sortir du flux, lui donner un focus —
+   * là où le bouton lui-même peut poser la question.
+   *
+   * La demande retombe d'elle-même : un bouton resté sur « Arrêter le jeu ? »
+   * pendant une heure de partie serait un piège plutôt qu'une garde.
+   */
+  private readonly arretDemande = signal(false);
+
+  /**
    * LE clic.
    *
    * Deux gestes derrière un bouton, et c'est l'`Action` de Rust qui tranche :
@@ -287,11 +318,31 @@ export class Playbar {
     if (this.allure() !== 'pret') {
       return;
     }
+    if (this.bouton() === 'en-partie') {
+      this.arreter();
+      return;
+    }
     if (this.bouton() === 'installer') {
       await this.installer();
       return;
     }
     await this.jouer();
+  }
+
+  /**
+   * Premier clic : on demande. Second : on arrête.
+   *
+   * Le compte rendu de la partie interrompue arrivera par `jouer()`, qui est
+   * toujours en vol — ce n'est pas à ce geste-ci de l'annoncer.
+   */
+  private arreter(): void {
+    if (!this.arretDemande()) {
+      this.arretDemande.set(true);
+      setTimeout(() => this.arretDemande.set(false), DELAI_DE_CONFIRMATION);
+      return;
+    }
+    this.arretDemande.set(false);
+    void this.incidents.pendant(() => this.pack.arreterLeJeu());
   }
 
   private async installer(): Promise<void> {

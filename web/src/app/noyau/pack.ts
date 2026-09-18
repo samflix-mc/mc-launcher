@@ -183,6 +183,21 @@ export class Pack {
   }
 
   /**
+   * Arrête la partie en cours.
+   *
+   * Ne touche PAS à `occupe` : l'appel de `jouer()` est toujours en vol et
+   * rendra la main de lui-même, avec le compte rendu d'une partie interrompue.
+   * Le baisser ici rendrait le bouton cliquable pendant la seconde où le jeu
+   * meurt, et un second clic partirait sur une partie qui n'existe plus.
+   */
+  async arreterLeJeu(): Promise<void> {
+    if (!this.pont.disponible) {
+      return;
+    }
+    await this.pont.arreterLeJeu();
+  }
+
+  /**
    * Ce que les deux gestes ont en commun.
    *
    * Extrait parce que les trois temps — lever `occupe`, retenir le compte

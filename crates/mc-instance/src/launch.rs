@@ -31,7 +31,7 @@ mod session;
 mod variables;
 
 pub use commande::Command;
-pub use execution::{Outcome, Report, run};
+pub use execution::{Outcome, Report, run, run_observe};
 pub use session::{LaunchOptions, QuickPlay, Session};
 
 pub use chemin::build;

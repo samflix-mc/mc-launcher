@@ -32,6 +32,7 @@ function etat(dessus: Partial<EtatDuPack> = {}): EtatDuPack {
 describe('Playbar, le geste', () => {
   let installer: ReturnType<typeof vi.fn>;
   let jouer: ReturnType<typeof vi.fn>;
+  let arreterLeJeu: ReturnType<typeof vi.fn>;
   let pack: Pack;
 
   const rendu = {
@@ -47,13 +48,14 @@ describe('Playbar, le geste', () => {
     TestBed.resetTestingModule();
     installer = vi.fn(async () => rendu);
     jouer = vi.fn(async () => ({ ...rendu, verdict: 'Partie terminée.' }));
+    arreterLeJeu = vi.fn(async () => {});
     TestBed.configureTestingModule({
       providers: [
         {
           provide: Pont,
           // `disponible: false` neutralise le rafraîchissement qui suit le
           // geste : ce test porte sur l'appel, pas sur la relecture du disque.
-          useValue: { disponible: false, dansLaFenetre: false, installer, jouer },
+          useValue: { disponible: true, dansLaFenetre: false, installer, jouer, arreterLeJeu },
         },
       ],
     });
@@ -91,5 +93,40 @@ describe('Playbar, le geste', () => {
 
     expect(installer).toHaveBeenCalledOnce();
     expect(jouer).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **Le second clic seul arrête le jeu.**
+   *
+   * Le premier pose la question. Tuer Minecraft fait perdre ce qui n'a pas été
+   * sauvegardé, et ce bouton occupe le centre de la barre du bas : sans ce
+   * temps d'arrêt, un clic distrait coûterait une session de jeu.
+   */
+  it('l’arrêt du jeu demande deux clics', async () => {
+    pack.etat.set(etat());
+    pack.avancement.set({
+      phase: 'lancement',
+      achevee: false,
+      note: null,
+      fichier: null,
+      octets: 0,
+      total: 0,
+      fichiers: 0,
+      fichiersTotal: 0,
+      actif: false,
+      debit: 0,
+      restant: null,
+    });
+    const fixture = TestBed.createComponent(Playbar);
+    fixture.detectChanges();
+    const bouton = fixture.nativeElement.querySelector('[data-test="bouton"]');
+
+    bouton.click();
+    fixture.detectChanges();
+    expect(arreterLeJeu).not.toHaveBeenCalled();
+
+    bouton.click();
+    await new Promise((suite) => setTimeout(suite, 0));
+    expect(arreterLeJeu).toHaveBeenCalledOnce();
   });
 });

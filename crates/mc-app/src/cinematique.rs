@@ -86,6 +86,17 @@ impl mc_pack::Rapport for VersLaFenetre {
     fn resolution(&self, faits: usize, total: usize) {
         self.suivi.resolution(faits, total);
     }
+
+    /// **Le seul endroit qui sache que le jeu tourne.**
+    ///
+    /// `mc_pack::Etape` s'arrête au verrou : elle décrit une installation, et
+    /// la partie n'en fait pas partie. Faute de ce signal, la fenêtre restait
+    /// sur « Installation… » pendant toute la partie — jusqu'à trois heures,
+    /// sur un bouton qui annonçait un téléchargement terminé depuis longtemps.
+    fn partie_lancee(&self, pid: u32) {
+        crate::partie::demarree(pid);
+        self.suivi.phase(Phase::Lancement);
+    }
 }
 
 /// Ce que le joueur a réglé, tel que `mc-pack` l'attend.
@@ -190,8 +201,13 @@ pub async fn mettre_a_jour_et_jouer(
         confort_du_joueur(),
         rapport,
     )
-    .await
-    .context("lancement de la partie")?;
+    .await;
+
+    // **Avant le `?`, et c'est le point.** Un numéro de processus laissé
+    // derrière une partie qui a échoué serait réutilisé par le système pour un
+    // autre programme, et le bouton « arrêter » tuerait celui-là.
+    crate::partie::terminee();
+    let deroulement = deroulement.context("lancement de la partie")?;
 
     suivi.termine(Phase::Pret);
     pousser(app, suivi);

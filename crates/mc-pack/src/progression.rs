@@ -126,6 +126,21 @@ pub trait Rapport: Send + Sync + 'static {
     fn resolution(&self, faits: usize, total: usize) {
         let _ = (faits, total);
     }
+
+    /// Le jeu vient de démarrer, sous ce numéro de processus.
+    ///
+    /// Deux usages, et c'est pour cela que le numéro accompagne l'annonce. La
+    /// fenêtre doit dire que le jeu tourne — elle affichait « Installation… »
+    /// pendant toute la partie, faute de quoi que ce soit qui le lui dise. Et
+    /// elle doit pouvoir l'arrêter : un Minecraft figé sur un écran de
+    /// chargement ne rend jamais la main.
+    ///
+    /// Ignoré par défaut : un terminal n'en a pas l'usage, celui qui a lancé la
+    /// commande a déjà la main sur le processus.
+    #[mutants::skip]
+    fn partie_lancee(&self, pid: u32) {
+        let _ = pid;
+    }
 }
 
 /// Un rapport qui n'écoute rien.
