@@ -219,6 +219,55 @@ Une purge qui échoue n'arrête rien : un répertoire verrouillé par un antivir
 ou un point de montage ne doit pas empêcher d'installer. L'installation écrit
 par-dessus, et le compte rendu dit ce qui a résisté.
 
+### Éprouver la purge, sans toucher à son installation
+
+La chaîne complète — génération publiée, décision, effacement, réinstallation —
+ne se vérifie qu'en la jouant. Et la jouer sur sa propre installation coûte
+huit cents mégaoctets et un risque pour ses mondes.
+
+La recette monte un banc **isolé**, en une minute, et n'exige aucun changement
+publié :
+
+```bash
+T=$(mktemp -d)
+# Les gros fichiers sont partagés par version, pas par pack : les copier
+# évite huit cents mégaoctets de retéléchargement.
+cp -a ~/.local/share/samflix-mc/shared  "$T/donnees/samflix-mc/"
+cp -a ~/.local/share/samflix-mc/runtime "$T/donnees/samflix-mc/"
+
+# Un hôte à soi, qui sert le manifeste et le verrou de mc-content.
+cp ../mc-content/launcher/samflix*.json "$T/site/"
+(cd "$T/site" && python3 -m http.server 8731 --bind 127.0.0.1 &)
+
+# Génération 0 dans LES DEUX fichiers, puis on installe.
+XDG_DATA_HOME="$T/donnees" mc-pack install http://127.0.0.1:8731/samflix.json
+```
+
+On fabrique ensuite ce que la purge doit emporter — un `.jar.disabled`, un
+sous-répertoire dans `mods/` — **et ce qu'elle ne doit pas toucher** : un monde
+dans `saves/`, un réglage dans `config/`, un `options.txt`, une capture dans
+`screenshots/`. Puis on passe `generation` à 1 dans les deux fichiers servis et
+l'on réinstalle.
+
+Relevé le 18 septembre 2026, sur les quarante-neuf mods du pack :
+
+| | |
+|---|---|
+| `mods/ancien.jar.disabled` | **effacé** — c'est le résidu que le déploiement ordinaire ne voit pas |
+| `mods/vieux-dossier/` | **effacé** |
+| `shaderpacks/`, `resourcepacks/` | **effacés** |
+| `saves/MonMonde/` et sa région | intact |
+| `config/monmod.toml` | intact |
+| `options.txt` | intact |
+| `screenshots/` | intact |
+| `mods/` après coup | quarante-neuf, réinstallés |
+| `etat.json` | `generation: 1`, empreinte du nouveau verrou |
+
+Et la moitié qu'on oublie de vérifier : **relancer une troisième fois, sans
+toucher à la génération, ne purge rien**. Un témoin déposé entre les deux
+survit — sans quoi chaque installation effacerait le répertoire des mods pour
+le reposer à l'identique.
+
 ## Comparer sans installer
 
 La fenêtre a besoin d'une question que la ligne de commande ne pose jamais :

@@ -118,7 +118,8 @@ survivant**. Le détail est dans [qualite.md](docs/qualite.md).
 | [authentification.md](docs/authentification.md) | Microsoft, mode hors-ligne, et ce que ce launcher présente |
 | [interface.md](docs/interface.md) | la fenêtre : Tauri, Angular, le CSP, le build |
 | [nouvelles.md](docs/nouvelles.md) | le fil de news : le contrat JSON, et pourquoi aucun HTML n'atteint le DOM |
-| [qualite.md](docs/qualite.md) | les quatre workflows, couverture et mutation |
+| [journaux.md](docs/journaux.md) | où vont les journaux, ce qui est censuré, et les incidents |
+| [qualite.md](docs/qualite.md) | les six workflows, couverture et mutation |
 
 Le « pourquoi » de chaque décision est en tête du module concerné : c'est là
 qu'il reste juste, et ces fichiers n'en sont que le résumé.
