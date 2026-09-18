@@ -115,3 +115,25 @@ fn le_delai_de_garde_est_borne_des_deux_cotes() {
 fn le_passage_n_est_pas_fait_au_depart() {
     assert!(!PASSAGE_FAIT.load(Ordering::Acquire));
 }
+
+/// **La règle qui a coûté deux fenêtres de connexion superposées.**
+///
+/// Le front peut découvrir, pendant que l'écran de démarrage tient ses deux
+/// secondes, qu'il n'y a pas de session : la fenêtre de connexion est alors
+/// déjà ouverte et la principale déjà effacée. Refermer l'écran de démarrage
+/// en montrant la principale la faisait réapparaître PAR-DESSUS, sur une page
+/// de connexion qui vit ailleurs — deux fenêtres, dont une inutilisable.
+///
+/// La garde avait été écrite dans le commentaire de conception et jamais dans
+/// le code. Ce test porte donc sur la seule chose qui puisse encore l'oublier.
+#[test]
+fn la_principale_ne_se_montre_pas_pendant_la_connexion() {
+    assert!(
+        super::montrer_la_principale(false),
+        "sans connexion en cours, c'est la principale qui prend la main"
+    );
+    assert!(
+        !super::montrer_la_principale(true),
+        "pendant la connexion, la principale reste effacée"
+    );
+}

@@ -101,6 +101,22 @@ fn reserver() -> bool {
 fn accomplir(app: &AppHandle, pourquoi: &str) {
     tracing::info!(pourquoi, "écran de démarrage refermé");
 
+    // **La fenêtre principale ne se montre PAS s'il n'y a pas de session.**
+    //
+    // Le front a pu découvrir, pendant que l'écran de démarrage tenait, qu'il
+    // n'y en a pas : la fenêtre de connexion est alors déjà ouverte, et la
+    // principale déjà effacée. La montrer ici la ferait apparaître PAR-DESSUS,
+    // vide, sur une page de connexion qui vit ailleurs — c'est-à-dire deux
+    // fenêtres de connexion, dont une qu'on ne peut pas utiliser.
+    //
+    // On referme quand même l'écran de démarrage : c'est son travail, et la
+    // fenêtre de connexion a pris le relais.
+    if !montrer_la_principale(crate::fenetres::connexion_en_cours()) {
+        tracing::info!("session absente : la fenêtre de connexion prend le relais");
+        fermer_le_demarrage(app);
+        return;
+    }
+
     // La principale D'ABORD, l'écran de démarrage ENSUITE.
     //
     // L'ordre inverse laisserait, entre les deux appels, un instant où aucune
@@ -118,6 +134,21 @@ fn accomplir(app: &AppHandle, pourquoi: &str) {
     }
 
     fermer_le_demarrage(app);
+}
+
+/// La fenêtre principale a-t-elle le droit de se montrer ?
+///
+/// **Fonction PURE, et c'est tout l'intérêt.** La règle qu'elle porte tient en
+/// une ligne, mais son oubli coûte deux fenêtres de connexion superposées, dont
+/// une inutilisable — et ce défaut-là ne se voit qu'à l'écran, sur une machine
+/// sans session, après deux secondes d'attente. Aucune suite ne l'aurait
+/// attrapé tant que la décision vivait au milieu d'appels qui demandent un
+/// serveur d'affichage.
+///
+/// Elle a effectivement été oubliée une fois : la garde avait été écrite dans
+/// le commentaire de conception et jamais dans le code.
+fn montrer_la_principale(connexion_en_cours: bool) -> bool {
+    !connexion_en_cours
 }
 
 /// Referme la fenêtre d'écran de démarrage, quel que soit le chemin pris.

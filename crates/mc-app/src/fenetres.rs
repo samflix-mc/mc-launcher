@@ -91,6 +91,7 @@ pub async fn ouvrir_connexion(app: AppHandle) -> Result<(), Erreur> {
     }
 
     if let Some(deja) = app.get_webview_window(ETIQUETTE) {
+        tracing::debug!("fenêtre de connexion déjà là : on lui rend le focus");
         deja.set_focus().map_err(en_erreur)?;
         return Ok(());
     }
@@ -111,6 +112,8 @@ pub async fn ouvrir_connexion(app: AppHandle) -> Result<(), Erreur> {
         .background_color(tauri::window::Color(0x16, 0x14, 0x11, 0xff))
         .build()
         .map_err(en_erreur)?;
+
+    tracing::info!("session absente : fenêtre de connexion ouverte");
 
     // Fermer la connexion quitte le launcher : la fenêtre principale est
     // cachée, il n'y a rien derrière, et un processus qui survit à sa dernière
