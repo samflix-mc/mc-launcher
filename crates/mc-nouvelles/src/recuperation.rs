@@ -56,7 +56,7 @@ pub async fn charger(url_du_pack: &str, cache: &Path, dl: &mc_dl::Downloader) ->
             // tronquée ou une page d'erreur HTML remplaceraient sinon un fil
             // valide par du vide.
             if lire(&octets, &url).is_ok()
-                && let Err(erreur) = ecrire_le_cache(&copie, &octets)
+                && let Err(erreur) = ecrire_le_cache(&copie, octets.clone()).await
             {
                 tracing::warn!(erreur = %erreur, "copie du fil non écrite");
             }
@@ -86,11 +86,8 @@ pub async fn charger(url_du_pack: &str, cache: &Path, dl: &mc_dl::Downloader) ->
     lire(&octets, &url)
 }
 
-fn ecrire_le_cache(copie: &Path, octets: &[u8]) -> Result<()> {
-    if let Some(parent) = copie.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    mc_dl::write_atomic(copie, octets)
+async fn ecrire_le_cache(copie: &Path, octets: Vec<u8>) -> Result<()> {
+    mc_dl::ecrire_hors_du_fil(copie, octets).await
 }
 
 /// Analyse un fil, billet par billet.
@@ -201,10 +198,7 @@ pub async fn rapatrier(url: &str, cache: &Path, dl: &mc_dl::Downloader) -> Resul
         anyhow::bail!("image {url} : ces octets ne sont pas une image reconnue");
     }
 
-    if let Some(parent) = destination.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    mc_dl::write_atomic(&destination, &octets)?;
+    mc_dl::ecrire_hors_du_fil(&destination, octets).await?;
     Ok(destination)
 }
 

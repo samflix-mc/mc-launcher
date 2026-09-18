@@ -51,17 +51,20 @@ impl Downloader {
                 );
             }
         }
-        write_atomic(dest, &bytes)?;
+        // La longueur AVANT de céder les octets : la tâche détachée les
+        // possède, et il n'y a plus rien à mesurer après.
+        let poids = bytes.len();
+        ecrire_hors_du_fil(dest, bytes).await?;
         tracing::debug!(
             fichier = %dest.display(),
-            octets = bytes.len(),
+            octets = poids,
             verifie = check.checksum().is_some(),
             "téléchargé"
         );
         self.signaler(Avancement::Fini {
             fichier: &nom,
             etat: Fetched::Downloaded,
-            octets: bytes.len() as u64,
+            octets: poids as u64,
         });
         Ok(Fetched::Downloaded)
     }
@@ -96,6 +99,28 @@ pub fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
     std::fs::write(&part, bytes).with_context(|| format!("écriture de {}", part.display()))?;
     std::fs::rename(&part, dest).with_context(|| format!("renommage vers {}", dest.display()))?;
     Ok(())
+}
+
+/// La même écriture, mais **hors du fil d'exécution asynchrone**.
+///
+/// `write_atomic` bloque tant que le disque n'a pas répondu. Appelée depuis une
+/// fonction `async`, elle bloque non pas la tâche mais le WORKER de tokio :
+/// pendant qu'un jar de cinquante mégaoctets s'écrit, ce fil n'avance aucune
+/// autre tâche — et les téléchargements, qui sont lancés concurremment, se
+/// sérialisent derrière le plus lent d'entre eux. Sur une première
+/// installation, cela se compte en minutes.
+///
+/// Le pool de `spawn_blocking` est séparé de celui des tâches : c'est
+/// exactement ce pour quoi il existe.
+///
+/// Prend les octets par valeur plutôt que par référence : la tâche détachée
+/// doit posséder ce qu'elle écrit, et l'appelant n'en a plus besoin — il en
+/// connaissait déjà la longueur.
+pub async fn ecrire_hors_du_fil(dest: &Path, octets: Vec<u8>) -> Result<()> {
+    let dest = dest.to_path_buf();
+    tokio::task::spawn_blocking(move || write_atomic(&dest, &octets))
+        .await
+        .context("l'écriture détachée n'a pas abouti")?
 }
 
 #[cfg(test)]

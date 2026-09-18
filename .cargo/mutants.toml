@@ -84,6 +84,23 @@ exclude_re = [
     # les réglages n'ont pas de compte rendu, et leur en donner un pour ce seul
     # message coûterait plus que la ligne ne rapporte.
     "lecture\\.rs.*replace != with == in charger",
+
+    # `borner` : `if valeur < bas { bas } else if valeur > haut { haut } else
+    # { valeur }`. Les deux comparaisons se laissent muter en `<=` et `>=`, et
+    # les deux mutants sont ÉQUIVALENTS — la démonstration tient en une ligne :
+    # à la borne, `valeur == bas`, donc rendre `bas` ou rendre `valeur` rend la
+    # MÊME valeur. Il n'existe pas d'entrée qui distingue les deux branches,
+    # puisqu'elles sont égales exactement là où le mutant change de chemin.
+    #
+    # Ce n'est pas une dispense : les bornes SONT éprouvées, et de part et
+    # d'autre — voir `borner_rend_la_valeur_a_la_borne_exacte`. Ce que la
+    # mutation demande ici, aucun test ne peut le fournir.
+    #
+    # Le réflexe appliqué ailleurs — réécrire pour qu'il n'y ait plus rien à
+    # muter, comme l'encodeur base64 de mc-nouvelles devenu `from_be_bytes` —
+    # ne s'applique pas : la comparaison EST la fonction. La supprimer
+    # supprimerait ce qu'on veut.
+    "bornes\\.rs.*replace [<>] with [<>]= in borner",
 ]
 
 # Le temps par mutant se déduit de la suite non mutée. Le multiplicateur par
