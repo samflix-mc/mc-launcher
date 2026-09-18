@@ -2547,6 +2547,7 @@ dependencies = [
  "mc-java",
  "mc-log",
  "mc-pack",
+ "mc-reglages",
  "serde",
  "serde_json",
  "tauri",
@@ -2686,6 +2687,19 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "mc-reglages"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mc-chemins",
+ "mc-dl",
+ "mutants",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 

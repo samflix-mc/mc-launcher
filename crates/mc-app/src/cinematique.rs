@@ -72,6 +72,34 @@ impl mc_pack::Rapport for VersLaFenetre {
     }
 }
 
+/// Ce que le joueur a réglé, tel que `mc-pack` l'attend.
+///
+/// La traduction se fait ICI et non dans `mc-pack` : la bibliothèque
+/// d'installation ne dépend pas de `mc-reglages`, et ne doit pas. Elle reçoit
+/// des valeurs, pas une structure de préférences.
+///
+/// Un fichier de réglages absent ou illisible donne les défauts — jamais une
+/// erreur : ne pas pouvoir lancer une partie parce qu'un fichier de confort
+/// est corrompu serait absurde.
+fn confort_du_joueur() -> mc_pack::jeu::Confort {
+    let reglages = mc_reglages::charger(&mc_reglages::chemin());
+
+    mc_pack::jeu::Confort {
+        memoire_mo: reglages.lanceur.memoire_mo,
+        // `Maximisee` ne passe PAS par une résolution : c'est au jeu de
+        // demander la zone utile au gestionnaire de fenêtres, et lui imposer
+        // une taille calculée par nous donnerait une fenêtre qui recouvre les
+        // panneaux du bureau.
+        resolution: match reglages.fenetre.mode {
+            mc_reglages::ModeFenetre::Fenetree => {
+                Some((reglages.fenetre.largeur, reglages.fenetre.hauteur))
+            }
+            _ => None,
+        },
+        plein_ecran: reglages.fenetre.plein_ecran(),
+    }
+}
+
 /// D'où vient le pack, et où il s'installe.
 ///
 /// Les mêmes réglages que la ligne de commande sans argument : l'URL du pack
@@ -128,7 +156,7 @@ pub async fn jouer(app: &AppHandle, suivi: &Arc<Suivi>) -> Result<mc_instance::l
         &options,
         mc_pack::Identite::Microsoft,
         None,
-        None,
+        confort_du_joueur(),
         vers_la_fenetre,
     )
     .await

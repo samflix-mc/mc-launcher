@@ -89,7 +89,7 @@ pub async fn mettre_a_jour_et_jouer(
     options: &Options,
     identite: super::Identite,
     serveur: Option<String>,
-    memoire: Option<u32>,
+    confort: super::Confort,
     rapport: Arc<dyn Rapport>,
 ) -> Result<Deroulement> {
     let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
@@ -112,7 +112,7 @@ pub async fn mettre_a_jour_et_jouer(
         options,
         identite,
         serveur,
-        memoire,
+        confort,
         Arc::clone(&rapport),
     )
     .await?;

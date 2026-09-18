@@ -65,6 +65,14 @@ pub(in crate::launch) fn assembler(
     args.extend(jvm);
     args.push(main_class);
     args.extend(game);
+
+    // APRÈS les arguments du descripteur, et c'est le bon endroit : le
+    // descripteur ne décrit pas `--fullscreen`, et l'insérer avant décalerait
+    // les arguments positionnels que le chargeur pose.
+    if options.plein_ecran {
+        args.push("--fullscreen".to_string());
+    }
+
     args
 }
 

@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/mc-chemins",
+    "crates/mc-reglages",
     "crates/mc-auth",
     "crates/mc-dl",
     "crates/mc-essais",
@@ -37,6 +38,7 @@ members = [
 # précède. ci.yml compare donc les deux listes à chaque exécution.
 default-members = [
     "crates/mc-chemins",
+    "crates/mc-reglages",
     "crates/mc-auth",
     "crates/mc-dl",
     "crates/mc-essais",

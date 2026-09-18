@@ -40,7 +40,10 @@ pub async fn launch(
         options,
         identite,
         serveur,
-        memoire,
+        jeu::Confort {
+            memoire_mo: memoire,
+            ..Default::default()
+        },
         std::sync::Arc::new(mc_pack::Muet),
     )
     .await?;

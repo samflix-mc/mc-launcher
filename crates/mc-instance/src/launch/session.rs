@@ -70,6 +70,24 @@ pub struct LaunchOptions {
     pub memory_mb: Option<u32>,
     pub quick_play: Option<QuickPlay>,
     pub resolution: Option<(u32, u32)>,
+    /// Ouvrir le jeu en plein écran.
+    ///
+    /// ## Un drapeau, et non une valeur
+    ///
+    /// `--fullscreen` est un drapeau SANS valeur : écrire `--fullscreen true`
+    /// ferait prendre « true » au jeu pour le nom d'un monde à ouvrir. Il est
+    /// donc ajouté ou pas ajouté, jamais avec un argument.
+    ///
+    /// ## Le piège de la double source
+    ///
+    /// `fullscreen` est AUSSI une clé d'`options.txt`, que F11 bascule en
+    /// cours de partie et que le jeu persiste. Piloter le seul argument de
+    /// ligne de commande ferait du plein écran un interrupteur à sens unique :
+    /// le joueur en sortirait avec F11, et le retrouverait au lancement
+    /// suivant sans comprendre pourquoi.
+    ///
+    /// Les deux sont donc écrits ensemble — voir `mc_reglages::fusionner`.
+    pub plein_ecran: bool,
     /// Arguments JVM ajoutés avant ceux du descripteur.
     pub extra_jvm: Vec<String>,
 }

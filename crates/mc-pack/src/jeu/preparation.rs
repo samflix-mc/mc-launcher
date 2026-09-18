@@ -8,6 +8,28 @@ use crate::source::Source;
 
 use mc_instance::launch::{Command, QuickPlay, Session};
 
+/// Ce que le joueur a réglé, et que la partie doit respecter.
+///
+/// ## Pourquoi une structure de VALEURS, et non les réglages eux-mêmes
+///
+/// `mc-pack` ne dépend pas de `mc-reglages`, et ne doit pas : la bibliothèque
+/// d'installation n'a pas à savoir qu'une interface existe, et le CLI garde
+/// ses propres drapeaux. C'est l'application qui lit le fichier de réglages et
+/// remplit ceci.
+///
+/// La frontière se paie d'une structure de plus ; elle achète que `mc-pack`
+/// reste utilisable sans qu'un fichier écrit par la fenêtre ne s'en mêle.
+#[derive(Debug, Clone, Default)]
+pub struct Confort {
+    /// Mémoire de la JVM, en mégaoctets. `None` laisse la JVM décider — un
+    /// quart de la mémoire de la machine, ce qui ne suffit pas à un modpack.
+    pub memoire_mo: Option<u32>,
+    /// Taille de la fenêtre du jeu. `None` laisse le jeu choisir.
+    pub resolution: Option<(u32, u32)>,
+    /// Ouvrir en plein écran.
+    pub plein_ecran: bool,
+}
+
 /// Une partie prête à démarrer.
 pub struct Partie {
     pub instance: mc_instance::Instance,
@@ -26,7 +48,7 @@ pub async fn preparer(
     options: &crate::Options,
     identite: super::Identite,
     serveur: Option<String>,
-    memoire: Option<u32>,
+    confort: Confort,
     rapport: std::sync::Arc<dyn crate::progression::Rapport>,
 ) -> Result<Partie> {
     let session = super::identite::choisir(identite).await?;
@@ -43,7 +65,7 @@ pub async fn preparer(
     // choisit avec ce que la CI lui a figé à la compilation.
     let (cible, demande_explicite, environnement) = super::cible::choisir(&manifest, serveur);
 
-    let launch_options = options_de_lancement(memoire, cible.clone());
+    let launch_options = options_de_lancement(&confort, cible.clone());
 
     let command = mc_instance::launch::build(
         &version_id,
@@ -118,12 +140,16 @@ async fn java_du_verrou(
 /// vingt minutes. Sans `quick_play`, le jeu s'ouvre sur son menu au lieu de
 /// rejoindre le serveur, et l'on croit que le pack n'en déclare pas.
 fn options_de_lancement(
-    memoire: Option<u32>,
+    confort: &Confort,
     cible: Option<String>,
 ) -> mc_instance::launch::LaunchOptions {
     mc_instance::launch::LaunchOptions {
-        memory_mb: memoire,
+        memory_mb: confort.memoire_mo,
         quick_play: cible.map(QuickPlay::Multiplayer),
+        // `resolution` active `has_custom_resolution` dans le descripteur, ce
+        // qui débloque les arguments conditionnels que Mojang y a mis.
+        resolution: confort.resolution,
+        plein_ecran: confort.plein_ecran,
         ..Default::default()
     }
 }

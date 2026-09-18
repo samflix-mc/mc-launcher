@@ -33,6 +33,10 @@ mc-dl = { path = "../mc-dl" }
 mc-instance = { path = "../mc-instance" }
 mc-java = { path = "../mc-java" }
 mc-pack = { path = "../mc-pack" }
+# Ce que le joueur règle. mc-pack n'en dépend PAS : la bibliothèque
+# d'installation n'a pas à savoir qu'une interface existe, et le CLI garde ses
+# propres drapeaux. C'est l'application qui lit le fichier et passe les VALEURS.
+mc-reglages = { path = "../mc-reglages" }
 # Pour la censure des jetons : tout ce que ce binaire journalise passe par
 # elle, fenêtre graphique comprise.
 mc-log = { path = "../mc-log" }
