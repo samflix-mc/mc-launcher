@@ -14,14 +14,19 @@
       {
         "label": "splash",
         "url": "splash.html",
-        "width": 340,
-        "height": 300,
+        "width": 260,
+        "height": 210,
         "center": true,
+        "focus": true,
         "decorations": false,
         "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": true,
+        "shadow": true,
         "backgroundColor": "#191C22"
       },
       {

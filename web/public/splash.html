@@ -46,17 +46,21 @@
         font-family: system-ui, sans-serif;
         display: grid;
         place-items: center;
-        /* Une fenêtre sans décorations se déplace par le DOM ; celle-ci ne se
-           déplace pas du tout, mais rien ne doit s'y sélectionner non plus. */
+        /* La fenêtre n'a ni décorations ni boutons : rien ne doit s'y
+           sélectionner, et le curseur ne doit rien promettre. */
         user-select: none;
         cursor: default;
+        /* Un liseré, parce que sans décorations la fenêtre n'a aucun bord.
+           Sur un fond de bureau sombre, elle se fondrait dedans. */
+        box-sizing: border-box;
+        border: 1px solid rgb(255 255 255 / 0.08);
       }
 
       .pile {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 20px;
+        gap: 14px;
       }
 
       /* Le sceau, identique à celui de la barre de titre et de l'amorce
@@ -65,68 +69,58 @@
       .sceau {
         display: grid;
         place-items: center;
-        width: 80px;
-        height: 80px;
+        width: 60px;
+        height: 60px;
         border-radius: 12px;
         background: #5b8731;
         color: #f7fbf4;
-        font-size: 28px;
+        font-size: 22px;
         font-weight: 700;
-        box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+        box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
       }
 
       .nom {
-        font-size: 18px;
+        font-size: 15px;
         font-weight: 500;
       }
 
-      /* Trois points qui pulsent — la même figure que `loading-dots` de
-         daisyUI, réécrite ici parce qu'on n'a pas daisyUI. */
-      .points {
-        display: flex;
-        gap: 6px;
-      }
+      /*
+        Un anneau qui tourne.
 
-      .points span {
-        width: 8px;
-        height: 8px;
+        Une bordure dont un seul côté est coloré, mise en rotation : la figure
+        se lit comme une attente indéterminée sans rien promettre sur sa durée,
+        là où trois points qui pulsent se lisent plutôt comme « il se passe
+        quelque chose de discret ».
+
+        En CSS pur, sans SVG ni image : ce fichier ne charge aucun fichier
+        externe, c'est toute sa raison d'être.
+      */
+      .anneau {
+        width: 26px;
+        height: 26px;
+        border: 3px solid rgb(255 255 255 / 0.12);
+        border-top-color: #7cb342;
         border-radius: 50%;
-        background: #7cb342;
-        animation: pulse 1.2s ease-in-out infinite;
+        animation: tourne 0.8s linear infinite;
       }
 
-      .points span:nth-child(2) {
-        animation-delay: 0.15s;
-      }
-      .points span:nth-child(3) {
-        animation-delay: 0.3s;
-      }
-
-      @keyframes pulse {
-        0%,
-        80%,
-        100% {
-          opacity: 0.25;
-          transform: scale(0.8);
-        }
-        40% {
-          opacity: 1;
-          transform: scale(1);
+      @keyframes tourne {
+        to {
+          transform: rotate(360deg);
         }
       }
 
-      /* Ce que « mouvement réduit » demande : la figure reste, elle ne bouge
-         plus. */
+      /* Ce que « mouvement réduit » demande : la figure reste, elle ne tourne
+         plus. L'anneau incomplet suffit à dire qu'on attend. */
       @media (prefers-reduced-motion: reduce) {
-        .points span {
+        .anneau {
           animation: none;
-          opacity: 0.7;
         }
       }
 
       .phrase {
-        font-size: 13px;
-        opacity: 0.55;
+        font-size: 12px;
+        opacity: 0.5;
       }
     </style>
   </head>
@@ -134,15 +128,13 @@
     <div class="pile">
       <div class="sceau">SA</div>
       <div class="nom">samflix-mc</div>
-      <div class="points" role="status" aria-label="Démarrage en cours">
-        <span></span><span></span><span></span>
-      </div>
+      <div class="anneau" role="status" aria-label="Démarrage en cours"></div>
       <!--
         Une phrase fixe, et non tirée au sort.
 
-        Le tirage demanderait du JavaScript, donc un script à charger, donc le
-        aller-retour qu'on évite. La variété est le travail de l'amorce Angular,
-        qui prend le relais et qui, elle, a déjà tout chargé.
+        Le tirage demanderait du JavaScript, donc un script à charger, donc
+        l'aller-retour qu'on évite. La variété est le travail de l'amorce
+        Angular, qui prend le relais et qui, elle, a déjà tout chargé.
       -->
       <div class="phrase">Démarrage…</div>
     </div>
