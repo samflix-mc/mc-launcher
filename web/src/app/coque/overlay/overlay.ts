@@ -1,4 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
+
+import { AlertTriangle, Copy, X } from '../../noyau/icones';
 
 import { Incidents } from '../../noyau/incidents';
 
@@ -24,6 +27,7 @@ import { Incidents } from '../../noyau/incidents';
 @Component({
   selector: 'app-overlay',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideAngularModule],
   templateUrl: './overlay.html',
   styleUrl: './overlay.css',
 })
@@ -31,6 +35,10 @@ export class Overlay {
   private readonly incidents = inject(Incidents);
 
   protected readonly message = this.incidents.courant;
+
+  protected readonly AlertTriangle = AlertTriangle;
+  protected readonly Copy = Copy;
+  protected readonly X = X;
 
   protected fermer(): void {
     this.incidents.fermer();

@@ -136,7 +136,9 @@
       (click)="jouer()"
       data-test="bouton"
     >
-      @if (bouton() === 'occupe' || bouton() === 'inconnu') {
+      @if (icone(); as marque) {
+        <lucide-icon [img]="marque" [size]="20" aria-hidden="true" />
+      } @else {
         <span class="loading loading-spinner loading-sm"></span>
       }
       {{ libelle() }}

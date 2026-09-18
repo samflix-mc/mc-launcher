@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
 
 import { Fenetre } from '../../noyau/fenetre';
+import { Copy, Minus, Square, X } from '../../noyau/icones';
 import { Marque } from '../../noyau/marque';
 
 /**
@@ -37,6 +39,7 @@ import { Marque } from '../../noyau/marque';
 @Component({
   selector: 'app-barre-titre',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideAngularModule],
   templateUrl: './barre-titre.html',
   styleUrl: './barre-titre.css',
 })
@@ -44,6 +47,14 @@ export class BarreTitre {
   private readonly fenetre = inject(Fenetre);
   protected readonly marque = inject(Marque).vue;
   protected readonly maximisee = this.fenetre.maximisee;
+
+  // Les nœuds d'icône sont passés au gabarit comme des valeurs : une faute de
+  // frappe est alors une erreur TypeScript, là où un registre résolu par nom
+  // rendrait un vide sans rien dire.
+  protected readonly Minus = Minus;
+  protected readonly Square = Square;
+  protected readonly Copy = Copy;
+  protected readonly X = X;
 
   protected reduire(): void {
     void this.fenetre.reduire();

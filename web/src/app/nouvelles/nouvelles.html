@@ -20,6 +20,8 @@
     >
       @if (chargement()) {
         <span class="loading loading-spinner loading-xs"></span>
+      } @else {
+        <lucide-icon [img]="RefreshCw" [size]="14" aria-hidden="true" />
       }
       Actualiser
     </button>

@@ -8,3 +8,18 @@ allowBuilds:
   esbuild: true
   lmdb: true
   msgpackr-extract: true
+
+# lucide-angular 1.0.0 déclare « 13.x - 21.x » en pair et nous sommes en 22.
+#
+# C'est un intervalle non mis à jour, pas une incompatibilité : le paquet ne
+# fait qu'exposer un composant et des données d'icônes, il n'emploie aucune API
+# privée d'Angular, et le build comme les tests passent. Vérifié en le
+# compilant, avant d'écrire cette ligne.
+#
+# La dérogation est nommée plutôt que globale : une prochaine dépendance qui
+# déclarerait mal ses pairs devra être examinée elle aussi, et non passer
+# derrière celle-ci.
+peerDependencyRules:
+  allowedVersions:
+    'lucide-angular>@angular/core': '22'
+    'lucide-angular>@angular/common': '22'

@@ -18,7 +18,7 @@
       [attr.data-test]="'onglet-' + onglet.libelle.toLowerCase()"
       class="flex items-center gap-3 rounded-box px-3 py-2 text-sm transition-colors"
     >
-      <span class="w-4 text-center opacity-70" aria-hidden="true">{{ onglet.glyphe }}</span>
+      <lucide-icon [img]="onglet.icone" [size]="16" class="opacity-70" aria-hidden="true" />
       {{ onglet.libelle }}
     </a>
   }
@@ -40,7 +40,7 @@
       aria-label="Ouvrir la configuration"
       title="Configuration"
     >
-      <span aria-hidden="true">&#x2699;</span>
+      <lucide-icon [img]="Settings2" [size]="16" aria-hidden="true" />
     </a>
 
     <button
@@ -52,7 +52,7 @@
       aria-label="Se déconnecter"
       [title]="compte() ? 'Se déconnecter de ' + compte()!.pseudo : 'Se déconnecter'"
     >
-      <span aria-hidden="true">&#x23FB;</span>
+      <lucide-icon [img]="LogOut" [size]="16" aria-hidden="true" />
     </button>
   </div>
 </nav>

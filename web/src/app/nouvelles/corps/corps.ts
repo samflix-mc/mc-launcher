@@ -1,7 +1,9 @@
 import { NgTemplateOutlet } from '@angular/common';
+import { LucideAngularModule } from 'lucide-angular';
 import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 
 import type { Bloc, Inline } from '../../noyau/contrats';
+import { ExternalLink } from '../../noyau/icones';
 import { Incidents } from '../../noyau/incidents';
 import { Pont } from '../../noyau/pont';
 
@@ -34,7 +36,7 @@ import { Pont } from '../../noyau/pont';
   // et réutilisé par les trois blocs qui en contiennent. Le recopier donnerait
   // trois occasions d'oublier un cas — et un cas oublié affiche du vide, pas
   // une erreur.
-  imports: [NgTemplateOutlet],
+  imports: [LucideAngularModule, NgTemplateOutlet],
   templateUrl: './corps.html',
   styleUrl: './corps.css',
 })
@@ -43,6 +45,8 @@ export class CorpsBillet {
 
   private readonly pont = inject(Pont);
   private readonly incidents = inject(Incidents);
+
+  protected readonly ExternalLink = ExternalLink;
 
   protected async ouvrir(inline: Inline): Promise<void> {
     if (inline.type !== 'lien') {

@@ -1,4 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
+
+import { FolderOpen, ShieldCheck } from '../noyau/icones';
 
 import type { Dossier, Fond, ModeFenetre } from '../noyau/contrats';
 import { Incidents } from '../noyau/incidents';
@@ -36,6 +39,7 @@ import { Reglages } from '../noyau/reglages';
 @Component({
   selector: 'app-configuration',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideAngularModule],
   templateUrl: './configuration.html',
   styleUrl: './configuration.css',
 })
@@ -52,6 +56,9 @@ export class Configuration {
   /** Le résultat de la dernière vérification, ou `null`. */
   protected readonly verification = signal<string[] | null>(null);
   protected readonly verificationEnCours = signal(false);
+
+  protected readonly ShieldCheck = ShieldCheck;
+  protected readonly FolderOpen = FolderOpen;
 
   protected readonly fonds: readonly { valeur: Fond; libelle: string }[] = [
     { valeur: 'spawn', libelle: 'Spawn' },

@@ -8,7 +8,10 @@
   >
     <div class="card w-full max-w-lg border border-error/40 bg-base-100/95 shadow-2xl">
       <div class="card-body gap-4">
-        <h2 id="incident-titre" class="card-title text-error">Quelque chose n'a pas fonctionné</h2>
+        <h2 id="incident-titre" class="card-title text-error">
+          <lucide-icon [img]="AlertTriangle" [size]="20" aria-hidden="true" />
+          Quelque chose n'a pas fonctionné
+        </h2>
 
         <!--
           `data-test="message"` et non une classe : le texte est du contenu, et
@@ -19,6 +22,7 @@
 
         <div class="card-actions justify-end">
           <button type="button" class="btn btn-ghost btn-sm" (click)="copier()" data-test="copier">
+            <lucide-icon [img]="Copy" [size]="14" aria-hidden="true" />
             Copier
           </button>
           <button

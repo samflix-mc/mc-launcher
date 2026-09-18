@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { LucideAngularModule, type LucideIconData } from 'lucide-angular';
 
+import { House, LogOut, Newspaper, Settings, Settings2 } from '../../noyau/icones';
 import { Incidents } from '../../noyau/incidents';
 import { Session } from '../../noyau/session';
 
@@ -8,8 +10,7 @@ import { Session } from '../../noyau/session';
 export interface Onglet {
   readonly chemin: string;
   readonly libelle: string;
-  /** Un glyphe, et non une icône : voir le commentaire du gabarit. */
-  readonly glyphe: string;
+  readonly icone: LucideIconData;
 }
 
 /**
@@ -37,7 +38,7 @@ export interface Onglet {
 @Component({
   selector: 'app-menu',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [LucideAngularModule, RouterLink, RouterLinkActive],
   templateUrl: './menu.html',
   styleUrl: './menu.css',
 })
@@ -50,10 +51,15 @@ export class Menu {
   protected readonly occupe = this.session.occupe;
 
   protected readonly onglets: readonly Onglet[] = [
-    { chemin: '/spawn', libelle: 'Spawn', glyphe: '⌂' },
-    { chemin: '/nouvelles', libelle: 'Nouvelles', glyphe: '✉' },
-    { chemin: '/configuration', libelle: 'Configuration', glyphe: '⚙' },
+    { chemin: '/spawn', libelle: 'Spawn', icone: House },
+    { chemin: '/nouvelles', libelle: 'Nouvelles', icone: Newspaper },
+    { chemin: '/configuration', libelle: 'Configuration', icone: Settings },
   ];
+
+  // Passés au gabarit comme des valeurs : une faute de frappe est alors une
+  // erreur TypeScript, là où un registre résolu par nom rendrait un vide.
+  protected readonly Settings2 = Settings2;
+  protected readonly LogOut = LogOut;
 
   protected async deconnecter(): Promise<void> {
     await this.incidents.pendant(async () => {

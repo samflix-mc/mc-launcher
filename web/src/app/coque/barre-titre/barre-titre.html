@@ -40,9 +40,7 @@
       aria-label="Réduire la fenêtre"
       title="Réduire"
     >
-      <!-- Des glyphes et non des icônes : trois traits ne valent pas une
-           dépendance de plus dans un binaire qu'on distribue. -->
-      <span aria-hidden="true">&#x2013;</span>
+      <lucide-icon [img]="Minus" [size]="14" aria-hidden="true" />
     </button>
 
     <button
@@ -53,7 +51,11 @@
       [attr.aria-label]="maximisee() ? 'Restaurer la fenêtre' : 'Agrandir la fenêtre'"
       [title]="maximisee() ? 'Restaurer' : 'Agrandir'"
     >
-      <span aria-hidden="true">{{ maximisee() ? '&#x2750;' : '&#x25A1;' }}</span>
+      <!--
+        Deux icônes distinctes : « restaurer » n'est pas « agrandir », et un
+        même carré pour les deux obligerait le joueur à cliquer pour savoir.
+      -->
+      <lucide-icon [img]="maximisee() ? Copy : Square" [size]="13" aria-hidden="true" />
     </button>
 
     <button
@@ -64,7 +66,7 @@
       aria-label="Fermer le launcher"
       title="Fermer"
     >
-      <span aria-hidden="true">&#x2715;</span>
+      <lucide-icon [img]="X" [size]="14" aria-hidden="true" />
     </button>
   </div>
 </header>

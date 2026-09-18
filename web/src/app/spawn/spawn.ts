@@ -1,5 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { LucideAngularModule, type LucideIconData } from 'lucide-angular';
 
+import { Download, Play } from '../noyau/icones';
 import { CarteNouvelle } from '../nouvelles/carte/carte-nouvelle';
 import * as format from '../noyau/format';
 import { Incidents } from '../noyau/incidents';
@@ -31,7 +33,7 @@ import { teteDuJoueur } from '../noyau/pont';
 @Component({
   selector: 'app-spawn',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CarteNouvelle],
+  imports: [CarteNouvelle, LucideAngularModule],
   templateUrl: './spawn.html',
   styleUrl: './spawn.css',
 })
@@ -65,6 +67,23 @@ export class Spawn {
         return 'Installation…';
       case 'en-partie':
         return 'En jeu';
+    }
+  });
+
+  /**
+   * L'icône du bouton, quand il en a une.
+   *
+   * `null` pendant l'attente et pendant le travail : le chargeur tient alors
+   * la place, et deux marques tournantes côte à côte ne disent rien de plus.
+   */
+  protected readonly icone = computed<LucideIconData | null>(() => {
+    switch (this.bouton()) {
+      case 'installer':
+        return Download;
+      case 'jouer':
+        return Play;
+      default:
+        return null;
     }
   });
 

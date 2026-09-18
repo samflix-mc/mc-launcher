@@ -1,4 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
+
+import { RefreshCw } from '../noyau/icones';
 
 import { Incidents } from '../noyau/incidents';
 import { Nouvelles } from '../noyau/nouvelles';
@@ -15,7 +18,7 @@ import { direLaDate } from './dates';
 @Component({
   selector: 'app-nouvelles',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CorpsBillet],
+  imports: [CorpsBillet, LucideAngularModule],
   templateUrl: './nouvelles.html',
   styleUrl: './nouvelles.css',
 })
@@ -25,6 +28,8 @@ export class PageNouvelles {
 
   protected readonly fil = this.nouvelles.fil;
   protected readonly chargement = this.nouvelles.chargement;
+
+  protected readonly RefreshCw = RefreshCw;
 
   constructor() {
     void this.incidents.pendant(() => this.nouvelles.charger());

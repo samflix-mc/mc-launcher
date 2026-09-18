@@ -90,7 +90,16 @@
           navigateur du système.
         -->
         <button type="button" class="lien" (click)="ouvrir(morceau)" data-test="lien">
-          {{ morceau.texte }}
+          {{ morceau.texte }}<!--
+            L'icône dit que le lien SORT du launcher : il s'ouvrira dans le
+            navigateur du système, et non dans cette fenêtre. Sans elle, un
+            clic qui change de fenêtre paraît un accident.
+          --><lucide-icon
+            [img]="ExternalLink"
+            [size]="12"
+            class="inline align-baseline"
+            aria-hidden="true"
+          />
         </button>
       }
     }
