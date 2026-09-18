@@ -44,7 +44,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::phase::Phase;
 use crate::tracker::Tracker;
@@ -66,6 +66,9 @@ const CADENCE: Duration = Duration::from_millis(200);
 /// the [`emit_progress`] loop that decides when to speak, and it alone.
 struct ToTheWindow {
     tracker: Arc<Tracker>,
+    /// Absent in the suites, which have no window: the tracker is what they
+    /// observe, and minimizing is the one thing they can't check.
+    app: Option<AppHandle>,
 }
 
 impl mc_pack::Report for ToTheWindow {
@@ -97,6 +100,26 @@ impl mc_pack::Report for ToTheWindow {
     fn game_session_started(&self, pid: u32) {
         crate::game_session::started(pid);
         self.tracker.phase(Phase::Launch);
+
+        // **Here and not before.** `minimize_on_launch` was read nowhere at
+        // all: the setting existed, defaulted to true, and no code consulted
+        // it. Minimizing any earlier would hide the window while the install
+        // is still running — the player would lose the progress bar they
+        // were watching. This signal fires on the game's `spawn`, which is
+        // the first moment the launcher has nothing left to show.
+        if !mc_settings::load(&mc_settings::path())
+            .launcher
+            .minimize_on_launch
+        {
+            return;
+        }
+        let Some(app) = self.app.as_ref() else { return };
+        if let Some(window) = app.get_webview_window("main")
+            && let Err(error) = window.minimize()
+        {
+            // Not fatal: the game is running, which is what was asked for.
+            tracing::warn!(%error, "could not minimize the launcher");
+        }
     }
 }
 
@@ -109,21 +132,94 @@ impl mc_pack::Report for ToTheWindow {
 /// A missing or unreadable settings file yields the defaults — never an
 /// error: not being able to launch a game session because a comfort file is
 /// corrupt would be absurd.
-fn player_comfort() -> mc_pack::game::Comfort {
+fn player_comfort(app: &AppHandle) -> mc_pack::game::Comfort {
     let settings = mc_settings::load(&mc_settings::path());
 
     mc_pack::game::Comfort {
         memory_mb: settings.launcher.memory_mb,
-        // `Maximized` does NOT go through a resolution: it's up to the game
-        // to ask the window manager for the work area, and imposing a size
-        // we computed would give a window that covers the desktop panels.
         resolution: match settings.window.mode {
             mc_settings::WindowMode::Windowed => {
                 Some((settings.window.width, settings.window.height))
             }
-            _ => None,
+            // **`Maximized` DOES go through a resolution**, and the comment
+            // that said otherwise was wrong: it claimed the game would ask
+            // the window manager for the work area. Minecraft asks nothing —
+            // absent `--width`/`--height` it opens at its own default, or at
+            // whatever size it last remembered. The player asked for
+            // "maximized" and got a small window.
+            //
+            // So we pass the work area, panels already deducted, which is
+            // what `screen()` reports and what "maximized" means. Failing to
+            // read the monitor leaves `None`: the game then opens as it
+            // pleases, which is no worse than before and never blocks a
+            // launch.
+            mc_settings::WindowMode::Maximized => {
+                super::commands::settings::screen(app.clone()).map(logical_size)
+            }
+            mc_settings::WindowMode::Fullscreen => None,
         },
         fullscreen: settings.window.fullscreen(),
+    }
+}
+
+/// The work area in LOGICAL pixels, which is what Minecraft's `--width`
+/// expects.
+///
+/// `work_area()` answers in physical pixels. On a HiDPI screen — scale 2 —
+/// passing them straight through would ask for a window twice the size of
+/// the desktop, and the player would see a corner of their game. At scale 1,
+/// the common case, this divides by one and changes nothing.
+///
+/// A scale of zero or less is impossible and would divide by zero: it falls
+/// back to 1 rather than producing a window of `u32::MAX` pixels.
+///
+/// Pure, and separate from [`player_comfort`] for that reason: reading the
+/// monitor needs a window, this arithmetic needs nothing.
+fn logical_size(screen: super::commands::settings::Screen) -> (u32, u32) {
+    let scale = if screen.scale > 0.0 {
+        screen.scale
+    } else {
+        1.0
+    };
+    (
+        (f64::from(screen.width) / scale) as u32,
+        (f64::from(screen.height) / scale) as u32,
+    )
+}
+
+/// Writes the player's video settings into the instance's `options.txt`.
+///
+/// **`mc_settings::merge` was called from nowhere.** The function existed,
+/// carried a hundred and sixty lines of suite, and no code invoked it — so
+/// render distance, simulation distance, max FPS, GUI scale and vsync were
+/// saved, displayed back, and never reached the game.
+///
+/// Between `prepare` and `play`, because that's the only window where both
+/// facts are known: the instance's path, which `prepare` resolves, and that
+/// the game hasn't started reading the file yet.
+///
+/// **An absent `options.txt` is NOT created.** Minecraft writes that file on
+/// its first run, with a `version:` line it uses to migrate its own data. A
+/// partial file we invented would lose it. So the first launch of a fresh
+/// instance ignores these settings, and the second applies them.
+fn apply_video_settings(game_dir: &std::path::Path) {
+    let file = game_dir.join("options.txt");
+    let Ok(existing) = std::fs::read_to_string(&file) else {
+        tracing::debug!(path = %file.display(), "no options.txt yet: the game writes it on first run");
+        return;
+    };
+
+    let settings = mc_settings::load(&mc_settings::path());
+    let merged = mc_settings::merge(&existing, &settings.game, &settings.window);
+    if merged == existing {
+        return;
+    }
+
+    // Not fatal: a read-only file, a full disk — the game launches with what
+    // it had. Refusing to play over a comfort setting would be absurd.
+    match std::fs::write(&file, &merged) {
+        Ok(()) => tracing::info!(path = %file.display(), "video settings applied"),
+        Err(error) => tracing::warn!(%error, path = %file.display(), "could not write options.txt"),
     }
 }
 
@@ -166,6 +262,7 @@ pub async fn update(app: &AppHandle, tracker: &Arc<Tracker>) -> Result<mc_pack::
 
     let reporter: Arc<dyn mc_pack::Report> = Arc::new(ToTheWindow {
         tracker: Arc::clone(tracker),
+        app: Some(app.clone()),
     });
 
     let outcome = mc_pack::update(&source, &options, reporter)
@@ -197,16 +294,41 @@ pub async fn update_and_play(
 
     let reporter: Arc<dyn mc_pack::Report> = Arc::new(ToTheWindow {
         tracker: Arc::clone(tracker),
+        app: Some(app.clone()),
     });
 
-    let outcome = mc_pack::update_and_play(
-        &source,
-        &options,
-        mc_pack::Identity::Microsoft,
-        None,
-        player_comfort(),
-        reporter,
-    )
+    // **The three steps are recomposed here rather than delegated to
+    // `mc_pack::update_and_play`**, and for one reason: the video settings
+    // have to be written BETWEEN the preparation and the launch.
+    //
+    // `prepare` is what resolves the instance — so it's the first moment the
+    // path to `options.txt` is known — and the game reads that file as it
+    // starts, so it's the last moment it can be written. `update_and_play`
+    // chains the two with nothing in between, which left no place to put it.
+    //
+    // The CLI keeps using `update_and_play`: `mc-pack launch` takes its
+    // comfort from flags, not from a settings file, and has nothing to merge.
+    let outcome = async {
+        let outcome = mc_pack::update(&source, &options, Arc::clone(&reporter)).await?;
+
+        let session = mc_pack::game::prepare(
+            &source,
+            &options,
+            mc_pack::Identity::Microsoft,
+            None,
+            player_comfort(app),
+            Arc::clone(&reporter),
+        )
+        .await?;
+
+        apply_video_settings(&session.instance.game_dir);
+
+        let session_report = mc_pack::game::play_announced(&session, reporter.as_ref()).await?;
+        Ok::<_, anyhow::Error>(mc_pack::UpdateOutcome {
+            session_report: Some(session_report),
+            ..outcome
+        })
+    }
     .await;
 
     // **Before the `?`, and that's the point.** A process number left behind
