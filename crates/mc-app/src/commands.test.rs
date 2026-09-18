@@ -6,7 +6,9 @@
 //! and renaming it breaks the display without breaking compilation on
 //! either side.
 
-use super::*;
+use super::{
+    Account, DEVICE_CODE_EVENT, DeviceCode, DeviceCodeView, Error, Phase, Session, path, verdict,
+};
 use mc_auth::Profile;
 
 fn session(name: &str, id: &str) -> Session {

@@ -1,4 +1,4 @@
-use super::*;
+use super::{Job, Origin, weight};
 
 fn job(size: u64) -> Job {
     Job {

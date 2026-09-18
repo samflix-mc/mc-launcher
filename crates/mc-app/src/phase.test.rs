@@ -1,4 +1,4 @@
-use super::*;
+use super::Phase;
 
 #[test]
 fn the_path_is_in_the_order_it_is_walked() {

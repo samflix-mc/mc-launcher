@@ -5,7 +5,7 @@
 //! past a hundred percent, an infinite remaining time, a counter that wraps
 //! back around zero.
 
-use super::*;
+use super::{Phase, Tracker, in_progress, instant_rate, remaining, smooth};
 
 fn tracker() -> Tracker {
     Tracker::default()

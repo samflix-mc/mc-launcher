@@ -1,4 +1,4 @@
-use super::*;
+use super::{Brand, name, seal};
 
 #[test]
 fn a_single_word_name_gives_its_first_two_letters() {

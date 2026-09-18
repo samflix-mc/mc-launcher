@@ -7,7 +7,7 @@
 //! choice, and it takes both its inputs as arguments exactly for that
 //! reason.
 
-use super::*;
+use super::{NVIDIA_MODULE, VARIABLE, should_disable_dmabuf};
 
 #[test]
 fn nvidia_alone_triggers_the_workaround() {

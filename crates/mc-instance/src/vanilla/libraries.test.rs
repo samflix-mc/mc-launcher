@@ -1,4 +1,4 @@
-use super::*;
+use super::{Artifact, weight};
 
 fn artifact(size: u64) -> Artifact {
     Artifact {

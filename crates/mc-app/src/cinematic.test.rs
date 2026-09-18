@@ -4,7 +4,7 @@
 //! tested here is the translation — the report that fills the tracker, and
 //! the few fields the launch reuses from the install.
 
-use super::*;
+use super::{Arc, CADENCE, Duration, EVENT_PROGRESS, Phase, ToTheWindow, Tracker};
 use mc_pack::Report;
 
 fn report() -> (Arc<Tracker>, ToTheWindow) {

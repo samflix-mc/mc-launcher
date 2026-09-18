@@ -4,7 +4,7 @@
 //! exercise meaningfully — see `mc-app`'s crate doc on why this crate sits
 //! outside the mutation scope.
 
-use super::*;
+use super::{ServerState, ServerStatus, from_ping};
 
 #[test]
 fn a_successful_probe_reports_online_with_its_numbers() {

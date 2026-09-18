@@ -1,4 +1,4 @@
-use super::*;
+use super::{Report, Silent, Step};
 
 #[test]
 fn the_steps_are_in_the_order_they_occur() {
