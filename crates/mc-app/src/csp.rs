@@ -29,6 +29,7 @@
 const EVENT: &str = "csp-served";
 
 /// What reading the header lets us conclude.
+#[cfg(any(debug_assertions, test))]
 #[derive(Debug, PartialEq, Eq)]
 pub struct Verdict {
     /// Do component styles pass: does `style-src` admit inline, with nothing
@@ -48,6 +49,7 @@ pub struct Verdict {
 /// default verdict but an unanswered question, and confusing it with
 /// "everything's fine" would be the only way to miss what the probe is
 /// looking for.
+#[cfg(any(debug_assertions, test))]
 pub fn judge(header: &str) -> Option<Verdict> {
     let style = directive(header, "style-src")?;
     let script = directive(header, "script-src").unwrap_or_default();
@@ -71,6 +73,7 @@ pub fn judge(header: &str) -> Option<Verdict> {
 /// Compares on the whole NAME and not on a prefix: `script-src` is a prefix
 /// of `script-src-elem`, and confusing the two would judge the wrong
 /// directive — precisely the one that isn't the one being loosened.
+#[cfg(any(debug_assertions, test))]
 fn directive<'a>(header: &'a str, name: &str) -> Option<&'a str> {
     header.split(';').map(str::trim).find_map(|piece| {
         let rest = piece.strip_prefix(name)?;

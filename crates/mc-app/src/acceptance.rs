@@ -24,6 +24,7 @@
 //! short, and every point that leaves it is a point that won't be asked
 //! about again.
 
+#[cfg(any(debug_assertions, test))]
 use serde::Deserialize;
 
 /// The name of the event the window reports through.
@@ -31,6 +32,7 @@ use serde::Deserialize;
 const EVENT: &str = "acceptance";
 
 /// What the window observed about itself.
+#[cfg(any(debug_assertions, test))]
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Report {
@@ -80,6 +82,7 @@ pub struct Report {
 /// Returns an empty list when everything's fine. This is the PURE half of
 /// the module: it can be re-read in a test, without a display server, and
 /// it's the one that carries the thresholds.
+#[cfg(any(debug_assertions, test))]
 pub fn gaps(report: &Report) -> Vec<String> {
     let mut gaps = Vec::new();
 
