@@ -43,7 +43,7 @@
 
       <div class="hm-setting">
         <div>
-          <div class="hm-setting__label">Backdrop image</div>
+          <label class="hm-setting__label" for="backdrop-select">Backdrop image</label>
           <p class="hm-setting__desc">What shows behind the panels.</p>
         </div>
         <div class="hm-setting__control">
@@ -51,7 +51,7 @@
             class="hm-select hm-select--auto"
             [value]="view().appearance.backdrop"
             (change)="changeBackdrop($any($event.target).value)"
-            aria-label="Backdrop image"
+            id="backdrop-select"
             data-test="backdrop"
           >
             @for (choice of backdrops; track choice.value) {
@@ -113,14 +113,14 @@
 
       <div class="hm-setting">
         <div>
-          <div class="hm-setting__label">Mode</div>
+          <label class="hm-setting__label" for="window-mode-select">Mode</label>
         </div>
         <div class="hm-setting__control">
           <select
             class="hm-select hm-select--auto"
             [value]="view().window.mode"
             (change)="changeMode($any($event.target).value)"
-            aria-label="Mode: game window"
+            id="window-mode-select"
             data-test="mode"
           >
             @for (choice of modes; track choice.value) {

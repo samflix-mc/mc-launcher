@@ -283,6 +283,44 @@ jobs:
             exit 1
           fi
 
+          # **Les survivants, nommés un par un, ici et pas seulement dans le
+          # total.**
+          #
+          # Sans cela, une part rouge dit « il en reste un » et rien d'autre :
+          # le journal complet fait des milliers de lignes de rustc, l'artefact
+          # demande un téléchargement, et le job qui agrège REFUSE de compter
+          # dès qu'une part a échoué — donc il ne liste rien non plus. On
+          # savait qu'un mutant avait survécu sans pouvoir dire lequel, ce qui
+          # oblige à rejouer la part en local pour l'apprendre.
+          #
+          # Deux sorties, parce qu'elles ne servent pas au même moment :
+          # l'annotation « ::error file=…,line=… » épingle la ligne dans
+          # l'onglet Files changed de la PR ; le résumé d'étape se lit en haut
+          # du run, sans ouvrir un seul journal.
+          if [ -s mutants.out/missed.txt ]; then
+            restants=$(wc -l < mutants.out/missed.txt)
+            {
+              echo "### Part ${{ matrix.part }} — $restants mutant(s) survivant(s)"
+              echo
+              echo "| Fichier | Ligne | Ce que le mutant a changé sans que rien ne s'en aperçoive |"
+              echo "|---|---:|---|"
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            # Format d'une ligne de missed.txt :
+            #   crates/mc-pack/src/state.rs:62:5: replace foo -> bool with true
+            while IFS= read -r survivant; do
+              [ -n "$survivant" ] || continue
+              fichier=${survivant%%:*}
+              suite=${survivant#*:}
+              numero=${suite%%:*}
+              suite=${suite#*:}
+              mutation=${suite#*: }
+              echo "::error file=$fichier,line=$numero,title=Mutant survivant::$mutation"
+              printf '| `%s` | %s | `%s` |\n' \
+                "$fichier" "$numero" "$mutation" >> "$GITHUB_STEP_SUMMARY"
+            done < mutants.out/missed.txt
+          fi
+
       # Le rapport est conservé même — surtout — quand des mutants ont survécu :
       # c'est là qu'on veut savoir quelle ligne personne ne vérifie. C'est aussi
       # ce que la part suivante additionne.
@@ -304,23 +342,51 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      # Une part qui échoue n'a pas mesuré ce qu'on lui demandait : son rapport
-      # est incomplet, et un total tiré des autres serait plus bas que la
-      # réalité — le budget passerait pour une raison fausse.
-      - name: Toutes les parts ont-elles abouti ?
-        if: needs.parts.result != 'success' && needs.parts.result != 'skipped'
-        run: |
-          echo "::error title=Tests de mutation::une part au moins n'a pas" \
-               "abouti (${{ needs.parts.result }}) : le total des survivants" \
-               "serait incomplet."
-          exit 1
-
+      # Les rapports d'abord, le verdict ensuite — et l'ordre est le correctif.
+      #
+      # Ces deux étapes étaient dans l'ordre inverse : le job refusait de
+      # compter dès qu'une part avait échoué, et sortait AVANT de reprendre le
+      # moindre rapport. Une part rouge produisait donc deux jobs muets, l'un
+      # disant « il en reste un », l'autre « je ne compte pas ». Ce qu'on
+      # cherchait — quelle ligne personne ne vérifie — n'était écrit nulle
+      # part.
       - name: Reprendre les rapports des parts
         if: needs.decoupage.outputs.nombre != '0'
         uses: actions/download-artifact@v7
         with:
           pattern: mutants-part-*
           path: parts
+
+      # Ce qu'on sait déjà, même quand le total est incomplet : un survivant
+      # connu reste à corriger, que les autres parts aient abouti ou non.
+      - name: Ce que les parts abouties ont trouvé
+        if: always()
+        run: |
+          survivants=$(cat parts/*/missed.txt 2>/dev/null | wc -l)
+          [ "$survivants" -gt 0 ] || exit 0
+
+          {
+            echo "### $survivants mutant(s) survivant(s) sur l'ensemble des parts reprises"
+            echo
+            echo '```'
+            cat parts/*/missed.txt 2>/dev/null
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          cat parts/*/missed.txt 2>/dev/null
+
+      # Une part qui échoue n'a pas mesuré ce qu'on lui demandait : son rapport
+      # est incomplet, et un total tiré des autres serait plus bas que la
+      # réalité — le budget passerait pour une raison fausse. On le dit APRÈS
+      # avoir listé ce qu'on sait, pas à la place.
+      - name: Toutes les parts ont-elles abouti ?
+        if: needs.parts.result != 'success' && needs.parts.result != 'skipped'
+        run: |
+          echo "::error title=Tests de mutation::une part au moins n'a pas" \
+               "abouti (${{ needs.parts.result }}) : le total des survivants" \
+               "serait incomplet. Les survivants déjà connus sont listés" \
+               "à l'étape précédente et dans le résumé du run."
+          exit 1
 
       - name: Appliquer le budget
         run: |

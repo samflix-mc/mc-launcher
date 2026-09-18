@@ -60,11 +60,18 @@ describe('Boot', () => {
     ).toBe(true);
   });
 
-  /** It announces its wait to assistive technologies. */
+  /**
+   * It announces its wait to assistive technologies.
+   *
+   * The role is checked through the TAG and not through a `role` attribute:
+   * `<output>` carries `status` implicitly, and writing it out again was
+   * redundant. The assertion holds the same guarantee — the element is
+   * announced — by naming what gives it rather than a duplicate of it.
+   */
   it('it is announced as a status', () => {
     const boot = mount().nativeElement.querySelector('[data-test="boot"]');
 
-    expect(boot.getAttribute('role')).toBe('status');
+    expect(boot.tagName).toBe('OUTPUT');
     expect(boot.getAttribute('aria-live')).toBe('polite');
   });
 });

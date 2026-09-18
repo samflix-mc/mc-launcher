@@ -56,3 +56,16 @@
 .hm-menu__item:disabled:hover {
   background: transparent;
 }
+
+/* The menu separator is an `<hr>` and no longer a `<div role="separator">`:
+   the element carries the meaning, so the role has nothing left to declare.
+
+   The reset is needed here and not in `helm.css`: `.hm-menu__sep` sets a
+   height, a margin and a background, which is all a `<div>` needs — but a
+   `<hr>` arrives with the user agent's inset border and its own margin, and
+   would draw a second line above the one we want. `helm.css` is a copy of
+   the design system, replaceable with a `cp`, so the override belongs to
+   the component that made the element an `<hr>`. */
+hr.hm-menu__sep {
+  border: 0;
+}

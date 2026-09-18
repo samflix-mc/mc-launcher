@@ -101,3 +101,15 @@
 .hm-settings__ok {
   color: var(--success);
 }
+
+/* The setting's name is a `<label>` and no longer a `<div>`: it now points at
+   the control it names, which is what makes clicking the text focus the
+   field — and what stops the accessible name from being a second, parallel
+   string that nothing keeps in step with the visible one.
+
+   `display: block` because a `<label>` is inline by default, where the
+   `<div>` it replaces was block: without it the description below would ride
+   up onto the same line. */
+label.hm-setting__label {
+  display: block;
+}
