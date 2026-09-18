@@ -1,36 +1,37 @@
-//! Les fichiers publiés par Mojang : client, bibliothèques, assets.
+//! The files Mojang publishes: client, libraries, assets.
 //!
-//! Tout part de `version_manifest_v2.json`, qui renvoie vers le descripteur
-//! d'une version, lequel décrit le reste. Chaque fichier vient avec son SHA-1,
-//! ce qui permet de tout vérifier sans faire confiance au transport.
+//! Everything starts from `version_manifest_v2.json`, which points to a
+//! version's descriptor, which in turn describes the rest. Every file comes
+//! with its SHA-1, which makes it possible to verify everything without
+//! trusting the transport.
 //!
-//! Le partage est délibéré : bibliothèques et assets vivent dans un répertoire
-//! commun à toutes les instances. Ils représentent près d'un gigaoctet, ne
-//! dépendent que de la version du jeu, et les dupliquer par instance rendrait
-//! inutilisable le fait d'en avoir plusieurs.
+//! The sharing is deliberate: libraries and assets live in a directory
+//! common to every instance. They amount to nearly a gigabyte, depend only
+//! on the game version, and duplicating them per instance would make having
+//! several of them unusable.
 
 mod assets;
-mod bibliotheques;
-mod descripteur;
+mod descriptor;
 mod installation;
-mod plateforme;
-mod regles;
+mod libraries;
+mod platform;
+mod rules;
 mod verification;
 
-pub(crate) use descripteur::{Features, Library, Rule};
-pub(crate) use regles::{allowed, allowed_with};
+pub(crate) use descriptor::{Features, Library, Rule};
+pub(crate) use rules::{allowed, allowed_with};
 
-pub use descripteur::Artifact;
-pub use installation::{Vanilla, install, java_exige};
-pub use plateforme::{maven_path, mojang_arch, mojang_os};
+pub use descriptor::Artifact;
+pub use installation::{Vanilla, install, java_required};
+pub use platform::{maven_path, mojang_arch, mojang_os};
 pub use verification::{VerifyReport, classpath, verify_assets};
 
 pub(crate) const MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 pub(crate) const RESOURCES: &str = "https://resources.download.minecraft.net";
 
-/// Téléchargements simultanés pour les assets.
+/// Concurrent downloads for assets.
 ///
-/// Ce sont quelques milliers de fichiers de quelques kilooctets : la latence
-/// domine, et la concurrence est ce qui fait la différence entre deux minutes
-/// et une demi-heure.
+/// These are a few thousand files of a few kilobytes each: latency
+/// dominates, and concurrency is what makes the difference between two
+/// minutes and half an hour.
 const PARALLEL: usize = 16;

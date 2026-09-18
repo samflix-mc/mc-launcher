@@ -1,136 +1,125 @@
 use super::verify;
-use crate::disposition::Layout;
-use crate::essais::{Arbre, NEOFORGE, VANILLA};
+use crate::fixtures::{NEOFORGE, Tree, VANILLA};
+use crate::layout::Layout;
 
-/// `Layout` range `shared` sous sa racine ; l'arbre factice suit la même
-/// disposition, donc sa racine fait un `Layout` valable.
-fn disposition(arbre: &Arbre) -> Layout {
-    Layout::new(arbre.racine.clone())
+/// `Layout` puts `shared` under its root; the fixture tree follows the same
+/// layout, so its root makes a valid `Layout`.
+fn layout(tree: &Tree) -> Layout {
+    Layout::new(tree.root.clone())
 }
 
-fn complete(nom: &str) -> Arbre {
-    let arbre = Arbre::neuf(nom);
-    arbre
-        .version("1.21.1", VANILLA)
+fn complete(name: &str) -> Tree {
+    let tree = Tree::new(name);
+    tree.version("1.21.1", VANILLA)
         .client("1.21.1")
         .version("neoforge-21.1.250", NEOFORGE)
-        .bibliotheque("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar")
-        .bibliotheque("com/google/guava/guava/33.0.0-jre/guava-33.0.0-jre.jar")
-        .bibliotheque("net/neoforged/fancymodloader/loader/4.0.24/loader-4.0.24.jar");
-    arbre
+        .library("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar")
+        .library("com/google/guava/guava/33.0.0-jre/guava-33.0.0-jre.jar")
+        .library("net/neoforged/fancymodloader/loader/4.0.24/loader-4.0.24.jar");
+    tree
 }
 
 #[test]
-fn une_installation_complete_ne_signale_rien() {
-    let arbre = complete("verif-complete");
-    let problemes = verify("1.21.1", "21.1.250", &disposition(&arbre), false).unwrap();
-    assert!(problemes.is_empty(), "{problemes:?}");
+fn a_complete_installation_reports_nothing() {
+    let tree = complete("verify-complete");
+    let problems = verify("1.21.1", "21.1.250", &layout(&tree), false).unwrap();
+    assert!(problems.is_empty(), "{problems:?}");
 }
 
 #[test]
-fn un_client_absent_est_signale_par_son_chemin() {
-    let arbre = complete("verif-sans-client");
+fn a_missing_client_is_reported_by_its_path() {
+    let tree = complete("verify-no-client");
     std::fs::remove_file(
-        arbre
-            .shared()
+        tree.shared()
             .join("versions")
             .join("1.21.1")
             .join("1.21.1.jar"),
     )
     .unwrap();
 
-    let problemes = verify("1.21.1", "21.1.250", &disposition(&arbre), false).unwrap();
-    assert_eq!(problemes.len(), 1, "{problemes:?}");
-    assert!(problemes[0].contains("fichier manquant"), "{problemes:?}");
-    assert!(problemes[0].contains("1.21.1.jar"), "{problemes:?}");
+    let problems = verify("1.21.1", "21.1.250", &layout(&tree), false).unwrap();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("missing file"), "{problems:?}");
+    assert!(problems[0].contains("1.21.1.jar"), "{problems:?}");
 }
 
-/// Les deux descripteurs sont contrôlés : celui de NeoForge ajoute une
-/// cinquantaine de bibliothèques, et il en manque une suffit à faire échouer le
-/// démarrage aussi sûrement qu'une bibliothèque vanilla.
+/// Both descriptors are checked: NeoForge's adds about fifty libraries, and
+/// missing just one fails the startup as surely as a missing vanilla
+/// library would.
 #[test]
-fn une_bibliotheque_du_chargeur_manquante_est_vue() {
-    let arbre = complete("verif-lib-chargeur");
+fn a_missing_loader_library_is_seen() {
+    let tree = complete("verify-loader-lib");
     std::fs::remove_file(
-        arbre
-            .shared()
+        tree.shared()
             .join("libraries")
             .join("net/neoforged/fancymodloader/loader/4.0.24/loader-4.0.24.jar"),
     )
     .unwrap();
 
-    let problemes = verify("1.21.1", "21.1.250", &disposition(&arbre), false).unwrap();
-    assert_eq!(problemes.len(), 1, "{problemes:?}");
-    assert!(
-        problemes[0].contains("bibliothèque manquante"),
-        "{problemes:?}"
-    );
-    assert!(problemes[0].contains("loader-4.0.24.jar"), "{problemes:?}");
+    let problems = verify("1.21.1", "21.1.250", &layout(&tree), false).unwrap();
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert!(problems[0].contains("missing library"), "{problems:?}");
+    assert!(problems[0].contains("loader-4.0.24.jar"), "{problems:?}");
 }
 
 #[test]
-fn un_chargeur_non_installe_est_nomme_avec_sa_version() {
-    let arbre = Arbre::neuf("verif-sans-chargeur");
-    arbre
-        .version("1.21.1", VANILLA)
+fn an_uninstalled_loader_is_named_with_its_version() {
+    let tree = Tree::new("verify-no-loader");
+    tree.version("1.21.1", VANILLA)
         .client("1.21.1")
-        .bibliotheque("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar");
+        .library("com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar");
 
-    let problemes = verify("1.21.1", "21.1.250", &disposition(&arbre), false).unwrap();
+    let problems = verify("1.21.1", "21.1.250", &layout(&tree), false).unwrap();
     assert!(
-        problemes.iter().any(|p| p.contains("NeoForge 21.1.250")),
-        "{problemes:?}"
+        problems.iter().any(|p| p.contains("NeoForge 21.1.250")),
+        "{problems:?}"
     );
 }
 
-/// `deep` recontrôle l'empreinte de chaque objet d'assets, ce que
-/// l'installation ne fait pas pour ne pas relire 800 Mo à chaque lancement.
+/// `deep` re-checks the digest of every asset object, which the installer
+/// skips so it doesn't re-read 800 MB on every launch.
 #[test]
-fn la_verification_profonde_relit_les_assets() {
-    let arbre = complete("verif-profonde");
-    let empreinte = arbre.asset(b"un");
-    let chemin = arbre
+fn the_deep_verification_rereads_the_assets() {
+    let tree = complete("verify-deep");
+    let digest = tree.asset(b"one");
+    let path = tree
         .shared()
         .join("assets")
         .join("objects")
-        .join(&empreinte[..2])
-        .join(&empreinte);
-    std::fs::write(&chemin, b"autre chose").unwrap();
-    arbre.index_assets("17", std::slice::from_ref(&empreinte));
+        .join(&digest[..2])
+        .join(&digest);
+    std::fs::write(&path, b"something else").unwrap();
+    tree.index_assets("17", std::slice::from_ref(&digest));
 
-    let sans = verify("1.21.1", "21.1.250", &disposition(&arbre), false).unwrap();
-    assert!(sans.is_empty(), "{sans:?}");
+    let without = verify("1.21.1", "21.1.250", &layout(&tree), false).unwrap();
+    assert!(without.is_empty(), "{without:?}");
 
-    let avec = verify("1.21.1", "21.1.250", &disposition(&arbre), true).unwrap();
-    assert!(
-        avec.iter().any(|p| p.contains("asset corrompu")),
-        "{avec:?}"
-    );
+    let with = verify("1.21.1", "21.1.250", &layout(&tree), true).unwrap();
+    assert!(with.iter().any(|p| p.contains("corrupt asset")), "{with:?}");
 }
 
-/// Quand des fichiers manquent déjà, relire 800 Mo d'assets n'apprendrait rien
-/// de plus : c'est l'installation qu'il faut relancer.
+/// When files are already missing, re-reading 800 MB of assets wouldn't
+/// teach anything more: it's the installation that needs re-running.
 #[test]
-fn la_verification_profonde_ne_s_ajoute_pas_a_des_problemes_deja_trouves() {
-    let arbre = complete("verif-profonde-inutile");
+fn the_deep_verification_does_not_add_to_problems_already_found() {
+    let tree = complete("verify-deep-unneeded");
     std::fs::remove_file(
-        arbre
-            .shared()
+        tree.shared()
             .join("versions")
             .join("1.21.1")
             .join("1.21.1.jar"),
     )
     .unwrap();
 
-    let problemes = verify("1.21.1", "21.1.250", &disposition(&arbre), true).unwrap();
-    assert_eq!(problemes.len(), 1, "{problemes:?}");
+    let problems = verify("1.21.1", "21.1.250", &layout(&tree), true).unwrap();
+    assert_eq!(problems.len(), 1, "{problems:?}");
 }
 
-/// Sans index d'assets sur le disque, la vérification profonde n'a rien à
-/// relire — et ce n'est pas une erreur, seulement une installation jeune.
+/// Without an asset index on disk, the deep verification has nothing to
+/// reread — and that's not an error, just a young installation.
 #[test]
-fn une_verification_profonde_sans_index_ne_signale_rien() {
-    let arbre = complete("verif-profonde-vide");
-    let problemes = verify("1.21.1", "21.1.250", &disposition(&arbre), true).unwrap();
-    assert!(problemes.is_empty(), "{problemes:?}");
+fn a_deep_verification_without_an_index_reports_nothing() {
+    let tree = complete("verify-deep-empty");
+    let problems = verify("1.21.1", "21.1.250", &layout(&tree), true).unwrap();
+    assert!(problems.is_empty(), "{problems:?}");
 }

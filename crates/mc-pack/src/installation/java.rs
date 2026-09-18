@@ -1,41 +1,38 @@
-//! Le runtime avec lequel NeoForge sera installé, puis lancé.
+//! The runtime NeoForge will be installed with, then launched.
 
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 
-use crate::progression::Rapport;
+use crate::progress::Report;
 
 pub(super) async fn runtime(
     java_major: u32,
     layout: &mc_instance::Layout,
-    rapport: &Arc<dyn Rapport>,
+    report: &Arc<dyn Report>,
 ) -> Result<mc_java::Java> {
-    // L'observateur descend jusqu'à mc-java, et c'est ce qui change tout pour
-    // qui regarde la fenêtre : sans lui, l'étape « Java » s'allumait puis ne
-    // disait plus rien pendant cent quatre-vingts mégaoctets. Une fenêtre
-    // muette pendant deux minutes ne se distingue pas d'une fenêtre plantée.
+    // The observer goes all the way down to mc-java, and that's what makes
+    // all the difference for whoever is watching the window: without it,
+    // the "Java" step would light up and then say nothing for a hundred and
+    // eighty megabytes. A window silent for two minutes looks no different
+    // from a crashed one.
     //
-    // L'observateur n'est nourri que si un runtime doit RÉELLEMENT être posé :
-    // quand `detect` en trouve un, `ensure` rend la main sans rien télécharger,
-    // et la barre ne bouge pas parce qu'il n'y a rien à raconter.
-    let java = mc_java::ensure(
-        java_major,
-        &layout.runtime(),
-        Some(super::observateur(rapport)),
-    )
-    .await
-    .with_context(|| format!("aucun Java {java_major} utilisable"))?;
+    // The observer is only fed if a runtime REALLY needs to be placed: when
+    // `detect` finds one, `ensure` returns without downloading anything,
+    // and the bar doesn't move because there's nothing to report.
+    let java = mc_java::ensure(java_major, &layout.runtime(), Some(super::observer(report)))
+        .await
+        .with_context(|| format!("no usable Java {java_major}"))?;
 
     tracing::info!(
         version = %java.version.full,
-        majeur_exige = java_major,
-        origine = ?java.origin,
-        "Java {} utilisé ({})",
+        required_major = java_major,
+        origin = ?java.origin,
+        "Java {} used ({})",
         java.version.full,
         match java.origin {
-            mc_java::Origin::Managed => "installé par le launcher",
-            mc_java::Origin::System => "runtime du système",
+            mc_java::Origin::Managed => "installed by the launcher",
+            mc_java::Origin::System => "system runtime",
         }
     );
     Ok(java)

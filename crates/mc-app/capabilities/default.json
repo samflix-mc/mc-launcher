@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Ce que la fenêtre a le droit de demander au système. « core:default » agrège neuf jeux, soit quatre-vingt-douze permissions, dont les vingt-huit de « core:window:default » — qui donnent déjà le double-clic pour maximiser et l'écran principal, mais NI minimize, NI toggle-maximize, NI close, NI start-dragging : la barre de titre sans décorations les réclame nommément. « opener:allow-open-path » ouvre un dossier du launcher dans l'explorateur ; elle ne figure dans aucun défaut, et son absence se manifeste par un refus d'ACL qu'on ne voit qu'en build packagé, jamais en tauri dev. La liste « windows » nomme les DEUX fenêtres que le front pilote : la principale et celle de connexion. Une fenêtre absente de cette liste s'ouvre normalement et voit chacun de ses appels refusés, sans qu'aucune console ne le dise en développement.",
-  "windows": ["main", "connexion"],
+  "description": "What the window is allowed to ask the system for. \"core:default\" aggregates nine permission sets, i.e. ninety-two permissions, including the twenty-eight from \"core:window:default\" — which already grant double-click to maximize and the primary monitor, but NEITHER minimize, NOR toggle-maximize, NOR close, NOR start-dragging: the undecorated title bar claims them by name. \"opener:allow-open-path\" opens a launcher folder in the file explorer; it's in no default set, and its absence shows up as an ACL refusal only in a packaged build, never in tauri dev. The \"windows\" list names the TWO windows the front end drives: the main one and the sign-in one. A window absent from this list opens normally and has every one of its calls refused, with no console saying so in development.",
+  "windows": ["main", "signin"],
   "permissions": [
     "core:default",
     "core:window:allow-minimize",

@@ -1,4 +1,4 @@
-//! Ce que les routes du site rendent.
+//! What the site's routes render.
 
 use serde::Deserialize;
 
@@ -9,14 +9,14 @@ pub(crate) struct Page<T> {
     pub(crate) pagination: Option<Pagination>,
 }
 
-/// Une réponse qui ne porte qu'un objet.
+/// A response that carries only a single object.
 ///
-/// Les routes du site enveloppent **tout** dans `data`, la liste comme l'unité.
-/// Lire un objet unique sans son enveloppe donne une désérialisation qui
-/// échoue — et, parce que l'échec était avalé, un build épinglé qui existe et
-/// qu'on déclare introuvable.
+/// The site's routes wrap **everything** in `data`, the list just like the
+/// unit. Reading a single object without its envelope produces a
+/// deserialization failure — and, because the failure was swallowed, a
+/// pinned build that exists and gets declared missing.
 #[derive(Debug, Deserialize)]
-pub(crate) struct Un<T> {
+pub(crate) struct Single<T> {
     pub(crate) data: T,
 }
 

@@ -1,111 +1,109 @@
-//! Les états que l'interface doit savoir montrer.
+//! The states the interface has to know how to show.
 //!
-//! ## Pourquoi des scénarios et pas la vraie chaîne
+//! ## Why scenarios and not the real chain
 //!
-//! Le but de ce serveur est de travailler l'INTERFACE. Or la plupart des états
-//! qu'elle doit savoir dessiner sont pénibles ou impossibles à provoquer pour
-//! de bon : une installation figée à trente-sept pour cent, un pack dont trois
-//! mods sont introuvables, un compte sans licence Minecraft, un hôte hors
-//! ligne. Les atteindre en vrai demanderait de casser quelque chose, et de le
-//! réparer entre deux essais.
+//! The point of this server is to work on the INTERFACE. Now, most of the
+//! states it has to know how to draw are painful or impossible to trigger
+//! for real: an install stuck at thirty-seven percent, a pack missing three
+//! mods, an account without a Minecraft license, an offline host. Reaching
+//! them for real would mean breaking something, and fixing it between two
+//! tries.
 //!
-//! Un scénario les rend tous accessibles en une requête. C'est ce qui permet
-//! de regarder l'écran « mods introuvables » sans avoir à publier un pack
-//! fautif.
+//! A scenario makes all of them reachable in one request. That's what makes
+//! it possible to look at the "missing mods" screen without having to
+//! publish a broken pack.
 //!
-//! **Ce qui n'est PAS simulé** : `marque`, `chemin`, `reglages`,
-//! `enregistrer_reglages`. Ces quatre-là appellent la VRAIE implémentation —
-//! elles ne touchent ni au réseau ni à huit cents mégaoctets, et les voir
-//! mentir n'apprendrait rien. `enregistrer_reglages` écrit donc pour de bon
-//! dans `reglages.json`, ce qui est exactement ce qu'on veut éprouver : c'est
-//! là que les bornes s'appliquent.
+//! **What is NOT simulated**: `brand`, `path`, `settings`,
+//! `save_settings`. Those four call the REAL implementation — they touch
+//! neither the network nor eight hundred megabytes, and watching them lie
+//! wouldn't teach anything. `save_settings` therefore really writes to
+//! `settings.json`, which is exactly what we want to put to the test: it's
+//! where the bounds apply.
 
 use serde::Serialize;
 
-use crate::commandes::{Compte, EtapeVue};
+use crate::commands::{Account, StepView};
 use crate::phase::Phase;
-use crate::suivi::Avancement;
+use crate::tracker::Progress;
 
-/// L'état que le serveur sert.
+/// The state the server serves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Etat {
-    /// Personne n'est connecté : l'écran doit s'ouvrir sur la connexion.
-    Deconnecte,
-    /// Compte Microsoft valide, mais sans licence Minecraft. Un ÉTAT à
-    /// afficher, pas une redirection.
-    SansLicence,
-    /// Connecté, rien d'installé : le bouton dit INSTALLER.
-    RienInstalle,
-    /// Connecté, pack posé et conforme : le bouton dit JOUER.
-    PretAJouer,
-    /// Pack posé mais le verrou publié a changé : JOUER, avec rattrapage.
-    ARattraper,
-    /// L'hôte du pack n'a pas répondu : l'écart est inconnu.
-    HorsLigne,
-    /// Une installation est en cours, figée à mi-parcours.
-    EnInstallation,
-    /// L'installation s'est faite, mais trois mods manquent.
-    ModsIntrouvables,
+pub enum State {
+    /// Nobody is signed in: the screen must open on sign-in.
+    SignedOut,
+    /// Valid Microsoft account, but no Minecraft license. A STATE to
+    /// display, not a redirect.
+    NoLicense,
+    /// Signed in, nothing installed: the button says INSTALL.
+    NothingInstalled,
+    /// Signed in, pack placed and conformant: the button says PLAY.
+    ReadyToPlay,
+    /// Pack placed but the published lock has changed: PLAY, with a catch-up.
+    NeedsCatchUp,
+    /// The pack's host didn't respond: the drift is unknown.
+    Offline,
+    /// An install is in progress, stuck partway through.
+    Installing,
+    /// The install went through, but three mods are missing.
+    MissingMods,
 }
 
-impl Etat {
-    /// Tous les scénarios, avec le nom par lequel on les demande.
-    pub const TOUS: [(&'static str, Etat); 8] = [
-        ("deconnecte", Etat::Deconnecte),
-        ("sans-licence", Etat::SansLicence),
-        ("rien-installe", Etat::RienInstalle),
-        ("pret-a-jouer", Etat::PretAJouer),
-        ("a-rattraper", Etat::ARattraper),
-        ("hors-ligne", Etat::HorsLigne),
-        ("en-installation", Etat::EnInstallation),
-        ("mods-introuvables", Etat::ModsIntrouvables),
+impl State {
+    /// All the scenarios, with the name by which they're requested.
+    pub const ALL: [(&'static str, State); 8] = [
+        ("signed-out", State::SignedOut),
+        ("no-license", State::NoLicense),
+        ("nothing-installed", State::NothingInstalled),
+        ("ready-to-play", State::ReadyToPlay),
+        ("needs-catch-up", State::NeedsCatchUp),
+        ("offline", State::Offline),
+        ("installing", State::Installing),
+        ("missing-mods", State::MissingMods),
     ];
 
-    pub fn depuis_nom(nom: &str) -> Option<Etat> {
-        Etat::TOUS
+    pub fn from_name(name: &str) -> Option<State> {
+        State::ALL
             .iter()
-            .find(|(connu, _)| *connu == nom)
-            .map(|(_, etat)| *etat)
+            .find(|(known, _)| *known == name)
+            .map(|(_, state)| *state)
     }
 
-    /// Le compte, ou `None` quand personne n'est connecté.
-    pub(crate) fn compte(self) -> Option<Compte> {
+    /// The account, or `None` when nobody is signed in.
+    pub(crate) fn account(self) -> Option<Account> {
         match self {
-            Etat::Deconnecte => None,
-            Etat::SansLicence => Some(Compte {
-                pseudo: "SansLicence".to_string(),
+            State::SignedOut => None,
+            State::NoLicense => Some(Account {
+                username: "NoLicense".to_string(),
                 uuid: "00000000-0000-0000-0000-00000000dead".to_string(),
-                possede_le_jeu: false,
+                owns_the_game: false,
             }),
-            _ => Some(Compte {
-                pseudo: "thesam1798".to_string(),
+            _ => Some(Account {
+                username: "thesam1798".to_string(),
                 uuid: "9f6e4a0c-1b2d-4e3f-8a9b-0c1d2e3f4a5b".to_string(),
-                possede_le_jeu: true,
+                owns_the_game: true,
             }),
         }
     }
 
-    /// Ce que le disque et le pack publié disent.
-    pub(crate) fn pack(self) -> mc_pack::EtatDuPack {
-        use mc_pack::comparaison::{Action, Ecart};
+    /// What the disk and the published pack say.
+    pub(crate) fn pack(self) -> mc_pack::PackState {
+        use mc_pack::comparison::{Action, Drift};
 
-        let (action, ecart, installe, hors_ligne) = match self {
-            Etat::Deconnecte | Etat::SansLicence | Etat::RienInstalle => {
-                (Action::Installer, Ecart::Absent, false, false)
+        let (action, drift, installed, offline) = match self {
+            State::SignedOut | State::NoLicense | State::NothingInstalled => {
+                (Action::Install, Drift::Absent, false, false)
             }
-            Etat::PretAJouer | Etat::ModsIntrouvables => (Action::Jouer, Ecart::AJour, true, false),
-            Etat::ARattraper | Etat::EnInstallation => {
-                (Action::Jouer, Ecart::MiseAJour, true, false)
-            }
-            Etat::HorsLigne => (Action::Jouer, Ecart::Inconnu, true, true),
+            State::ReadyToPlay | State::MissingMods => (Action::Play, Drift::UpToDate, true, false),
+            State::NeedsCatchUp | State::Installing => (Action::Play, Drift::Update, true, false),
+            State::Offline => (Action::Play, Drift::Unknown, true, true),
         };
 
-        mc_pack::EtatDuPack {
+        mc_pack::PackState {
             action,
-            ecart,
-            hors_ligne,
-            installe,
-            nom: Some("samflix".to_string()),
+            drift,
+            offline,
+            installed,
+            name: Some("samflix".to_string()),
             version: Some("0.1.0".to_string()),
             java: Some(21),
             mods: 128,
@@ -113,166 +111,167 @@ impl Etat {
         }
     }
 
-    /// L'avancement affiché à l'ouverture.
+    /// The progress shown on opening.
     ///
-    /// C'est ce qui distingue « rien ne se passe » de « une installation est
-    /// en cours » : l'interface doit savoir dessiner les deux, et l'on ne peut
-    /// pas attendre qu'une vraie installation atteigne trente-sept pour cent
-    /// pour regarder à quoi elle ressemble.
-    pub(crate) fn avancement(self) -> Avancement {
+    /// This is what distinguishes "nothing's happening" from "an install is
+    /// in progress": the interface has to know how to draw both, and we
+    /// can't wait for a real install to reach thirty-seven percent to see
+    /// what it looks like.
+    pub(crate) fn progress(self) -> Progress {
         match self {
-            Etat::EnInstallation => Avancement {
+            State::Installing => Progress {
                 phase: Phase::Mods,
-                achevee: false,
-                note: Some("128 mods, dont 43 ajoutés par dépendance".to_string()),
-                fichier: Some("sodium-neoforge-0.6.13.jar".to_string()),
-                octets: 312_000_000,
+                done: false,
+                note: Some("128 mods, 43 of them added by dependency".to_string()),
+                file: Some("sodium-neoforge-0.6.13.jar".to_string()),
+                bytes: 312_000_000,
                 total: 840_000_000,
-                fichiers: 47,
-                fichiers_total: 128,
-                actif: true,
-                debit: 8_400_000,
-                restant: Some(63),
+                files: 47,
+                files_total: 128,
+                active: true,
+                rate: 8_400_000,
+                remaining: Some(63),
             },
-            Etat::Deconnecte | Etat::SansLicence => Avancement {
-                phase: Phase::Connexion,
-                achevee: false,
-                ..vide()
+            State::SignedOut | State::NoLicense => Progress {
+                phase: Phase::SignIn,
+                done: false,
+                ..empty()
             },
-            Etat::PretAJouer | Etat::ARattraper | Etat::HorsLigne | Etat::ModsIntrouvables => {
-                Avancement {
-                    phase: Phase::Pret,
-                    achevee: true,
-                    ..vide()
+            State::ReadyToPlay | State::NeedsCatchUp | State::Offline | State::MissingMods => {
+                Progress {
+                    phase: Phase::Ready,
+                    done: true,
+                    ..empty()
                 }
             }
-            Etat::RienInstalle => Avancement {
-                phase: Phase::Licence,
-                achevee: true,
-                ..vide()
+            State::NothingInstalled => Progress {
+                phase: Phase::License,
+                done: true,
+                ..empty()
             },
         }
     }
 
-    /// Ce qu'une partie rend, une fois le jeu refermé.
-    pub(crate) fn partie(self, avec_partie: bool) -> crate::commandes::pack::CompteRendu {
-        crate::commandes::pack::CompteRendu {
-            verdict: if avec_partie {
-                "Partie terminée.".to_string()
-            } else if matches!(self, Etat::ARattraper) {
-                "Le pack est installé.".to_string()
+    /// What a session returns, once the game is closed.
+    pub(crate) fn play_result(self, played: bool) -> crate::commands::pack::Report {
+        crate::commands::pack::Report {
+            verdict: if played {
+                "Session finished.".to_string()
+            } else if matches!(self, State::NeedsCatchUp) {
+                "The pack is installed.".to_string()
             } else {
-                "Le pack était déjà à jour : rien à poser.".to_string()
+                "The pack was already up to date: nothing to place.".to_string()
             },
-            rattrapee: matches!(self, Etat::ARattraper),
-            introuvables: match self {
-                Etat::ModsIntrouvables => vec![
+            caught_up: matches!(self, State::NeedsCatchUp),
+            missing: match self {
+                State::MissingMods => vec![
                     "journeymap".to_string(),
                     "waystones".to_string(),
                     "litematica".to_string(),
                 ],
                 _ => Vec::new(),
             },
-            ecarts: match self {
-                Etat::ARattraper => vec!["jei : 19.21.1.317 au lieu de 19.21.0.247".to_string()],
+            drifts: match self {
+                State::NeedsCatchUp => vec!["jei: 19.21.1.317 instead of 19.21.0.247".to_string()],
                 _ => Vec::new(),
             },
-            hors_ligne: matches!(self, Etat::HorsLigne),
+            offline: matches!(self, State::Offline),
             purge: Vec::new(),
         }
     }
 
-    /// Le fil de nouvelles.
+    /// The news feed.
     ///
-    /// Non vide dans tous les scénarios sauf `hors-ligne` : c'est la page
-    /// qu'on ne peut PAS regarder aujourd'hui, puisque les trois hôtes rendent
-    /// 404. Sans ces billets, elle resterait invisible tant que mc-content
-    /// n'a pas publié.
-    pub(crate) fn fil(self) -> mc_nouvelles::Fil {
-        let billets = if matches!(self, Etat::HorsLigne) {
+    /// Non-empty in every scenario except `offline`: that's the page you
+    /// CAN'T look at today, since the three hosts return 404. Without these
+    /// posts, it would stay invisible until mc-content has published.
+    pub(crate) fn feed(self) -> mc_news::Feed {
+        let posts = if matches!(self, State::Offline) {
             Vec::new()
         } else {
-            billets_de_demonstration()
+            demo_posts()
         };
 
-        mc_nouvelles::Fil {
-            billets,
-            hors_ligne: matches!(self, Etat::HorsLigne),
-            ecartes: Vec::new(),
+        mc_news::Feed {
+            posts,
+            offline: matches!(self, State::Offline),
+            discarded: Vec::new(),
         }
     }
 }
 
-fn vide() -> Avancement {
-    Avancement {
-        phase: Phase::Connexion,
-        achevee: false,
+fn empty() -> Progress {
+    Progress {
+        phase: Phase::SignIn,
+        done: false,
         note: None,
-        fichier: None,
-        octets: 0,
+        file: None,
+        bytes: 0,
         total: 0,
-        fichiers: 0,
-        fichiers_total: 0,
-        actif: false,
-        debit: 0,
-        restant: None,
+        files: 0,
+        files_total: 0,
+        active: false,
+        rate: 0,
+        remaining: None,
     }
 }
 
-/// Deux billets, dont un illustré, et un qui exerce tout le markdown reconnu.
+/// Two posts, one of them illustrated, and one that exercises the whole
+/// recognized markdown.
 ///
-/// Le second existe pour que la page soit regardée avec du CONTENU réel :
-/// titres, listes, gras, code, lien, séparateur. Une page de nouvelles à un
-/// paragraphe ne montre pas ses défauts de mise en forme.
-fn billets_de_demonstration() -> Vec<mc_nouvelles::Billet> {
-    let analyser = |corps: &str| mc_nouvelles::analyse::analyser(corps, "https://exemple.invalid/");
+/// The second one exists so the page gets looked at with REAL content:
+/// headings, lists, bold, code, link, separator. A one-paragraph news page
+/// doesn't show its formatting flaws.
+fn demo_posts() -> Vec<mc_news::Post> {
+    let parse = |body: &str| mc_news::parsing::parse(body, "https://example.invalid/");
 
     vec![
-        mc_nouvelles::Billet {
-            id: "2026-09-ouverture".to_string(),
-            titre: "Le launcher est là".to_string(),
+        mc_news::Post {
+            id: "2026-09-launch".to_string(),
+            title: "The launcher is here".to_string(),
             date: "2026-09-18T18:00:00Z".to_string(),
-            epinglee: true,
+            pinned: true,
             image: None,
-            corps: analyser(
-                "Le launcher installe le pack et lance le jeu **en un seul geste**.\n\n\
-                 Ce qu'il faut savoir :\n\n\
-                 - il installe ce que le serveur charge, à la version près\n\
-                 - il pose le Java qu'il faut, sans toucher à celui du système\n\
-                 - il ne réinstalle rien tant que le pack n'a pas bougé\n\n\
-                 Les réglages sont dans `Configuration`.",
+            body: parse(
+                "The launcher installs the pack and launches the game **in a single \
+                 step**.\n\n\
+                 What you need to know:\n\n\
+                 - it installs what the server is running, down to the version\n\
+                 - it places the Java it needs, without touching the system's\n\
+                 - it never reinstalls anything as long as the pack hasn't moved\n\n\
+                 Settings are in `Settings`.",
             ),
         },
-        mc_nouvelles::Billet {
-            id: "2026-09-regles".to_string(),
-            titre: "Les règles du serveur".to_string(),
+        mc_news::Post {
+            id: "2026-09-rules".to_string(),
+            title: "Server rules".to_string(),
             date: "2026-09-17T12:00:00Z".to_string(),
-            epinglee: false,
+            pinned: false,
             image: None,
-            corps: analyser(
-                "Trois règles, et elles tiennent en une ligne chacune.\n\n\
-                 ## Le respect\n\n\
-                 Pas d'insulte, pas de harcèlement. C'est la seule qui mène à un \
-                 bannissement immédiat.\n\n\
-                 ## Les constructions\n\n\
-                 On ne casse pas chez les autres. Un `/back` mal placé n'est pas une \
+            body: parse(
+                "Three rules, and each one fits on a line.\n\n\
+                 ## Respect\n\n\
+                 No insults, no harassment. It's the only one that leads to an \
+                 immediate ban.\n\n\
+                 ## Builds\n\n\
+                 Don't break other people's stuff. A misplaced `/back` isn't an \
                  excuse.\n\n\
                  ---\n\n\
-                 Le détail est sur [la page des règles](https://exemple.invalid/regles).",
+                 Details are on [the rules page](https://example.invalid/rules).",
             ),
         },
     ]
 }
 
-/// Ce que le serveur annonce de lui-même, à la racine.
+/// What the server announces about itself, at the root.
 #[derive(Serialize)]
-pub(crate) struct Accueil {
+pub(crate) struct Home {
     pub(crate) scenario: String,
     pub(crate) scenarios: Vec<String>,
-    pub(crate) commandes: Vec<String>,
+    pub(crate) commands: Vec<String>,
 }
 
-/// Le chemin complet des phases, tel que la vraie commande le rend.
-pub(crate) fn chemin() -> Vec<EtapeVue> {
-    crate::commandes::chemin()
+/// The full path of phases, as the real command renders it.
+pub(crate) fn path() -> Vec<StepView> {
+    crate::commands::path()
 }

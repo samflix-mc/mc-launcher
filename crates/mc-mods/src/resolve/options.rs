@@ -1,14 +1,13 @@
-//! Ce qu'on autorise la résolution à faire.
+//! What we allow resolution to do.
 
 #[derive(Debug, Clone, Copy)]
 pub struct Options {
-    /// Suivre les dépendances annoncées par les API.
+    /// Follow dependencies announced by the APIs.
     ///
-    /// Les désactiver ne casse rien : le rattrapage par lecture des jars
-    /// retrouve les mêmes dépendances, simplement un tour plus tard. C'est ce
-    /// qui permet de vérifier que ce rattrapage fonctionne — et de s'en
-    /// remettre uniquement à ce que le jeu lira, quand une fiche de
-    /// publication est fautive.
+    /// Disabling them breaks nothing: the catch-up pass, by reading the
+    /// jars, finds the same dependencies, just one pass later. This is what
+    /// lets us verify that this catch-up works — and rely solely on what
+    /// the game will read, when a publication listing is wrong.
     pub follow_declared: bool,
 }
 

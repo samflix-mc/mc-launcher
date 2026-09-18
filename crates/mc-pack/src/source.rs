@@ -1,67 +1,67 @@
-//! D'où vient le pack : un fichier du dépôt, ou une adresse.
+//! Where the pack comes from: a file in the repo, or an address.
 //!
-//! Les deux cas ne servent pas les mêmes gens, et c'est ce qui décide de leur
-//! comportement.
+//! The two cases don't serve the same people, and that's what decides their
+//! behavior.
 //!
-//! **Un fichier** est ce qu'on édite. Le manifeste dit ce qu'on veut, la
-//! résolution cherche les versions, et le verrou est réécrit à côté. C'est le
-//! geste de développement, celui qui fait bouger le pack.
+//! **A file** is what you edit. The manifest says what you want, resolution
+//! looks up the versions, and the lock is rewritten next to it. It's the
+//! development gesture, the one that moves the pack forward.
 //!
-//! **Une adresse** est ce qu'on reçoit. Le manifeste et son verrou sont
-//! téléchargés ensemble, et le verrou est **rejoué tel quel** : un joueur ne
-//! résout rien. S'il le faisait, sa machine choisirait ses propres versions le
-//! jour où un mod en publie une nouvelle, et il arriverait sur le serveur avec
-//! des registres NeoForge qui ne concordent plus — une éjection à la connexion,
-//! sans message utile.
+//! **An address** is what you receive. The manifest and its lock are
+//! downloaded together, and the lock is **replayed as-is**: a player resolves
+//! nothing. If they did, their machine would pick its own versions the day a
+//! mod publishes a new one, and they'd show up on the server with NeoForge
+//! registries that no longer match — an ejection at connect, with no useful
+//! message.
 //!
-//! Le verrou distant est donc la seule source de vérité côté joueur, et c'est
-//! exactement ce que mc-content publie.
+//! The remote lock is therefore the only source of truth on the player's
+//! side, and that's exactly what mc-content publishes.
 //!
-//! ## Hors-ligne
+//! ## Offline
 //!
-//! Chaque téléchargement réussi laisse une copie dans le cache. Quand le réseau
-//! manque, cette copie est reprise et l'utilisateur en est averti : jouer avec
-//! le pack d'hier vaut mieux que ne pas jouer. Rien n'est mis en cache avant
-//! d'avoir été relu — une réponse tronquée ou une page d'erreur HTML
-//! remplaceraient sinon un pack valide par du vide.
+//! Every successful download leaves a copy in the cache. When the network is
+//! missing, that copy is picked back up and the user is warned: playing with
+//! yesterday's pack beats not playing. Nothing is cached before it's been
+//! read back — a truncated response or an HTML error page would otherwise
+//! replace a valid pack with nothing.
 
 use crate::lockfile::Lockfile;
 use crate::manifest::Manifest;
 use std::path::PathBuf;
 
-/// Adresse du pack en production. mc-launcher-site sert le répertoire
-/// `launcher/` de l'image mc-content, qui est l'endroit où la liste des mods
+/// Address of the pack in production. mc-launcher-site serves the `launcher/`
+/// directory of the mc-content image, which is where the mod list
 mod cache;
-mod distant;
-mod lecture;
 mod local;
+mod reading;
+mod remote;
 
-pub use distant::{URL_DEVELOPPEMENT, URL_PREPRODUCTION, URL_PRODUCTION, url_par_defaut};
+pub use remote::{URL_DEVELOPMENT, URL_PREPRODUCTION, URL_PRODUCTION, default_url};
 
-// Exposée pour la comparaison, qui doit dériver l'adresse du verrou de la même
-// façon que la récupération. Recopier ces trois lignes ailleurs referait
-// exactement le défaut que ce module existe pour éviter.
+// Exposed for comparison, which must derive the lock's address the same way
+// fetch does. Copying these three lines elsewhere would reintroduce exactly
+// the defect this module exists to avoid.
 pub use cache::lock_url_for;
 
 #[derive(Debug, Clone)]
 pub enum Source {
-    /// Un chemin sur le disque. Le verrou se trouve à côté, et sera réécrit.
+    /// A path on disk. The lock sits next to it, and will be rewritten.
     File { manifest: PathBuf },
-    /// Une URL. Le manifeste et le verrou sont téléchargés puis mis en cache.
+    /// A URL. The manifest and the lock are downloaded then cached.
     Remote { url: String, cache_dir: PathBuf },
 }
 
-/// Un pack lu, quelle qu'en soit la provenance.
+/// A read pack, whatever its origin.
 #[derive(Debug)]
 pub struct Pack {
     pub manifest: Manifest,
-    /// Verrou déjà connu : celui du dépôt, ou celui qui vient d'être
-    /// téléchargé. Absent la première fois qu'un pack local est résolu.
+    /// Already-known lock: the repo's, or the one just downloaded. Absent the
+    /// first time a local pack is resolved.
     pub lock: Option<Lockfile>,
-    /// Où écrire le verrou, quand il y a lieu de l'écrire.
+    /// Where to write the lock, when there's reason to write it.
     pub lock_path: PathBuf,
-    /// Le verrou fait foi : ses builds sont rejoués au lieu d'être cherchés.
+    /// The lock is authoritative: its builds are replayed instead of looked up.
     pub replay: bool,
-    /// Le réseau a manqué et le cache a pris le relais.
+    /// The network was missing and the cache took over.
     pub from_cache: bool,
 }

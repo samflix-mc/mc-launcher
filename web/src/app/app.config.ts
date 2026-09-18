@@ -4,53 +4,51 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { ROUTES } from './routes';
 
 /**
- * Le strict nécessaire, et les options qui ne vont pas de soi.
+ * The strict minimum, and the options that aren't obvious.
  *
- * ## Pas de `withHashLocation()` — des chemins réels
+ * ## No `withHashLocation()` — real paths
  *
- * Les routes sont `/spawn`, `/nouvelles`, `/configuration`. Il y avait un
- * fragment — `#/spawn` — dont le motif était la prudence : ne rien devoir au
- * repli SPA du protocole d'actifs de Tauri, qu'on tenait pour un détail
- * d'implémentation plutôt que pour un contrat.
+ * The routes are `/spawn`, `/news`, `/settings`. There used to be a
+ * fragment — `#/spawn` — whose motive was caution: owe nothing to Tauri's
+ * asset protocol's SPA fallback, which was treated as an implementation
+ * detail rather than a contract.
  *
- * Il coûtait plus qu'il ne protégeait. Le dièse appartient au routeur dès qu'il
- * est en jeu, si bien qu'aucune ancre ne peut plus servir à autre chose dans la
- * page : le rail de la Configuration en a fait les frais — cliquer sur
- * `#reglages-video` écrivait une URL que le routeur essayait de résoudre comme
- * une route, et la navigation repartait vers `/spawn`.
+ * It cost more than it protected. The hash belongs to the router the
+ * moment it's in play, so no anchor can serve any other purpose on the
+ * page anymore: the Settings rail paid for it — clicking
+ * `#video-settings` wrote a URL the router tried to resolve as a route,
+ * and navigation went back to `/spawn`.
  *
- * Le repli, lui, est bien là, et vérifié dans les sources de la version
- * épinglée : `tauri-2.11.5/src/manager/mod.rs` enchaîne quatre tentatives pour
- * un actif introuvable — `<chemin>.html`, `<chemin>/index.html`, puis
- * `index.html`. Et `ng serve` fait la même chose depuis toujours. Les deux
- * environnements où ce launcher tourne servent donc `index.html` pour une route
- * inconnue.
+ * The fallback, though, is indeed there, and verified in the sources of
+ * the pinned version: `tauri-2.11.5/src/manager/mod.rs` chains four
+ * attempts for a missing asset — `<path>.html`, `<path>/index.html`, then
+ * `index.html`. And `ng serve` has always done the same. Both environments
+ * this launcher runs in therefore serve `index.html` for an unknown route.
  *
- * Ce qu'il faut savoir si la fenêtre s'ouvrait blanche un jour : c'est cette
- * quatrième tentative qu'il faudrait vérifier, et `<base href="/">` dans
- * `index.html`, sans lequel les actifs se résoudraient contre `/spawn/`.
+ * What to check if the window ever opened blank: it's this fourth attempt
+ * that would need checking, and `<base href="/">` in `index.html`, without
+ * which assets would resolve against `/spawn/`.
  *
- * Le greffon de navigation n'y change rien : son prédicat porte sur l'ORIGINE,
- * jamais sur le chemin.
+ * The navigation plugin changes nothing here: its predicate is on the
+ * ORIGIN, never on the path.
  *
- * ## Pas de `withDisabledInitialNavigation()`
+ * ## No `withDisabledInitialNavigation()`
  *
- * Il servirait à empêcher un saut d'écran pendant que les gardes interrogent
- * Rust. Or il n'y a pas de saut : une garde peut rendre une promesse, le
- * routeur l'attend, et aucune URL n'est validée tant qu'elle pend.
+ * It would serve to prevent a screen jump while the guards query Rust. But
+ * there is no jump: a guard can return a promise, the router waits for it,
+ * and no URL is validated while it's pending.
  *
- * Pire, le drapeau seul ne fait RIEN d'utile — il pose un jeton, et
- * `router.initialNavigation()` doit être appelé à la main ; l'oublier donne
- * une fenêtre bloquée sur son écran de démarrage, sans une erreur en console.
- * Et il supprime le seul recouvrement disponible : les morceaux paresseux ne
- * sont résolus qu'après les gardes, donc strictement après la poignée de main.
+ * Worse, the flag alone does NOTHING useful — it sets a token, and
+ * `router.initialNavigation()` has to be called by hand; forgetting that
+ * gives a window stuck on its splash screen, with no error in the console.
+ * And it removes the only overlap available: lazy chunks are only resolved
+ * after the guards, so strictly after the handshake.
  *
  * ## `withComponentInputBinding()`
  *
- * Les paramètres d'URL arrivent en `input()` de composant, sans qu'aucune page
- * n'ait à s'abonner à `ActivatedRoute`. Rien ne l'emploie encore ; c'est une
- * ligne maintenant plutôt qu'une migration le jour où une page prendra un
- * identifiant de billet.
+ * URL parameters arrive as a component `input()`, with no page having to
+ * subscribe to `ActivatedRoute`. Nothing uses it yet; it's one line now
+ * rather than a migration the day a page takes a post identifier.
  */
 export const appConfig: ApplicationConfig = {
   providers: [

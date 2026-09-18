@@ -6,7 +6,7 @@ license.workspace = true
 description = "Installation d'une instance Minecraft : fichiers vanilla puis NeoForge"
 
 [dependencies]
-mc-chemins = { path = "../mc-chemins" }
+mc-paths = { path = "../mc-paths" }
 anyhow.workspace = true
 tracing.workspace = true
 mutants.workspace = true

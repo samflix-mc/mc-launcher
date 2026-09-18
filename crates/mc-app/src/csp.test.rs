@@ -1,142 +1,142 @@
-use super::{Verdict, juger};
+use super::{Verdict, judge};
 
-/// La chaîne de `tauri.conf.json`, telle quelle.
-const CONFIGUREE: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://mc-heads.net; connect-src 'self' ipc: http://ipc.localhost";
+/// The string from `tauri.conf.json`, as is.
+const CONFIGURED: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://mc-heads.net; connect-src 'self' ipc: http://ipc.localhost";
 
-/// **La chaîne réellement servie**, relevée par la sonde le 18 septembre 2026
-/// sur un `tauri build --debug`, et recopiée telle quelle.
+/// **The string actually served**, captured by the probe on September 18,
+/// 2026 on a `tauri build --debug`, and copied verbatim.
 ///
-/// Elle corrige une prémisse : Tauri ne pose PAS de nonce sur `script-src`,
-/// il pose les EMPREINTES des scripts qu'il injecte lui-même dans la page
-/// (`manager/mod.rs:64`, `Assets::csp_hashes`). Huit, dont aucune ne vient
-/// du front : `web/dist/launcher/browser/index.html` ne porte qu'un seul
-/// `<script src=…>` et pas une balise `<style>`.
+/// It corrects a premise: Tauri does NOT set a nonce on `script-src`, it
+/// sets the DIGESTS of the scripts it injects itself into the page
+/// (`manager/mod.rs:64`, `Assets::csp_hashes`). Eight of them, none from the
+/// front end: `web/dist/launcher/browser/index.html` carries only a single
+/// `<script src=…>` and no `<style>` tag.
 ///
-/// Ce que cela change pour nous : rien, et c'est le point. `style-src` sort
-/// intact, `'unsafe-inline'` tient, les styles de composant passent. Mais le
-/// raisonnement qui le prédisait parlait d'un nonce, et un raisonnement juste
-/// pour une mauvaise raison se retourne au premier changement de version.
-const SERVIE: &str = "style-src 'self' 'unsafe-inline'; img-src 'self' data: https://mc-heads.net; default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; script-src 'self' 'sha256-raN9g3H4/dO8mZTghxmpwIgmmDWT4PrwtdQGtErN334=' 'sha256-b2pRmdZzRK2UEE2Y2izHHGpcCBmGUI3ajk8odRJT+jI=' 'sha256-WoWckt9X/P4/opegC4iuUy1+J6pfCaXJ2CkVE2gaiMA=' 'sha256-AChnpMhGIxxHNYcAGoNFqmgzgXq0sEBJDR5+ReXoCaY=' 'sha256-4YLDHlNhJYuS+BrRUUkXea3SkKzwHTQ80BebtmRWptQ=' 'sha256-ga43UjNWBepYSeJXXGAzXPmqy/vdbnKX/0pqlgdMjp4=' 'sha256-L22/pkuIINLKMKP4klrbibY7UEdR92P5HuyBYzhuy1I=' 'sha256-6Uv340HkYRGMuqMHMPg9OCr/36YC36+i5P8h/e9lL7A='";
+/// What this changes for us: nothing, and that's the point. `style-src`
+/// comes out intact, `'unsafe-inline'` holds, component styles pass. But the
+/// reasoning that predicted it talked about a nonce, and a reasoning that's
+/// right for the wrong reason turns on you at the next version change.
+const SERVED: &str = "style-src 'self' 'unsafe-inline'; img-src 'self' data: https://mc-heads.net; default-src 'self'; connect-src 'self' ipc: http://ipc.localhost; script-src 'self' 'sha256-raN9g3H4/dO8mZTghxmpwIgmmDWT4PrwtdQGtErN334=' 'sha256-b2pRmdZzRK2UEE2Y2izHHGpcCBmGUI3ajk8odRJT+jI=' 'sha256-WoWckt9X/P4/opegC4iuUy1+J6pfCaXJ2CkVE2gaiMA=' 'sha256-AChnpMhGIxxHNYcAGoNFqmgzgXq0sEBJDR5+ReXoCaY=' 'sha256-4YLDHlNhJYuS+BrRUUkXea3SkKzwHTQ80BebtmRWptQ=' 'sha256-ga43UjNWBepYSeJXXGAzXPmqy/vdbnKX/0pqlgdMjp4=' 'sha256-L22/pkuIINLKMKP4klrbibY7UEdR92P5HuyBYzhuy1I=' 'sha256-6Uv340HkYRGMuqMHMPg9OCr/36YC36+i5P8h/e9lL7A='";
 
-/// La chaîne configurée porte déjà le desserrage qu'on attend.
+/// The configured string already carries the loosening we expect.
 ///
-/// Ce test n'éprouve pas Tauri : il éprouve qu'on sait lire, et c'est la
-/// référence à laquelle la suivante se compare.
+/// This test doesn't exercise Tauri: it exercises that we know how to read
+/// it, and it's the reference the next one compares against.
 #[test]
-fn la_chaine_configuree_laisse_passer_les_styles_de_composant() {
+fn the_configured_string_lets_component_styles_pass() {
     assert_eq!(
-        juger(CONFIGUREE),
+        judge(CONFIGURED),
         Some(Verdict {
-            styles_de_composant_passent: true,
-            nonce_sur_style: false,
-            scripts_stricts: true,
+            component_styles_pass: true,
+            nonce_on_style: false,
+            strict_scripts: true,
         })
     );
 }
 
-/// Le cas nominal, tel qu'il a été MESURÉ et non tel qu'il était prédit.
+/// The nominal case, as it was MEASURED and not as it was predicted.
 ///
-/// Si la sonde journalise un jour autre chose que ce verdict-là, c'est le
-/// raisonnement de `tauri.conf.json` qui est à revoir — pas ce test.
+/// If the probe ever logs something other than this verdict, it's the
+/// reasoning in `tauri.conf.json` that needs revisiting — not this test.
 #[test]
-fn ce_qui_est_reellement_servi_laisse_les_styles_tranquilles() {
+fn what_is_actually_served_leaves_the_styles_alone() {
     assert_eq!(
-        juger(SERVIE),
+        judge(SERVED),
         Some(Verdict {
-            styles_de_composant_passent: true,
-            nonce_sur_style: false,
-            scripts_stricts: true,
+            component_styles_pass: true,
+            nonce_on_style: false,
+            strict_scripts: true,
         })
     );
 }
 
-/// **La panne que la sonde existe pour attraper.**
+/// **The failure this probe exists to catch.**
 ///
-/// Un nonce sur `style-src` annule `'unsafe-inline'` — règle du niveau 3 — et
-/// tous les styles de composant tombent. Rien ne plante : la fenêtre s'ouvre
-/// sans mise en forme, et en build empaqueté seulement.
+/// A nonce on `style-src` cancels `'unsafe-inline'` — level 3 rule — and
+/// every component style drops. Nothing crashes: the window opens without
+/// styling, and in a packaged build only.
 #[test]
-fn un_nonce_sur_les_styles_annule_le_desserrage() {
-    let servie = "default-src 'self'; script-src 'self' 'nonce-a'; style-src 'self' 'unsafe-inline' 'nonce-a'";
+fn a_nonce_on_styles_cancels_the_loosening() {
+    let served = "default-src 'self'; script-src 'self' 'nonce-a'; style-src 'self' 'unsafe-inline' 'nonce-a'";
     assert_eq!(
-        juger(servie),
+        judge(served),
         Some(Verdict {
-            styles_de_composant_passent: false,
-            nonce_sur_style: true,
-            scripts_stricts: true,
+            component_styles_pass: false,
+            nonce_on_style: true,
+            strict_scripts: true,
         })
     );
 }
 
-/// `'unsafe-eval'` sur les scripts n'est jamais strict, nonce ou pas.
+/// `'unsafe-eval'` on scripts is never strict, nonce or not.
 #[test]
-fn unsafe_eval_desarme_les_scripts() {
-    let servie = "style-src 'self' 'unsafe-inline'; script-src 'self' 'nonce-a' 'unsafe-eval'";
-    let verdict = juger(servie).expect("style-src est là");
-    assert!(!verdict.scripts_stricts);
+fn unsafe_eval_disarms_the_scripts() {
+    let served = "style-src 'self' 'unsafe-inline'; script-src 'self' 'nonce-a' 'unsafe-eval'";
+    let verdict = judge(served).expect("style-src is there");
+    assert!(!verdict.strict_scripts);
 }
 
-/// `'unsafe-inline'` sur les scripts SANS nonce n'est pas strict non plus.
+/// `'unsafe-inline'` on scripts WITHOUT a nonce isn't strict either.
 #[test]
-fn un_inline_de_script_sans_nonce_n_est_pas_strict() {
-    let servie = "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'";
-    let verdict = juger(servie).expect("style-src est là");
-    assert!(!verdict.scripts_stricts);
+fn a_script_inline_without_a_nonce_is_not_strict() {
+    let served = "style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'";
+    let verdict = judge(served).expect("style-src is there");
+    assert!(!verdict.strict_scripts);
 }
 
-/// Sans `style-src`, il n'y a pas de verdict — et surtout pas un verdict
-/// favorable par défaut.
+/// Without `style-src`, there's no verdict — and certainly not a favorable
+/// one by default.
 #[test]
-fn sans_style_src_il_n_y_a_pas_de_reponse() {
-    assert_eq!(juger("default-src 'self'; script-src 'self'"), None);
+fn without_style_src_there_is_no_answer() {
+    assert_eq!(judge("default-src 'self'; script-src 'self'"), None);
 }
 
-/// `script-src` est un PRÉFIXE de `script-src-elem` : juger la mauvaise
-/// directive donnerait une réponse juste à une question qu'on ne pose pas.
+/// `script-src` is a PREFIX of `script-src-elem`: judging the wrong
+/// directive would give a right answer to a question that isn't asked.
 #[test]
-fn une_directive_voisine_n_est_pas_confondue() {
-    let servie =
+fn a_neighboring_directive_is_not_confused() {
+    let served =
         "style-src 'self' 'unsafe-inline'; script-src-elem 'unsafe-eval'; script-src 'self'";
-    let verdict = juger(servie).expect("style-src est là");
+    let verdict = judge(served).expect("style-src is there");
     assert!(
-        verdict.scripts_stricts,
-        "c'est script-src-elem qui portait le 'unsafe-eval', pas script-src"
+        verdict.strict_scripts,
+        "it was script-src-elem carrying the 'unsafe-eval', not script-src"
     );
 }
 
-/// Une directive vide vaut « aucune source », et se lit sans paniquer.
+/// An empty directive means "no source", and reads without panicking.
 #[test]
-fn une_directive_vide_se_lit() {
-    let verdict = juger("style-src; script-src 'self'").expect("style-src est là");
-    assert!(!verdict.styles_de_composant_passent);
-    assert!(!verdict.nonce_sur_style);
+fn an_empty_directive_reads_fine() {
+    let verdict = judge("style-src; script-src 'self'").expect("style-src is there");
+    assert!(!verdict.component_styles_pass);
+    assert!(!verdict.nonce_on_style);
 }
 
-/// L'espacement de l'en-tête n'est pas normalisé par les navigateurs, et il
-/// ne l'est pas non plus par les serveurs : la lecture doit y survivre.
+/// Header spacing isn't normalized by browsers, and it isn't by servers
+/// either: reading must survive it.
 #[test]
-fn l_espacement_ne_change_pas_le_verdict() {
-    let serre = "default-src 'self';script-src 'self';style-src 'self' 'unsafe-inline'";
-    let large =
+fn spacing_does_not_change_the_verdict() {
+    let tight = "default-src 'self';script-src 'self';style-src 'self' 'unsafe-inline'";
+    let loose =
         "  default-src 'self' ;  script-src   'self' ;  style-src   'self'   'unsafe-inline'  ";
-    assert_eq!(juger(serre), juger(large));
+    assert_eq!(judge(tight), judge(loose));
     assert!(
-        juger(serre)
-            .expect("style-src est là")
-            .styles_de_composant_passent
+        judge(tight)
+            .expect("style-src is there")
+            .component_styles_pass
     );
 }
 
-/// Des EMPREINTES ne sont pas un nonce, et le verdict ne doit pas les
-/// confondre : un `'sha256-…'` sur `script-src` couvre un script inline
-/// nommément, sans rien desserrer pour les autres.
+/// Digests are not a nonce, and the verdict must not confuse them: a
+/// `'sha256-…'` on `script-src` covers an inline script by name, without
+/// loosening anything for the others.
 #[test]
-fn des_empreintes_ne_sont_pas_un_nonce() {
-    let verdict = juger(SERVIE).expect("style-src est là");
-    assert!(!verdict.nonce_sur_style);
-    assert!(verdict.scripts_stricts);
+fn digests_are_not_a_nonce() {
+    let verdict = judge(SERVED).expect("style-src is there");
+    assert!(!verdict.nonce_on_style);
+    assert!(verdict.strict_scripts);
     assert!(
-        !SERVIE.contains("'nonce-"),
-        "la chaîne relevée ne contient aucun nonce : c'est le fait que ce module documente"
+        !SERVED.contains("'nonce-"),
+        "the captured string contains no nonce: that's the fact this module documents"
     );
 }

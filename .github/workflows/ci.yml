@@ -124,7 +124,7 @@ jobs:
       # plat dans la fenêtre, des semaines plus tard.
       - name: Le préfixe -webkit- survit à la compilation
         working-directory: web
-        run: pnpm verifier:prefixes
+        run: pnpm check:prefixes
 
   application:
     name: Application Tauri

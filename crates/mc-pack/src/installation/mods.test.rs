@@ -1,13 +1,13 @@
-use super::ajoutes_par_dependance;
+use super::added_by_dependency;
 use mc_mods::Reason;
 
-/// C'est le chiffre qui explique qu'un manifeste de trente lignes installe
-/// cent mods : le reste vient des dépendances. Compter les autres — ceux que
-/// le manifeste nomme — annoncerait le contraire, et ferait croire à une
-/// résolution qui n'a rien trouvé alors qu'elle a tout trouvé.
+/// This is the number that explains how a thirty-line manifest installs a
+/// hundred mods: the rest comes from dependencies. Counting the others —
+/// the ones the manifest names — would say the opposite, and suggest a
+/// resolution that found nothing when it actually found everything.
 #[test]
-fn seuls_les_mods_non_demandes_comptent_comme_ajoutes() {
-    let raisons = [
+fn only_mods_not_requested_count_as_added() {
+    let reasons = [
         Reason::Explicit,
         Reason::Declared {
             by: "jei".to_string(),
@@ -18,10 +18,10 @@ fn seuls_les_mods_non_demandes_comptent_comme_ajoutes() {
         },
     ];
 
-    assert_eq!(ajoutes_par_dependance(raisons.iter()), 2);
+    assert_eq!(added_by_dependency(reasons.iter()), 2);
 
-    // Un pack dont le manifeste nomme tout n'a rien gagné en chemin.
-    assert_eq!(ajoutes_par_dependance([Reason::Explicit].iter()), 0);
-    // Et un pack vide n'a rien ajouté non plus.
-    assert_eq!(ajoutes_par_dependance([].iter()), 0);
+    // A pack whose manifest names everything gained nothing along the way.
+    assert_eq!(added_by_dependency([Reason::Explicit].iter()), 0);
+    // And an empty pack added nothing either.
+    assert_eq!(added_by_dependency([].iter()), 0);
 }

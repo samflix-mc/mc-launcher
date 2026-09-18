@@ -1,0 +1,19 @@
+[package]
+name = "mc-settings"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "What the player configures, and where it lives"
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+# Pour l'écriture atomique : un réglage enregistré pendant une coupure ne doit
+# pas laisser un fichier tronqué, que la lecture suivante prendrait pour une
+# corruption et remplacerait par les défauts.
+mc-dl = { path = "../mc-dl" }
+# Pour savoir où est la configuration. Ne la dérive pas lui-même.
+mc-paths = { path = "../mc-paths" }
+mutants.workspace = true

@@ -1,50 +1,50 @@
-/* La coque.
+/* The shell.
 
-   `:host { display: block }` en premier, et ce n'est pas rituel : un élément de
-   composant est `inline` tant qu'on ne le dit pas, et une hauteur posée sur un
-   hôte `inline` semble ne rien produire. */
+   `:host { display: block }` first, and it isn't ritual: a component
+   element is `inline` until you say otherwise, and a height set on an
+   `inline` host appears to produce nothing. */
 :host {
   display: block;
   height: 100%;
 
-  /* Le repère de la recette du build.
+  /* The build acceptance marker.
 
-     Cette propriété n'existe QUE dans ce fichier, c'est-à-dire dans un
-     `styleUrl` de composant. `crates/mc-app/src/recette.rs` la relit sur
-     `app-root` : si elle arrive, c'est qu'un style de composant s'applique,
-     donc que `style-src` porte bien `'unsafe-inline'` dans le build empaqueté.
+     This property exists ONLY in this file, i.e. in a component's
+     `styleUrl`. `crates/mc-app/src/acceptance.rs` reads it back on
+     `app-root`: if it arrives, a component style is being applied, so
+     `style-src` does carry `'unsafe-inline'` in the packaged build.
 
-     Le point était éprouvé avant par le `backdrop-filter` de la barre de
-     titre. Il ne le prouve plus : le verre vient maintenant de la feuille
-     globale du design system, qui est servie par un `<link>` et passerait même
-     si tous les styles de composant étaient rejetés. Ce repère est la seule
-     chose du document qui ne puisse arriver que par le chemin qu'on vérifie.
+     The point used to be proven by the title bar's `backdrop-filter`. It no
+     longer proves it: the glass now comes from the design system's global
+     sheet, which is served by a `<link>` and would pass even if every
+     component style were rejected. This marker is the only thing in the
+     document that can only arrive through the path being checked.
 
-     Ne pas le retirer en le trouvant inutile : son inutilité EST ce qu'il
-     mesure. */
-  --recette-style-composant: applique;
+     Do not remove it for looking useless: its uselessness IS what it
+     measures. */
+  --acceptance-component-style: applied;
 }
 
-/* `router-outlet` est un ÉLÉMENT, pas un commentaire : Angular insère le
-   composant APRÈS lui et le laisse dans le DOM. Dans une grille à trois rangs,
-   il en prendrait un — et la barre du bas se retrouverait hors cadre.
+/* `router-outlet` is an ELEMENT, not a comment: Angular inserts the
+   component AFTER it and leaves it in the DOM. In a three-row grid, it
+   would take up one — and the bottom bar would end up out of frame.
 
-   `display: none` le retire de la mise en page : un élément ainsi caché n'est
-   pas un élément de grille, et la page occupe alors le rang qui lui revient. */
+   `display: none` removes it from layout: an element hidden this way isn't
+   a grid item, and the page then occupies the row it's due. */
 router-outlet {
   display: none;
 }
 
-/* Ce que le routeur monte est le CONTENU de la page, c'est-à-dire le deuxième
-   rang. Il doit pouvoir rétrécir : sans `min-height: 0`, un enfant de grille
-   refuse de descendre sous la taille de son contenu, et une liste longue
-   pousse la barre du bas hors de la fenêtre au lieu de défiler. */
+/* What the router mounts is the page's CONTENT, i.e. the second row. It
+   must be able to shrink: without `min-height: 0`, a grid child refuses to
+   go below the size of its content, and a long list pushes the bottom bar
+   out of the window instead of scrolling. */
 .hm-page > :not(.hm-topbar):not(.hm-bottombar) {
   min-height: 0;
 }
 
-/* L'avertissement « aucun backend » : posé en bas de la fenêtre, où il ne
-   recouvre ni la barre de titre ni le bouton de jeu. */
+/* The "no backend" warning: placed at the bottom of the window, where it
+   covers neither the title bar nor the play button. */
 .hm-alert--warning {
   position: absolute;
   left: var(--space-6);
@@ -53,12 +53,12 @@ router-outlet {
   z-index: var(--z-dialog);
 }
 
-/* --- La fenêtre de connexion ------------------------------------------------
+/* --- The sign-in window ------------------------------------------------
 
-   Le corps de l'AuthWindow du design system : le mot-symbole en haut à gauche,
-   le dialogue au milieu, une phrase en bas. Trois rangs, celui du milieu
-   centré. */
-.hm-connexion {
+   The body of the design system's AuthWindow: the wordmark top left, the
+   dialog in the middle, a line of text at the bottom. Three rows, the
+   middle one centered. */
+.hm-signin {
   position: relative;
   z-index: var(--z-page);
   height: 100%;
@@ -66,19 +66,19 @@ router-outlet {
   grid-template-rows: auto 1fr auto;
   align-items: center;
   gap: var(--space-4);
-  /* Sous la barre de titre, et la marge du design system sur les trois autres
-     bords. */
+  /* Below the title bar, and the design system's margin on the other three
+     edges. */
   padding: calc(var(--space-10) + var(--space-5)) var(--space-5) var(--space-5);
 }
 
-/* Le mot-symbole se pose à GAUCHE et non au centre : le design system le veut
-   en tête de la fenêtre, pas en titre de son contenu. */
-.hm-connexion .hm-wordmark {
+/* The wordmark sits at the LEFT and not centered: the design system wants
+   it at the head of the window, not as the title of its content. */
+.hm-signin .hm-wordmark {
   justify-self: start;
   align-self: start;
 }
 
-.hm-connexion__pied {
+.hm-signin__footer {
   margin: 0;
   align-self: end;
   font-size: 12px;

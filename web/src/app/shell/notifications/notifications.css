@@ -1,0 +1,29 @@
+/* `display: contents`: both children are already positioned relative to the
+   window, and a `block` host would interpose an empty box in the shell. */
+:host {
+  display: contents;
+}
+
+/* The layer that closes the panel. It covers the window, under the panel
+   and above everything else; it draws nothing. */
+.hm-notif__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: calc(var(--z-menu) - 1);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* The center's rows aren't clickable here: the design system makes them
+   buttons because a notification there opens the item it announces, and we
+   have nothing to open onto — an updated pack leads nowhere. The cursor
+   must therefore promise nothing. */
+.hm-notif__item {
+  cursor: default;
+}
+
+.hm-notif__item:hover {
+  background: transparent;
+}

@@ -1,36 +1,37 @@
 <!--
-  La fenêtre, telle que le design system la dessine.
+  The window, as the design system draws it.
 
-  `.hm-window--systeme` : ici la fenêtre N'EST PAS un rectangle dans une page,
-  c'est la fenêtre du bureau. Ni rayon ni ombre — avec une fenêtre opaque et
-  sans décorations, des coins arrondis laisseraient voir du noir.
+  `.hm-window--systeme`: here the window IS NOT a rectangle in a page, it's
+  the desktop window itself. No radius, no shadow — with an opaque,
+  decoration-less window, rounded corners would show black.
 -->
 <div
   class="hm-window hm-window--systeme"
-  [class.hm-window--maximisee]="maximisee()"
-  data-test="coque"
+  [class.hm-window--maximisee]="maximized()"
+  data-test="shell"
 >
   <!--
-    La scène : l'image du serveur et son dégradé de lisibilité. C'est ELLE qui
-    donne au verre dépoli quelque chose à flouter — sur une couleur plate, le
-    flou ne fait rien et les panneaux rendent comme des boîtes grises.
+    The scene: the server's image and its readability gradient. It's THIS
+    that gives the frosted glass something to blur — on a flat color, the
+    blur does nothing and the panels render as gray boxes.
 
-    L'image vient de `html[data-fond]`, posé par le service de réglages ; voir
-    `styles.css`. Le voile du joueur s'ajoute par-dessus, sur `.hm-stage::after`.
+    The image comes from `html[data-backdrop]`, set by the settings
+    service; see `styles.css`. The player's scrim is added on top, on
+    `.hm-stage::after`.
   -->
   <div class="hm-stage" aria-hidden="true">
     <div class="hm-stage__art" data-test="scene"></div>
   </div>
 
   <!--
-    Les bords, pour le CURSEUR seulement.
+    The edges, for the CURSOR only.
 
-    Le geste de redimensionnement est déjà branché par `tauri-runtime-wry` sous
-    Linux ; ce qui manquait, c'est que le pointeur l'annonce. Ces zones ne
-    portent aucun gestionnaire, et ne doivent pas en porter.
+    The resize gesture is already wired by `tauri-runtime-wry` on Linux;
+    what was missing is the pointer announcing it. These zones carry no
+    handler, and must not carry one.
   -->
-  @if (!surConnexion()) {
-    <div class="hm-bords" aria-hidden="true" data-test="bords">
+  @if (!onSignIn()) {
+    <div class="hm-bords" aria-hidden="true" data-test="edges">
       <span class="hm-bords__n"></span>
       <span class="hm-bords__s"></span>
       <span class="hm-bords__o"></span>
@@ -43,44 +44,44 @@
   }
 
   <!--
-    AU-DESSUS de l'amorce, et c'est délibéré : pendant les deux allers-retours
-    réseau de `statut()`, la fenêtre doit garder ses boutons. Sans quoi, sur un
-    réseau lent ou derrière un portail captif, il n'y aurait aucun moyen de
-    fermer.
+    ABOVE the boot screen, and that's deliberate: during the two network
+    round-trips of `status()`, the window must keep its buttons. Without
+    that, on a slow network or behind a captive portal, there would be no
+    way to close it.
   -->
-  <app-barre-titre [dialogue]="surConnexion()" />
+  <app-title-bar [dialog]="onSignIn()" />
 
-  @if (surConnexion()) {
+  @if (onSignIn()) {
     <!--
-      La FENÊTRE de connexion, telle que le design system la dessine : une
-      feuille dépolie pleine surface par-dessus l'image, le mot-symbole en haut
-      à gauche, le dialogue au milieu, une phrase en bas.
+      The sign-in WINDOW, as the design system draws it: a full-surface
+      frosted sheet over the image, the wordmark top left, the dialog in
+      the middle, a line of text at the bottom.
 
-      Elle n'a ni navigation, ni bouton de jeu, ni badge joueur — et elle n'a
-      pas non plus de bouton d'agrandissement : `--dialog` le cache, et la règle
-      de la fenêtre côté Tauri fait le reste, sans quoi un double-clic sur la
-      barre l'agrandirait quand même.
+      It has no navigation, no play button, no player badge — and no
+      maximize button either: `--dialog` hides it, and the window rule on
+      the Tauri side does the rest, otherwise a double-click on the bar
+      would maximize it anyway.
     -->
-    <div class="hm-pane" aria-hidden="true" data-test="feuille"></div>
+    <div class="hm-pane" aria-hidden="true" data-test="sheet"></div>
 
-    <div class="hm-connexion">
-      <h1 class="hm-wordmark hm-wordmark--sm" data-test="marque-connexion">
-        {{ marque().nom }}<span class="hm-wordmark__dot" aria-hidden="true"></span>
+    <div class="hm-signin">
+      <h1 class="hm-wordmark hm-wordmark--sm" data-test="brand-signin">
+        {{ brand().name }}<span class="hm-wordmark__dot" aria-hidden="true"></span>
       </h1>
 
       <router-outlet />
 
-      <p class="hm-connexion__pied">
-        Le launcher attend ici jusqu'à ce que vous ayez autorisé, ou que le code expire.
+      <p class="hm-signin__footer">
+        The launcher waits here until you've authorized, or the code expires.
       </p>
     </div>
-  } @else if (amorce()) {
-    <app-amorce />
+  } @else if (boot()) {
+    <app-boot />
   } @else {
     <div
       class="hm-page"
-      [class.hm-page--trois-rangs]="troisRangs()"
-      [class.hm-page--deux-rangs]="!troisRangs()"
+      [class.hm-page--trois-rangs]="threeRows()"
+      [class.hm-page--deux-rangs]="!threeRows()"
       data-test="page"
     >
       <div class="hm-topbar">
@@ -89,44 +90,45 @@
 
       <router-outlet />
 
-      @if (troisRangs()) {
+      @if (threeRows()) {
         <!--
-          Trois colonnes égales aux extrémités : c'est ce qui garde le bouton
-          RÉELLEMENT centré, quelle que soit la largeur du badge joueur.
+          Three equal columns at the ends: that's what keeps the button
+          TRULY centered, whatever the width of the player badge.
         -->
-        <div class="hm-bottombar" data-test="barre-basse">
+        <div class="hm-bottombar" data-test="bottom-bar">
           <span></span>
-          @if (bas() === 'jouer') {
+          @if (bottom() === 'play') {
             <app-playbar />
           } @else {
             <span></span>
           }
-          <app-joueur />
+          <app-player />
         </div>
       }
     </div>
   }
 
-  @if (!disponible) {
+  @if (!available) {
     <!--
-      Ni fenêtre Tauri, ni serveur de développement. L'écran le dit plutôt que
-      d'échouer sur un `invoke` qui n'existe pas.
+      Neither a Tauri window nor a dev server. The screen says so instead
+      of failing on an `invoke` that doesn't exist.
     -->
-    <div class="hm-alert hm-alert--warning" role="alert" data-test="hors-tauri">
-      <p class="hm-alert__title">Aucun backend joignable</p>
+    <div class="hm-alert hm-alert--warning" role="alert" data-test="outside-tauri">
+      <p class="hm-alert__title">No backend reachable</p>
       <p class="hm-alert__text">
-        Lancer <span class="hm-mono">cargo tauri dev</span> pour la fenêtre, ou
-        <span class="hm-mono">cargo run --bin mc-dev-serveur --features dev-serveur</span> pour
-        travailler l'interface dans un navigateur.
+        Run <span class="hm-mono">cargo tauri dev</span> for the window, or
+        <span class="hm-mono">cargo run --bin mc-dev-server --features dev-server</span> to work on
+        the interface in a browser.
       </p>
     </div>
   }
 
   <!--
-    Les notifications et l'incident vivent au niveau de la FENÊTRE, hors de la
-    page : le verre dépoli de la pilule de navigation crée un contexte
-    d'empilement et ferait d'elle un bloc conteneur pour tout descendant en
-    `position: absolute` — un panneau monté dedans serait borné à sa largeur.
+    Notifications and the incident live at the WINDOW level, outside the
+    page: the frosted glass of the navigation pill creates a stacking
+    context and would make it a containing block for any `position:
+    absolute` descendant — a panel mounted inside it would be bound to its
+    width.
   -->
   <app-notifications />
   <app-incident />

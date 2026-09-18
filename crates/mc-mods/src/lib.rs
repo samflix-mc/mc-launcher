@@ -1,47 +1,47 @@
-//! Résolution et téléchargement des mods d'un pack.
+//! Resolution and download of a pack's mods.
 //!
-//! Le manifeste nomme quelques mods ; le dossier `mods` en contient toujours
-//! davantage. L'écart, ce sont les dépendances — et le travail de ce crate est
-//! de le combler sans intervention.
+//! The manifest names a few mods; the `mods` folder always holds more. The
+//! gap is dependencies — and this crate's job is to fill it without
+//! intervention.
 //!
-//! Trois sources d'information sont croisées, dans cet ordre de fiabilité
-//! croissante :
+//! Three sources of information are cross-checked, in increasing order of
+//! reliability:
 //!
-//! 1. **ce que le manifeste demande** — éventuellement un build épinglé ;
-//! 2. **ce que l'API déclare** — les dépendances saisies par l'auteur au
-//!    moment de la publication, souvent incomplètes ;
-//! 3. **ce que le jar exige** — `META-INF/neoforge.mods.toml`, la seule source
-//!    que le jeu lise réellement.
+//! 1. **what the manifest asks for** — possibly a pinned build;
+//! 2. **what the API declares** — the dependencies the author entered at
+//!    publish time, often incomplete;
+//! 3. **what the jar requires** — `META-INF/neoforge.mods.toml`, the only
+//!    source the game actually reads.
 //!
-//! Les mods sont cherchés dans deux sources, de la plus sûre à la moins
-//! contractuelle : [`modrinth`], puis [`curseforge_web`] — l'API publique du
-//! site de CurseForge, sans clé, avec les limites que son module détaille.
+//! Mods are looked up across two sources, from the most reliable to the
+//! least contractual: [`modrinth`], then [`curseforge_web`] — CurseForge's
+//! public website API, keyless, with the limits its module details.
 //!
-//! La Core API de CurseForge, celle qui demande une clé d'inscription, a été
-//! retirée : le launcher n'en dépend plus, et personne n'a de clé à poser pour
-//! installer un pack.
+//! The CurseForge Core API, the one that needs a registration key, has been
+//! removed: the launcher no longer depends on it, and nobody has to supply a
+//! key to install a pack.
 //!
-//! Le troisième point est celui qui décide : après téléchargement, chaque jar
-//! est ouvert, ses `modId` obligatoires comparés à ceux que le pack fournit, et
-//! tout manque relance un tour de résolution. On s'arrête quand plus rien ne
-//! manque — ce qui est exactement la condition que NeoForge vérifiera au
-//! démarrage.
-mod canal;
-mod candidat;
-mod origine;
+//! The third point is the one that decides: after download, each jar is
+//! opened, its mandatory `modId`s compared against what the pack supplies,
+//! and any gap triggers another resolution pass. It stops once nothing is
+//! missing anymore — which is exactly the condition NeoForge will check at
+//! startup.
+mod candidate;
+mod channel;
+mod origin;
 
 pub mod curseforge_web;
 pub mod jar;
 pub mod modrinth;
 pub mod resolve;
 
-pub use canal::Channel;
-pub use candidat::{Candidate, DeclaredDep};
+pub use candidate::{Candidate, DeclaredDep};
+pub use channel::Channel;
 pub use jar::Side;
-pub use origine::Origin;
+pub use origin::Origin;
 pub use resolve::{
-    Installed, Options, Plan, Progres, Reason, Registry, Request, resolve, resolve_with,
+    Installed, Options, Plan, Progress, Reason, Registry, Request, resolve, resolve_with,
 };
 
 #[cfg(test)]
-mod essais;
+mod fixtures;

@@ -1,71 +1,70 @@
-//! Ce qu'il faut faire avant que WebKit ne s'initialise.
+//! What must happen before WebKit initializes.
 //!
-//! Depuis WebKitGTK 2.42, le rendu passe par DMA-BUF. Sur le pilote NVIDIA
-//! propriétaire, l'échange de tampons échoue : la fenêtre reste blanche, ou se
-//! ferme aussitôt ouverte. Le remède connu est
-//! `WEBKIT_DISABLE_DMABUF_RENDERER=1`, et c'est une variable d'environnement —
-//! donc quelque chose que le développeur tape et que le joueur, lui, ne tapera
-//! jamais : il double-clique sur une icône.
+//! Since WebKitGTK 2.42, rendering goes through DMA-BUF. On the proprietary
+//! NVIDIA driver, the buffer exchange fails: the window stays white, or
+//! closes as soon as it opens. The known fix is
+//! `WEBKIT_DISABLE_DMABUF_RENDERER=1`, and that's an environment variable —
+//! something a developer types, that a player never will: they double-click
+//! an icon.
 //!
-//! Elle est donc posée ici, par le programme, pour lui-même.
+//! So it's set here, by the program, for itself.
 //!
-//! ## Pourquoi pas tout le temps
+//! ## Why not all the time
 //!
-//! Sans DMA-BUF, WebKit repasse par une copie en mémoire centrale à chaque
-//! image. Sur un pilote qui n'a pas le défaut — Intel, AMD, ou NVIDIA en
-//! `nouveau` — ce serait payer une régression de rendu pour rien. La variable
-//! n'est posée que si le module noyau `nvidia` est chargé.
+//! Without DMA-BUF, WebKit falls back to a main-memory copy on every frame.
+//! On a driver that doesn't have the bug — Intel, AMD, or NVIDIA on
+//! `nouveau` — that would be paying a rendering regression for nothing. The
+//! variable is only set if the `nvidia` kernel module is loaded.
 //!
-//! Aucun `cfg` de plateforme : `/sys/module/nvidia` est un chemin Linux, et
-//! ailleurs il n'existe pas. Le module est naturellement inerte sous Windows,
-//! macOS et Android, sans qu'il faille l'y répéter.
+//! No platform `cfg`: `/sys/module/nvidia` is a Linux path, and it doesn't
+//! exist elsewhere. The module is naturally inert on Windows, macOS and
+//! Android, with no need to repeat the check there.
 //!
-//! ## Pourquoi c'est `unsafe`, et pourquoi c'est sûr ici
+//! ## Why it's `unsafe`, and why it's safe here
 //!
-//! Depuis l'édition 2024, `set_var` est `unsafe` : écrire l'environnement
-//! pendant qu'un autre fil le lit est une course. L'appel est donc la toute
-//! première instruction du processus — avant `mc_log::init`, qui ouvre un fil
-//! d'écriture pour le journal, et bien avant GTK. C'est la seule fenêtre où
-//! l'opération est certaine d'être seule, et c'est pour cela que
-//! [`regler_le_rendu`] ne journalise pas : le journal n'existe pas encore. Elle
-//! rend ce qu'elle a fait, et l'appelant le dira une fois `mc-log` prêt.
+//! Since the 2024 edition, `set_var` is `unsafe`: writing the environment
+//! while another thread reads it is a race. The call is therefore the very
+//! first instruction of the process — before `mc_log::init`, which opens a
+//! write thread for the log, and well before GTK. It's the only window where
+//! the operation is guaranteed to be alone, and that's why
+//! [`configure_rendering`] doesn't log: the log doesn't exist yet. It returns
+//! what it did, and the caller reports it once `mc-log` is ready.
 
-/// Ce que WebKitGTK lit pour savoir s'il doit éviter DMA-BUF.
+/// What WebKitGTK reads to know whether it should avoid DMA-BUF.
 const VARIABLE: &str = "WEBKIT_DISABLE_DMABUF_RENDERER";
 
-/// Le module noyau, présent seulement avec le pilote propriétaire.
-const MODULE_NVIDIA: &str = "/sys/module/nvidia";
+/// The kernel module, present only with the proprietary driver.
+const NVIDIA_MODULE: &str = "/sys/module/nvidia";
 
-/// Pose le contournement si la machine en a besoin. Rend `true` si elle l'a
-/// reçu.
+/// Sets the workaround if the machine needs it. Returns `true` if it did.
 ///
-/// À appeler en premier, avant tout ce qui pourrait créer un fil.
-pub fn regler_le_rendu() -> bool {
-    if !doit_desactiver_dmabuf(nvidia_charge(), deja_choisi()) {
+/// To call first, before anything that might create a thread.
+pub fn configure_rendering() -> bool {
+    if !should_disable_dmabuf(nvidia_loaded(), already_chosen()) {
         return false;
     }
 
-    // SAFETY : premier appel du processus. Aucun fil n'a encore été créé — ni
-    // celui du journal, ni ceux de GTK — donc personne ne lit l'environnement
-    // pendant qu'on l'écrit.
+    // SAFETY: first call of the process. No thread has been created yet —
+    // neither the log's, nor GTK's — so nobody reads the environment while
+    // we write it.
     unsafe { std::env::set_var(VARIABLE, "1") };
     true
 }
 
-/// La décision, isolée de ce qui la met en œuvre.
+/// The decision, isolated from what carries it out.
 ///
-/// `deja_choisi` l'emporte dans les deux sens : qui pose la variable à `0` a
-/// une raison de vouloir DMA-BUF malgré NVIDIA — un pilote corrigé, un essai —
-/// et l'écraser lui retirerait le seul moyen de le dire.
-fn doit_desactiver_dmabuf(nvidia_charge: bool, deja_choisi: bool) -> bool {
-    nvidia_charge && !deja_choisi
+/// `already_chosen` wins either way: whoever sets the variable to `0` has a
+/// reason to want DMA-BUF despite NVIDIA — a fixed driver, an experiment —
+/// and overwriting it would take away the only way to say so.
+fn should_disable_dmabuf(nvidia_loaded: bool, already_chosen: bool) -> bool {
+    nvidia_loaded && !already_chosen
 }
 
-fn nvidia_charge() -> bool {
-    std::path::Path::new(MODULE_NVIDIA).exists()
+fn nvidia_loaded() -> bool {
+    std::path::Path::new(NVIDIA_MODULE).exists()
 }
 
-fn deja_choisi() -> bool {
+fn already_chosen() -> bool {
     std::env::var_os(VARIABLE).is_some()
 }
 

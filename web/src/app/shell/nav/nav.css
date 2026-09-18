@@ -1,0 +1,17 @@
+/* The navigation pill.
+
+   `display: contents`: the host draws nothing, and `.hm-nav` already carries
+   everything — the glass, the radius, the layout. A `block` host would
+   interpose a full-width box between `.hm-topbar`'s centering and the pill,
+   which would stop being centered. */
+:host {
+  display: contents;
+}
+
+/* The entries are anchors, not buttons: they have a URL, and a URL can be
+   copied, opened in the middle, kept in history. The design system draws
+   buttons; the only thing to take back is removing the underline an anchor
+   carries by default. */
+.hm-nav__item {
+  text-decoration: none;
+}

@@ -1,32 +1,33 @@
-//! Le launcher sans sa fenêtre, pour travailler l'interface.
+//! The launcher without its window, for working on the interface.
 //!
-//! ## Le problème que ce module résout
+//! ## The problem this module solves
 //!
-//! Le front ne peut être regardé que dans la fenêtre Tauri, parce que c'est là
-//! que `invoke` répond. Or dans cette fenêtre il n'y a ni rechargement à
-//! chaud, ni inspecteur en production, ni moyen de mettre l'écran dans un état
-//! choisi. Chaque essai coûte un build complet, et les états rares — trois
-//! mods introuvables, une installation à mi-parcours — ne se provoquent pas.
+//! The front can only be looked at inside the Tauri window, because that's
+//! where `invoke` answers. But in that window there's no hot reload, no
+//! inspector in production, and no way to put the screen in a chosen state.
+//! Every try costs a full build, and the rare states — three missing mods,
+//! an install stuck halfway — can't be triggered.
 //!
-//! Ce module sert les MÊMES commandes sur HTTP. Le front tourne alors dans un
-//! navigateur ordinaire, avec son rechargement à chaud, ses outils de
-//! développement, et un état qu'on choisit en une requête.
+//! This module serves the SAME commands over HTTP. The front then runs in an
+//! ordinary browser, with its hot reload, its dev tools, and a state you
+//! pick with one request.
 //!
-//! ## Ce qui garantit qu'il ne part pas en production
+//! ## What guarantees it doesn't ship to production
 //!
-//! Il est derrière la feature `dev-serveur`, qui n'est pas activée par défaut,
-//! et il n'est compilé que dans un binaire séparé — `mc-dev-serveur`, déclaré
-//! avec `required-features`. `cargo tauri build` ne l'active pas : le code
-//! n'est donc pas « désactivé » dans le binaire du launcher, il n'y est pas.
+//! It's behind the `dev-server` feature, which isn't enabled by default,
+//! and it's only compiled into a separate binary — `mc-dev-server`, declared
+//! with `required-features`. `cargo tauri build` doesn't enable it: the code
+//! isn't "disabled" in the launcher's binary, it isn't there.
 //!
-//! ## Ce qui est vrai et ce qui est simulé
+//! ## What's real and what's simulated
 //!
-//! Vrai : `marque`, `chemin`, `reglages`, `enregistrer_reglages`. Elles ne
-//! touchent ni au réseau ni au disque du jeu, et les voir mentir n'apprendrait
-//! rien — `enregistrer_reglages` écrit donc réellement, ce qui est exactement
-//! ce qu'on veut éprouver, puisque c'est là que les bornes s'appliquent.
+//! Real: `brand`, `path`, `settings`, `save_settings`. They touch neither
+//! the network nor the game's disk, and watching them lie wouldn't teach
+//! anything — `save_settings` therefore really writes, which is exactly
+//! what we want to put to the test, since that's where the bounds apply.
 //!
-//! Simulé : tout ce qui authentifie, installe ou lance. Voir [`scenario`].
+//! Simulated: everything that authenticates, installs or launches. See
+//! [`scenario`].
 
 pub mod http;
 pub mod scenario;
@@ -36,268 +37,273 @@ use std::sync::{Arc, Mutex};
 use serde_json::json;
 use tokio::sync::broadcast;
 
-use http::{Reponse, Requete};
-use scenario::Etat;
+use http::{Request, Response};
+use scenario::State;
 
-/// Le port par défaut.
+/// The default port.
 ///
-/// 1421 parce que le serveur d'Angular prend 1420 : les deux tournent
-/// ensemble, et voir les deux nombres se suivre évite d'avoir à se rappeler
-/// lequel est lequel.
+/// 1421 because Angular's server takes 1420: the two run together, and
+/// seeing the two numbers follow each other avoids having to remember which
+/// is which.
 pub const PORT: u16 = 1421;
 
-/// Ce que le serveur garde entre deux requêtes.
-pub struct Contexte {
-    pub etat: Mutex<Etat>,
-    pub evenements: broadcast::Sender<String>,
+/// What the server keeps between two requests.
+pub struct Context {
+    pub state: Mutex<State>,
+    pub events: broadcast::Sender<String>,
 }
 
-impl Contexte {
-    pub fn neuf(depart: Etat) -> Arc<Contexte> {
-        let (evenements, _) = broadcast::channel(64);
-        Arc::new(Contexte {
-            etat: Mutex::new(depart),
-            evenements,
+impl Context {
+    pub fn new(start: State) -> Arc<Context> {
+        let (events, _) = broadcast::channel(64);
+        Arc::new(Context {
+            state: Mutex::new(start),
+            events,
         })
     }
 
-    fn lire(&self) -> Etat {
-        *self.etat.lock().expect("état non empoisonné")
+    fn read(&self) -> State {
+        *self.state.lock().expect("state not poisoned")
     }
 
-    /// Publie un événement, dans la forme que le front attend.
+    /// Publishes an event, in the shape the front expects.
     ///
-    /// Le nom accompagne la charge utile : SSE n'a qu'un seul flux, là où
-    /// `listen()` en a un par nom. Le front démultiplexe.
-    fn emettre(&self, nom: &str, charge: serde_json::Value) {
-        let message = json!({ "evenement": nom, "charge": charge }).to_string();
-        // Une erreur ici veut seulement dire que personne n'écoute.
-        let _ = self.evenements.send(message);
+    /// The name travels alongside the payload: SSE has only one stream,
+    /// where `listen()` has one per name. The front demultiplexes.
+    fn emit(&self, name: &str, payload: serde_json::Value) {
+        let message = json!({ "event": name, "payload": payload }).to_string();
+        // An error here only means nobody's listening.
+        let _ = self.events.send(message);
     }
 }
 
-/// Le routage, séparé du transport.
+/// The routing, separated from the transport.
 ///
-/// Une fonction ordinaire qui prend une requête et rend une réponse : c'est ce
-/// qui la rend éprouvable sans ouvrir de socket, et c'est là que vivent les
-/// seules décisions du module.
-pub async fn router(contexte: Arc<Contexte>, requete: Requete) -> Reponse {
-    let etat = contexte.lire();
+/// An ordinary function that takes a request and renders a response: that's
+/// what makes it testable without opening a socket, and it's where the
+/// module's only decisions live.
+pub async fn router(context: Arc<Context>, request: Request) -> Response {
+    let state = context.read();
 
-    // Le scénario se change en une requête — c'est tout l'intérêt.
-    if let Some(nom) = requete.chemin.strip_prefix("/scenario/") {
-        return match Etat::depuis_nom(nom) {
-            Some(nouveau) => {
-                *contexte.etat.lock().expect("état non empoisonné") = nouveau;
-                contexte.emettre(
-                    crate::cinematique::EVENEMENT_AVANCEMENT,
-                    serde_json::to_value(nouveau.avancement()).unwrap_or(serde_json::Value::Null),
+    // The scenario changes in one request — that's the whole point.
+    if let Some(name) = request.path.strip_prefix("/scenario/") {
+        return match State::from_name(name) {
+            Some(new_state) => {
+                *context.state.lock().expect("state not poisoned") = new_state;
+                context.emit(
+                    crate::cinematic::EVENT_PROGRESS,
+                    serde_json::to_value(new_state.progress()).unwrap_or(serde_json::Value::Null),
                 );
-                Reponse::json(json!({ "scenario": nom }).to_string())
+                Response::json(json!({ "scenario": name }).to_string())
             }
-            None => Reponse::erreur(404, &format!("scénario inconnu : {nom}")),
+            None => Response::error(404, &format!("unknown scenario: {name}")),
         };
     }
 
-    let Some(nom) = requete.chemin.strip_prefix("/commande/") else {
-        return accueil(etat);
+    let Some(name) = request.path.strip_prefix("/command/") else {
+        return home(state);
     };
 
-    match nom {
-        // --- Ce qui appelle la vraie implémentation --------------------------
-        "marque" => valeur(&crate::commandes::marque()),
-        "chemin" => valeur(&scenario::chemin()),
-        "reglages" => valeur(&crate::commandes::reglages::reglages()),
-        "enregistrer_reglages" => match argument(&requete.corps, "reglages") {
-            Some(recu) => match serde_json::from_value(recu) {
-                Ok(reglages) => {
-                    resultat(crate::commandes::reglages::enregistrer_reglages(reglages))
-                }
-                Err(erreur) => Reponse::erreur(500, &format!("réglages illisibles : {erreur}")),
+    match name {
+        // --- What calls the real implementation -------------------------
+        "brand" => value(&crate::commands::brand()),
+        "path" => value(&scenario::path()),
+        "settings" => value(&crate::commands::settings::settings()),
+        "save_settings" => match argument(&request.body, "settings") {
+            Some(received) => match serde_json::from_value(received) {
+                Ok(settings) => result(crate::commands::settings::save_settings(settings)),
+                Err(error) => Response::error(500, &format!("unreadable settings: {error}")),
             },
-            None => Reponse::erreur(500, "il manque l'argument « reglages »"),
+            None => Response::error(500, "missing the \"settings\" argument"),
         },
 
-        // --- Ce que le scénario décide ---------------------------------------
-        "statut" => valeur(&etat.compte()),
-        "etat_du_pack" => valeur(&etat.pack()),
-        "nouvelles" => valeur(&etat.fil()),
-        "verifier_les_fichiers" => valeur(&Vec::<String>::new()),
+        // --- What the scenario decides -----------------------------------
+        "status" => value(&state.account()),
+        "pack_state" => value(&state.pack()),
+        "news" => value(&state.feed()),
+        "verify_files" => value(&Vec::<String>::new()),
 
-        "connexion" => connexion(&contexte).await,
+        "sign_in" => sign_in(&context).await,
 
-        "deconnexion" => {
-            *contexte.etat.lock().expect("état non empoisonné") = Etat::Deconnecte;
-            Reponse::vide()
+        "sign_out" => {
+            *context.state.lock().expect("state not poisoned") = State::SignedOut;
+            Response::empty()
         }
 
-        "jouer" => jouer(&contexte, etat, true).await,
-        "installer" => jouer(&contexte, etat, false).await,
+        "play" => play(&context, state, true).await,
+        "install" => play(&context, state, false).await,
 
-        // --- Ce qui n'a pas de sens hors de la fenêtre ------------------------
+        // --- What makes no sense outside the window -----------------------
         //
-        // `ecran` rend `null`, ce que la page Configuration sait traiter : elle
-        // retombe sur sa liste fixe de résolutions. `ouvrir_dossier` et
-        // `front_pret` ne font rien — il n'y a ni explorateur de fichiers à
-        // ouvrir, ni écran de démarrage à refermer.
-        "ecran" => Reponse::json("null".to_string()),
-        "ouvrir_dossier" | "front_pret" => Reponse::vide(),
+        // `screen` renders `null`, which the Settings page knows how to
+        // handle: it falls back on its fixed list of resolutions.
+        // `open_folder` and `front_ready` do nothing — there's neither a
+        // file explorer to open, nor a splash screen to close.
+        "screen" => Response::json("null".to_string()),
+        "open_folder" | "front_ready" => Response::empty(),
 
-        // Les deux temps de la fenêtre de connexion. Dans un navigateur il n'y
-        // a qu'un onglet : il n'y a rien à ouvrir ni à refermer, et c'est le
-        // routeur du front qui emmène d'une page à l'autre. Elles répondent
-        // quand même — une commande inconnue rendrait un 404 que le front
-        // ouvrirait en incident, sur un geste qui n'a simplement pas lieu ici.
-        "ouvrir_connexion" | "principale_prete" => Reponse::vide(),
+        // The two moments of the sign-in window. In a browser there's only
+        // one tab: there's nothing to open or close, and it's the front's
+        // router that carries you from one page to the other. They still
+        // answer — an unknown command would return a 404 that the front
+        // would open as an incident, over a gesture that simply doesn't
+        // happen here.
+        "open_sign_in" | "main_ready" => Response::empty(),
 
-        // Arrêter une partie qui n'existe pas dans un navigateur : on répond
-        // comme si c'était fait, pour que le geste soit travaillable ici.
-        "arreter_le_jeu" => {
-            tracing::info!("arrêt du jeu demandé (simulé)");
-            Reponse::vide()
+        // Stopping a session that doesn't exist in a browser: we answer as
+        // if it were done, so the gesture stays workable here.
+        "stop_game" => {
+            tracing::info!("game stop requested (simulated)");
+            Response::empty()
         }
 
-        // Le front journalise ici aussi, sous l'étiquette « navigateur » : il
-        // n'y a pas de fenêtre à interroger, et la séquence reste lisible dans
-        // le même flux que le reste.
-        "journal" => {
-            let niveau = texte(&requete.corps, "niveau").unwrap_or_else(|| "info".to_string());
-            let message = texte(&requete.corps, "message").unwrap_or_default();
-            tracing::info!(target: "front", fenetre = "navigateur", niveau = %niveau, "{message}");
-            Reponse::vide()
+        // The front logs here too, under the "browser" label: there's no
+        // window to query, and the sequence stays readable in the same
+        // stream as everything else.
+        "log" => {
+            let level = text(&request.body, "level").unwrap_or_else(|| "info".to_string());
+            let message = text(&request.body, "message").unwrap_or_default();
+            tracing::info!(target: "front", window = "browser", level = %level, "{message}");
+            Response::empty()
         }
 
-        // Le plancher de l'écran « connecté », tenu ici aussi.
+        // The floor of the "signed in" screen, held here too.
         //
-        // Dans la fenêtre, c'est `fenetres::connexion_reussie` qui le tient —
-        // deux secondes au moins, le temps qu'on lise son pseudo et qu'on
-        // comprenne que ça a marché. Sans le reproduire, cet écran passerait en
-        // une image dans un navigateur, et l'on ne pourrait pas le travailler :
-        // c'est exactement ce que ce serveur existe pour rendre observable.
-        "connexion_reussie" => {
+        // In the window, it's `windows::sign_in_succeeded` that holds it —
+        // at least two seconds, long enough to read your username and
+        // understand that it worked. Without reproducing it, this screen
+        // would flash by as a single image in a browser, and it couldn't be
+        // worked on: that's exactly what this server exists to make
+        // observable.
+        "sign_in_succeeded" => {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            Reponse::vide()
+            Response::empty()
         }
 
-        _ => Reponse::erreur(404, &format!("commande inconnue : {nom}")),
+        _ => Response::error(404, &format!("unknown command: {name}")),
     }
 }
 
-/// La connexion, jouée comme la vraie : le code d'abord, le compte après.
+/// Signing in, played like the real thing: the code first, the account
+/// after.
 ///
-/// Le délai n'est pas une coquetterie. Chez Microsoft, entre le moment où le
-/// joueur autorise et celui où le launcher s'en aperçoit, il s'écoule le temps
-/// d'un intervalle de sondage — mesuré à environ quatre secondes. C'est
-/// précisément l'attente que l'interface doit savoir habiter, donc celle qu'il
-/// faut pouvoir regarder.
-async fn connexion(contexte: &Arc<Contexte>) -> Reponse {
-    contexte.emettre(
-        crate::commandes::EVENEMENT_CODE,
+/// The delay isn't a nicety. At Microsoft, between the moment the player
+/// authorizes and the moment the launcher notices, a polling interval
+/// elapses — measured at roughly four seconds. That's precisely the wait the
+/// interface has to know how to inhabit, so the one it has to be possible to
+/// look at.
+async fn sign_in(context: &Arc<Context>) -> Response {
+    context.emit(
+        crate::commands::EVENT_CODE,
         json!({
             "code": "FKRD-QXZB",
             "url": "https://www.microsoft.com/link",
-            "urlDirecte": "https://www.microsoft.com/link?otc=FKRD-QXZB",
+            "directUrl": "https://www.microsoft.com/link?otc=FKRD-QXZB",
         }),
     );
 
     tokio::time::sleep(std::time::Duration::from_secs(4)).await;
 
-    *contexte.etat.lock().expect("état non empoisonné") = Etat::RienInstalle;
-    valeur(&Etat::RienInstalle.compte())
+    *context.state.lock().expect("state not poisoned") = State::NothingInstalled;
+    value(&State::NothingInstalled.account())
 }
 
-/// Une partie, précédée de son installation quand il y a lieu.
+/// A session, preceded by its install when there is one.
 ///
-/// Les étapes défilent pour de bon, avec des octets qui montent : c'est le
-/// seul moyen de voir si la barre, les libellés et le débit se tiennent
-/// pendant plusieurs secondes, et non sur une capture figée.
-async fn jouer(contexte: &Arc<Contexte>, etat: Etat, avec_partie: bool) -> Reponse {
+/// The steps scroll by for real, with bytes climbing: it's the only way to
+/// see whether the bar, the labels and the rate hold up over several
+/// seconds, and not on a frozen screenshot.
+async fn play(context: &Arc<Context>, state: State, played: bool) -> Response {
     use crate::phase::Phase;
 
-    let etapes = [
-        (Phase::Pack, "Lecture du manifeste"),
-        (Phase::Chargeur, "NeoForge 21.1.250"),
-        (Phase::Minecraft, "Client, bibliothèques et assets"),
+    let steps = [
+        (Phase::Pack, "Reading the manifest"),
+        (Phase::Loader, "NeoForge 21.1.250"),
+        (Phase::Minecraft, "Client, libraries and assets"),
         (Phase::Java, "Temurin 21"),
-        (Phase::NeoForge, "Installateur officiel"),
+        (Phase::NeoForge, "Official installer"),
         (Phase::Mods, "128 mods"),
-        (Phase::Verrou, "Verrou écrit"),
+        (Phase::Lock, "Lock written"),
     ];
 
-    for (rang, (phase, note)) in etapes.iter().enumerate() {
+    for (index, (phase, note)) in steps.iter().enumerate() {
         let total = 840_000_000u64;
-        let octets = total * (rang as u64 + 1) / etapes.len() as u64;
-        contexte.emettre(
-            crate::cinematique::EVENEMENT_AVANCEMENT,
+        let bytes = total * (index as u64 + 1) / steps.len() as u64;
+        context.emit(
+            crate::cinematic::EVENT_PROGRESS,
             json!({
                 "phase": phase,
-                "achevee": false,
+                "done": false,
                 "note": note,
-                "fichier": "sodium-neoforge-0.6.13.jar",
-                "octets": octets,
+                "file": "sodium-neoforge-0.6.13.jar",
+                "bytes": bytes,
                 "total": total,
-                "fichiers": (rang + 1) * 18,
-                "fichiersTotal": 128,
-                "actif": true,
-                "debit": 8_400_000,
-                "restant": (etapes.len() - rang - 1) as u64 * 9,
+                "files": (index + 1) * 18,
+                "filesTotal": 128,
+                "active": true,
+                "rate": 8_400_000,
+                "remaining": (steps.len() - index - 1) as u64 * 9,
             }),
         );
         tokio::time::sleep(std::time::Duration::from_millis(900)).await;
     }
 
-    // La partie elle-même — SEULEMENT si le geste est « jouer ». Le bouton
-    // d'installation s'arrête ici : c'est tout l'objet de la séparation.
-    if avec_partie {
-        contexte.emettre(
-            crate::cinematique::EVENEMENT_AVANCEMENT,
-            json!({ "phase": Phase::Lancement, "achevee": false, "actif": false,
-                    "octets": 0, "total": 0, "fichiers": 0, "fichiersTotal": 0, "debit": 0 }),
+    // The session itself — ONLY if the gesture is "play". The install
+    // button stops here: that's the whole point of the split.
+    if played {
+        context.emit(
+            crate::cinematic::EVENT_PROGRESS,
+            json!({ "phase": Phase::Launch, "done": false, "active": false,
+                    "bytes": 0, "total": 0, "files": 0, "filesTotal": 0, "rate": 0 }),
         );
         tokio::time::sleep(std::time::Duration::from_secs(3)).await;
     }
 
-    *contexte.etat.lock().expect("état non empoisonné") = Etat::PretAJouer;
-    contexte.emettre(
-        crate::cinematique::EVENEMENT_AVANCEMENT,
-        serde_json::to_value(Etat::PretAJouer.avancement()).unwrap_or(serde_json::Value::Null),
+    *context.state.lock().expect("state not poisoned") = State::ReadyToPlay;
+    context.emit(
+        crate::cinematic::EVENT_PROGRESS,
+        serde_json::to_value(State::ReadyToPlay.progress()).unwrap_or(serde_json::Value::Null),
     );
 
-    valeur(&etat.partie(avec_partie))
+    value(&state.play_result(played))
 }
 
-/// Ce que le serveur dit de lui-même, pour qui ouvre l'adresse à la main.
-fn accueil(etat: Etat) -> Reponse {
-    let courant = Etat::TOUS
+/// What the server says about itself, for whoever opens the address by
+/// hand.
+fn home(state: State) -> Response {
+    let current = State::ALL
         .iter()
-        .find(|(_, connu)| *connu == etat)
-        .map(|(nom, _)| *nom)
-        .unwrap_or("inconnu");
+        .find(|(_, known)| *known == state)
+        .map(|(name, _)| *name)
+        .unwrap_or("unknown");
 
-    valeur(&scenario::Accueil {
-        scenario: courant.to_string(),
-        scenarios: Etat::TOUS.iter().map(|(nom, _)| nom.to_string()).collect(),
-        commandes: vec![
-            "marque",
-            "chemin",
-            "statut",
-            "connexion",
-            "deconnexion",
-            "etat_du_pack",
-            "jouer",
-            "installer",
-            "verifier_les_fichiers",
-            "nouvelles",
-            "reglages",
-            "enregistrer_reglages",
-            "ecran",
-            "ouvrir_dossier",
-            "front_pret",
-            "ouvrir_connexion",
-            "connexion_reussie",
-            "principale_prete",
-            "journal",
-            "arreter_le_jeu",
+    value(&scenario::Home {
+        scenario: current.to_string(),
+        scenarios: State::ALL
+            .iter()
+            .map(|(name, _)| name.to_string())
+            .collect(),
+        commands: vec![
+            "brand",
+            "path",
+            "status",
+            "sign_in",
+            "sign_out",
+            "pack_state",
+            "play",
+            "install",
+            "verify_files",
+            "news",
+            "settings",
+            "save_settings",
+            "screen",
+            "open_folder",
+            "front_ready",
+            "open_sign_in",
+            "sign_in_succeeded",
+            "main_ready",
+            "log",
+            "stop_game",
         ]
         .into_iter()
         .map(str::to_string)
@@ -305,68 +311,68 @@ fn accueil(etat: Etat) -> Reponse {
     })
 }
 
-/// Déballe un `Result`, EXACTEMENT comme le pont Tauri le fait.
+/// Unpacks a `Result`, EXACTLY like the Tauri bridge does.
 ///
-/// **C'est le seul endroit où ce serveur pouvait mentir sur la forme de ce
-/// qu'il rend, et il a menti.** `#[tauri::command]` enveloppe une commande qui
-/// rend un `Result` : le succès part comme la valeur nue, l'erreur rejette la
-/// promesse. Sérialiser le `Result` tel quel donne `{"Ok": {…}}` — une réponse
-/// qui a l'air d'une réussite, qui porte un code 200, et dont le front lit un
-/// champ qui n'existe pas.
+/// **This is the one place this server could lie about the shape of what it
+/// renders, and it did.** `#[tauri::command]` wraps a command that returns a
+/// `Result`: success leaves as the bare value, error rejects the promise.
+/// Serializing the `Result` as-is gives `{"Ok": {…}}` — a response that
+/// looks like a success, that carries a 200 code, and whose front reads a
+/// field that doesn't exist.
 ///
-/// Le symptôme est resté longtemps illisible : la page de configuration
-/// enregistrait, recevait un objet d'une forme qu'elle ne connaissait pas, et
-/// ouvrait un incident par frappe de curseur — trois cent vingt-six en une
-/// session. Rien dans le serveur ne le disait, puisque de son point de vue tout
-/// s'était bien passé.
-pub fn resultat<T, E>(resultat: Result<T, E>) -> Reponse
+/// The symptom stayed unreadable for a long time: the settings page saved,
+/// received an object of a shape it didn't know, and opened an incident per
+/// cursor keystroke — three hundred and twenty-six in one session. Nothing
+/// in the server said so, since from its point of view everything had gone
+/// fine.
+pub fn result<T, E>(result: Result<T, E>) -> Response
 where
     T: serde::Serialize,
     E: serde::Serialize,
 {
-    match resultat {
-        Ok(valeur_rendue) => valeur(&valeur_rendue),
-        // L'erreur est SÉRIALISÉE, pas formatée : c'est ce que fait le pont,
-        // qui rejette avec la valeur d'erreur telle quelle. `Erreur` est un
-        // newtype sur une chaîne, donc cela rend une chaîne JSON — la forme
-        // exacte que `messageDErreur` sait lire des deux côtés.
-        Err(erreur) => match serde_json::to_string(&erreur) {
-            Ok(corps) => Reponse {
+    match result {
+        Ok(rendered_value) => value(&rendered_value),
+        // The error is SERIALIZED, not formatted: that's what the bridge
+        // does, rejecting with the error value as-is. `Error` is a newtype
+        // over a string, so this renders a JSON string — the exact shape
+        // `errorMessage` knows how to read on both sides.
+        Err(error) => match serde_json::to_string(&error) {
+            Ok(body) => Response {
                 code: 500,
-                type_mime: "application/json".to_string(),
-                corps,
+                mime_type: "application/json".to_string(),
+                body,
             },
-            Err(cause) => Reponse::erreur(500, &format!("erreur non sérialisable : {cause}")),
+            Err(cause) => Response::error(500, &format!("unserializable error: {cause}")),
         },
     }
 }
 
-/// Sérialise, ou rend l'échec plutôt que de le taire.
-fn valeur<T: serde::Serialize>(valeur: &T) -> Reponse {
-    match serde_json::to_string(valeur) {
-        Ok(corps) => Reponse::json(corps),
-        Err(erreur) => Reponse::erreur(500, &format!("réponse non sérialisable : {erreur}")),
+/// Serializes, or renders the failure rather than hiding it.
+fn value<T: serde::Serialize>(value: &T) -> Response {
+    match serde_json::to_string(value) {
+        Ok(body) => Response::json(body),
+        Err(error) => Response::error(500, &format!("unserializable response: {error}")),
     }
 }
 
-/// Un argument nommé, dans le corps JSON.
+/// A named argument, in the JSON body.
 ///
-/// Le front envoie ce que `invoke` enverrait : un objet dont les clés sont les
-/// noms des paramètres. On les lit de la même façon.
-pub fn argument(corps: &str, nom: &str) -> Option<serde_json::Value> {
-    serde_json::from_str::<serde_json::Value>(corps)
+/// The front sends what `invoke` would send: an object whose keys are the
+/// parameter names. We read them the same way.
+pub fn argument(body: &str, name: &str) -> Option<serde_json::Value> {
+    serde_json::from_str::<serde_json::Value>(body)
         .ok()?
-        .get(nom)
+        .get(name)
         .cloned()
 }
 
-/// Le même, quand l'argument attendu est une chaîne.
+/// The same, when the expected argument is a string.
 ///
-/// Un argument absent ou d'un autre type rend `None` plutôt que d'échouer : ce
-/// serveur sert à travailler l'interface, et une ligne de journal mal formée ne
-/// doit pas interrompre le geste qu'on était en train d'observer.
-pub fn texte(corps: &str, nom: &str) -> Option<String> {
-    argument(corps, nom)?.as_str().map(str::to_owned)
+/// A missing argument or one of another type returns `None` rather than
+/// failing: this server exists to work on the interface, and a malformed log
+/// line shouldn't interrupt the gesture being observed.
+pub fn text(body: &str, name: &str) -> Option<String> {
+    argument(body, name)?.as_str().map(str::to_owned)
 }
 
 #[cfg(test)]

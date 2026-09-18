@@ -1,70 +1,71 @@
-//! Lancer le jeu, et dire comment il s'est terminé.
+//! Launch the game, and report how it ended.
 
 use anyhow::{Context, Result};
 
-mod compte_rendu;
+mod report;
 
-use super::commande::Command;
+use super::command::Command;
 
-pub use compte_rendu::{Outcome, Report};
+pub use report::{Outcome, Report};
 
-/// Lance le jeu et attend qu'il se termine.
+/// Launches the game and waits for it to end.
 pub async fn run(command: &Command) -> Result<Report> {
     run_observe(command, &|_| {}).await
 }
 
-/// Le même, en disant QUAND le jeu a démarré et sous quel numéro de processus.
+/// The same, but reporting WHEN the game started and under which process id.
 ///
-/// ## Pourquoi le numéro de processus sort d'ici
+/// ## Why the process id comes out of here
 ///
-/// Deux besoins, et un seul moyen de les servir. La fenêtre doit savoir que le
-/// jeu tourne — sans quoi elle continue d'afficher « Installation… » pendant
-/// toute la partie, ce qui a été constaté à la recette. Et elle doit pouvoir
-/// l'arrêter : un Minecraft qui se fige sur un écran de chargement ne rend
-/// jamais la main, et le launcher attend alors indéfiniment une partie qui ne
-/// se terminera pas.
+/// Two needs, and only one way to serve them. The window has to know the
+/// game is running — otherwise it keeps showing "Installing…" for the whole
+/// session, which was observed during acceptance testing. And it has to be
+/// able to stop it: a Minecraft that freezes on a loading screen never
+/// returns control, and the launcher would then wait forever for a session
+/// that will never end.
 ///
-/// Le `Child` reste ICI : il est emprunté par la boucle qui lit sa sortie, et
-/// le partager demanderait un verrou sur le chemin le plus chaud du module.
-/// Un numéro de processus se copie et suffit à signaler.
-#[tracing::instrument(name = "exécution du jeu", skip_all)]
+/// The `Child` stays HERE: it's borrowed by the loop that reads its output,
+/// and sharing it would require a lock on the module's hottest path. A
+/// process id is cheap to copy and is enough to signal.
+#[tracing::instrument(name = "game execution", skip_all)]
 pub async fn run_observe(
     command: &Command,
-    au_lancement: &(dyn Fn(u32) + Send + Sync),
+    on_launch: &(dyn Fn(u32) + Send + Sync),
 ) -> Result<Report> {
     tracing::info!(
         java = %command.java.display(),
-        repertoire = %command.working_dir.display(),
+        directory = %command.working_dir.display(),
         arguments = command.args.len(),
-        "Démarrage de Minecraft"
+        "Starting Minecraft"
     );
 
     use std::process::Stdio;
     use tokio::io::{AsyncBufReadExt, BufReader};
 
-    // La sortie est captée pour être lue, puis réécrite telle quelle : le
-    // joueur voit ce qu'il aurait vu, et le launcher peut en tirer les
-    // exceptions au passage. Les deux flux sont fusionnés parce que Minecraft
-    // écrit sur les deux sans distinction utile.
+    // The output is captured to be read, then written back out as-is: the
+    // player sees what they would have seen, and the launcher can pick out
+    // exceptions along the way. The two streams are merged because
+    // Minecraft writes to both without any meaningful distinction.
     let mut child = tokio::process::Command::new(&command.java)
         .args(&command.args)
         .current_dir(&command.working_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .with_context(|| format!("exécution de {}", command.java.display()))?;
+        .with_context(|| format!("running {}", command.java.display()))?;
 
-    // Annoncé AVANT de lire la moindre ligne : la première n'arrive qu'une fois
-    // la JVM démarrée, soit plusieurs secondes plus tard, et c'est exactement
-    // l'intervalle pendant lequel la fenêtre doit déjà dire que le jeu part.
+    // Announced BEFORE reading a single line: the first one only arrives
+    // once the JVM has started, which is several seconds later — exactly
+    // the interval during which the window must already say the game is
+    // leaving.
     match child.id() {
         Some(pid) => {
-            tracing::info!(pid, "Minecraft démarré");
-            au_lancement(pid);
+            tracing::info!(pid, "Minecraft started");
+            on_launch(pid);
         }
-        // Un processus qui n'a plus de numéro s'est déjà terminé. Rien à
-        // signaler : la boucle ci-dessous le constatera et rendra son verdict.
-        None => tracing::warn!("le jeu n'a pas de numéro de processus"),
+        // A process with no id anymore has already ended. Nothing to
+        // signal: the loop below will notice and render its verdict.
+        None => tracing::warn!("the game has no process id"),
     }
 
     let mut watcher = crate::crash::Watcher::new();
@@ -102,14 +103,14 @@ pub async fn run_observe(
     let status = child
         .wait()
         .await
-        .with_context(|| format!("attente de {}", command.java.display()))?;
+        .with_context(|| format!("waiting for {}", command.java.display()))?;
 
     let outcome = Outcome::from_status(&status);
-    // Rien n'est journalisé en erreur ici : c'est l'appelant qui décide, et
-    // c'est lui qui connaît le contexte. Le faire aux deux endroits produisait
-    // deux incidents distincts pour un seul échec, constaté sur MC-LAUNCHER-4
-    // et MC-LAUNCHER-5.
-    tracing::debug!(?outcome, code = status.code(), "Minecraft s'est terminé");
+    // Nothing is logged as an error here: it's up to the caller to decide,
+    // and it's the caller who knows the context. Doing it in both places
+    // produced two separate incidents for a single failure, observed on
+    // MC-LAUNCHER-4 and MC-LAUNCHER-5.
+    tracing::debug!(?outcome, code = status.code(), "Minecraft exited");
 
     Ok(Report {
         outcome,

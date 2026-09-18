@@ -1,13 +1,13 @@
-//! Ce qu'est un runtime, et comment on mesure sa version.
+//! What a runtime is, and how its version is measured.
 
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 
-/// Un runtime Java repéré ou installé, dont la version a été **mesurée** en
-/// exécutant le binaire — jamais déduite de son chemin.
+/// A Java runtime found or installed, whose version has been **measured** by
+/// running the binary — never inferred from its path.
 #[derive(Debug, Clone)]
 pub struct Java {
-    /// Exécutable `java` (`java.exe` sous Windows).
+    /// `java` executable (`java.exe` on Windows).
     pub path: PathBuf,
     pub version: Version,
     pub origin: Origin,
@@ -15,24 +15,24 @@ pub struct Java {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Origin {
-    /// Installé par le launcher dans son propre répertoire.
+    /// Installed by the launcher in its own directory.
     Managed,
-    /// Trouvé sur le système (`JAVA_HOME`, `PATH`, emplacements usuels).
+    /// Found on the system (`JAVA_HOME`, `PATH`, usual locations).
     System,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Version {
     pub major: u32,
-    /// Chaîne complète telle que rapportée, p. ex. `21.0.5+11`.
+    /// Full string as reported, e.g. `21.0.5+11`.
     pub full: String,
 }
 
-/// Extrait le numéro majeur d'une chaîne de version Java.
+/// Extracts the major number from a Java version string.
 ///
-/// Deux schémas coexistent encore : `1.8.0_412` (jusqu'à Java 8, où le majeur
-/// est le *deuxième* nombre) et `21.0.5` (depuis Java 9). Confondre les deux
-/// ferait passer un Java 8 pour un Java 1.
+/// Two schemes still coexist: `1.8.0_412` (up to Java 8, where the major is
+/// the *second* number) and `21.0.5` (since Java 9). Mixing up the two would
+/// pass a Java 8 off as a Java 1.
 pub fn parse_major(version: &str) -> Option<u32> {
     let cleaned: String = version
         .trim()
@@ -47,16 +47,16 @@ pub fn parse_major(version: &str) -> Option<u32> {
     }
 }
 
-/// Interroge un exécutable `java` et lit sa version.
+/// Queries a `java` executable and reads its version.
 ///
-/// `-version` écrit sur **stderr** (choix historique de la JVM) et sur trois
-/// lignes dont seule la première porte le numéro, entre guillemets.
+/// `-version` writes to **stderr** (a historical JVM choice) and across three
+/// lines, only the first of which carries the number, in quotes.
 pub async fn probe(exe: &Path) -> Result<Version> {
     let out = tokio::process::Command::new(exe)
         .arg("-version")
         .output()
         .await
-        .with_context(|| format!("exécution de {}", exe.display()))?;
+        .with_context(|| format!("running {}", exe.display()))?;
 
     let text = format!(
         "{}{}",
@@ -66,9 +66,9 @@ pub async fn probe(exe: &Path) -> Result<Version> {
     let quoted = text
         .split('"')
         .nth(1)
-        .with_context(|| format!("version illisible dans la sortie de {}", exe.display()))?;
-    let major = parse_major(quoted)
-        .with_context(|| format!("numéro majeur illisible dans « {quoted} »"))?;
+        .with_context(|| format!("unreadable version in the output of {}", exe.display()))?;
+    let major =
+        parse_major(quoted).with_context(|| format!("unreadable major number in \"{quoted}\""))?;
 
     Ok(Version {
         major,

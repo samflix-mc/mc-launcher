@@ -1,0 +1,22 @@
+/* The title bar.
+
+   `:host { display: contents }`: the bar is already `position: absolute` in
+   `.hm-titlebar`, and its only job is to sit on top of the window. A `block`
+   host would insert a box into the window, taking up space that nothing
+   fills — and against which the page's first row would come to rest. */
+:host {
+  display: contents;
+}
+
+/* The title doesn't get selected: a double-click on a title bar maximizes
+   the window, it doesn't highlight text. `.hm-titlebar` already sets this;
+   it's repeated here because the pack's name is text coming from Rust, and
+   so is the one spot on the bar where a browser would be tempted. */
+.hm-titlebar__title {
+  user-select: none;
+  -webkit-user-select: none;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

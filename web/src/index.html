@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr" data-theme="dark" data-fond="spawn">
+<html lang="en" data-theme="dark" data-backdrop="spawn">
   <head>
     <meta charset="utf-8" />
     <title>Helm</title>
@@ -8,41 +8,42 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
 
     <!--
-      Le fond, préchargé.
+      The backdrop, preloaded.
 
-      Sans cela, la photographie arrive APRÈS le premier rendu et produit un
-      flash — à l'endroit précis que l'amorce existe pour couvrir.
+      Without this, the photo arrives AFTER the first render and produces a
+      flash — at the exact spot the boot screen exists to cover.
 
-      `fetchpriority="high"` : sans lui, le navigateur classe une image de fond
-      après les scripts, et le préchargement arriverait trop tard pour servir.
+      `fetchpriority="high"`: without it, the browser ranks a background
+      image after the scripts, and the preload would arrive too late to serve.
     -->
-    <link rel="preload" as="image" href="fonds/spawn.webp" fetchpriority="high" />
+    <link rel="preload" as="image" href="backdrops/spawn.webp" fetchpriority="high" />
   </head>
   <body>
     <!--
-      L'amorce STATIQUE : ce qui s'affiche avant qu'Angular n'ait démarré.
+      The STATIC boot screen: what shows before Angular has started.
 
-      Angular vide `<app-root>` au bootstrap (`el.textContent = ''`), dans la
-      même tâche que son premier rendu : ce bloc disparaît donc exactement
-      quand le composant d'amorce prend le relais, sans transition visible et
-      sans qu'on ait rien à orchestrer.
+      Angular clears `<app-root>` on bootstrap (`el.textContent = ''`), in
+      the same task as its first render: this block therefore disappears
+      exactly when the boot component takes over, with no visible
+      transition and nothing to orchestrate.
 
-      Elle est dessinée avec les classes du design system — `.hm-splash`,
-      `.hm-wordmark`, `.hm-spinner` — c'est-à-dire EXACTEMENT celles de la
-      fenêtre d'écran de démarrage de Tauri et celles de l'amorce Angular. Les
-      trois écrans se succèdent sans qu'aucun passage ne se voie, et il n'y a
-      qu'un seul dessin à tenir à jour.
+      It's drawn with the design system's classes — `.hm-splash`,
+      `.hm-wordmark`, `.hm-spinner` — i.e. EXACTLY those of Tauri's splash
+      window and of the Angular boot screen. The three screens follow one
+      another with no visible handoff, and there's only one drawing to keep
+      up to date.
 
-      Le nom est écrit en dur, et il ne peut pas l'être autrement : `marque()`
-      est une commande Rust, et à cet instant il n'y a ni pont ni JavaScript. Si
-      `MC_LAUNCHER_NOM` change à la compilation, c'est la seule ligne du front
-      qui ne suivra pas — l'amorce Angular, elle, affiche la vraie.
+      The name is hardcoded, and it can't be otherwise: `brand()` is a Rust
+      command, and at this instant there is neither bridge nor JavaScript.
+      If `MC_LAUNCHER_NAME` changes at build time, this is the only line on
+      the front end that won't follow — the Angular boot screen, on the
+      other hand, shows the real one.
     -->
     <app-root>
       <div class="hm-splash" style="height: 100%">
         <h1 class="hm-wordmark">Helm<span class="hm-wordmark__dot"></span></h1>
         <div class="hm-splash__status">
-          <span class="hm-spinner hm-spinner--sm"></span>Démarrage…
+          <span class="hm-spinner hm-spinner--sm"></span>Starting…
         </div>
       </div>
     </app-root>

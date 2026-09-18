@@ -1,105 +1,106 @@
-//! Le chemin complet, tel que la fenêtre le montre.
+//! The full path, as shown by the window.
 //!
-//! `mc_pack::Etape` couvre l'installation, et rien d'autre : la connexion
-//! Microsoft et la vérification de licence n'en font pas partie — la ligne de
-//! commande n'authentifie qu'au lancement, et `mc-pack` ne vérifie aucune
-//! licence. L'application, elle, enchaîne les trois, et doit les montrer d'une
-//! seule pièce.
+//! `mc_pack::Step` covers installation, and nothing else: signing in with
+//! Microsoft and checking the license aren't part of it — the CLI only
+//! authenticates at launch, and `mc-pack` doesn't check any license. The
+//! app, on the other hand, chains all three, and must show them as one
+//! piece.
 //!
-//! D'où cette énumération plus large, qui encadre celle de `mc-pack` sans la
-//! remplacer : deux phases avant, deux après.
+//! Hence this wider enum, which frames `mc-pack`'s without replacing it: two
+//! phases before, two after.
 //!
-//! Le chemin est affiché **en entier dès le départ**, chaque phase portant son
-//! état. C'est ce qui distingue « on en est à la moitié » de « il se passe
-//! quelque chose » : un joueur qui voit les sept étapes restantes sait ce qu'il
-//! attend, là où une seule ligne qui change ne dit rien de la durée.
+//! The path is displayed **in full from the start**, each phase carrying its
+//! state. That's what distinguishes "we're halfway there" from "something is
+//! happening": a player who sees the seven remaining steps knows what to
+//! expect, whereas a single line that changes says nothing about duration.
 
 use serde::Serialize;
 
-/// Une phase de la cinématique, de l'ouverture de la fenêtre au jeu lancé.
+/// A phase of the cinematic, from the window opening to the game launched.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Phase {
-    /// Session Microsoft : reprise, ou ouverte par code d'appareil.
-    Connexion,
-    /// Le compte possède-t-il Minecraft Java Edition ?
-    Licence,
-    /// Lecture du manifeste du pack, et du verrou.
+    /// Microsoft session: resumed, or opened by device code.
+    #[serde(rename = "signin")]
+    SignIn,
+    /// Does the account own Minecraft Java Edition?
+    License,
+    /// Reading the pack manifest, and the lock.
     Pack,
-    /// Quelle version de NeoForge.
-    Chargeur,
-    /// Les fichiers de Mojang : client, bibliothèques, assets.
+    /// Which version of NeoForge.
+    Loader,
+    /// Mojang's files: client, libraries, assets.
     Minecraft,
-    /// Le runtime Java, détecté ou installé.
+    /// The Java runtime, detected or installed.
     Java,
-    /// L'installateur NeoForge.
+    /// The NeoForge installer.
     NeoForge,
-    /// Résolution, téléchargement et répartition des mods.
+    /// Resolving, downloading and laying out the mods.
     Mods,
-    /// Le verrou, écrit en dernier.
-    Verrou,
-    /// Tout est en place : le bouton « Jouer » s'allume.
-    Pret,
-    /// Le jeu tourne.
-    Lancement,
+    /// The lock, written last.
+    Lock,
+    /// Everything is in place: the "Play" button lights up.
+    Ready,
+    /// The game is running.
+    Launch,
 }
 
 impl Phase {
-    /// Toutes les phases, dans l'ordre où elles surviennent.
-    pub const TOUTES: [Phase; 11] = [
-        Phase::Connexion,
-        Phase::Licence,
+    /// All the phases, in the order they occur.
+    pub const ALL: [Phase; 11] = [
+        Phase::SignIn,
+        Phase::License,
         Phase::Pack,
-        Phase::Chargeur,
+        Phase::Loader,
         Phase::Minecraft,
         Phase::Java,
         Phase::NeoForge,
         Phase::Mods,
-        Phase::Verrou,
-        Phase::Pret,
-        Phase::Lancement,
+        Phase::Lock,
+        Phase::Ready,
+        Phase::Launch,
     ];
 
-    /// Ce que la fenêtre écrit à côté de la phase.
+    /// What the window writes next to the phase.
     ///
-    /// En français et destiné à être lu : contrairement à l'identifiant
-    /// sérialisé, ce texte peut changer sans rien casser.
-    pub fn libelle(self) -> &'static str {
+    /// Written for reading: unlike the serialized identifier, this text can
+    /// change without breaking anything.
+    pub fn label(self) -> &'static str {
         match self {
-            Phase::Connexion => "Compte Microsoft",
-            Phase::Licence => "Licence Minecraft",
-            Phase::Pack => "Lecture du pack",
-            Phase::Chargeur => "Version du chargeur",
-            Phase::Minecraft => "Fichiers du jeu",
+            Phase::SignIn => "Microsoft account",
+            Phase::License => "Minecraft license",
+            Phase::Pack => "Reading the pack",
+            Phase::Loader => "Loader version",
+            Phase::Minecraft => "Game files",
             Phase::Java => "Java",
-            Phase::NeoForge => "Installation de NeoForge",
+            Phase::NeoForge => "Installing NeoForge",
             Phase::Mods => "Mods",
-            Phase::Verrou => "Finalisation",
-            Phase::Pret => "Prêt à jouer",
-            Phase::Lancement => "Jeu lancé",
+            Phase::Lock => "Finalizing",
+            Phase::Ready => "Ready to play",
+            Phase::Launch => "Game launched",
         }
     }
 
-    /// Le rang de la phase, à partir de zéro.
-    pub fn rang(self) -> usize {
-        Phase::TOUTES
+    /// The rank of the phase, starting from zero.
+    pub fn rank(self) -> usize {
+        Phase::ALL
             .iter()
             .position(|phase| *phase == self)
-            .expect("toute phase est dans TOUTES")
+            .expect("every phase is in ALL")
     }
 }
 
-/// Les étapes de `mc-pack` prennent place au milieu du chemin.
-impl From<mc_pack::Etape> for Phase {
-    fn from(etape: mc_pack::Etape) -> Self {
-        match etape {
-            mc_pack::Etape::Pack => Phase::Pack,
-            mc_pack::Etape::Chargeur => Phase::Chargeur,
-            mc_pack::Etape::Minecraft => Phase::Minecraft,
-            mc_pack::Etape::Java => Phase::Java,
-            mc_pack::Etape::NeoForge => Phase::NeoForge,
-            mc_pack::Etape::Mods => Phase::Mods,
-            mc_pack::Etape::Verrou => Phase::Verrou,
+/// `mc-pack`'s steps take place in the middle of the path.
+impl From<mc_pack::Step> for Phase {
+    fn from(step: mc_pack::Step) -> Self {
+        match step {
+            mc_pack::Step::Pack => Phase::Pack,
+            mc_pack::Step::Loader => Phase::Loader,
+            mc_pack::Step::Minecraft => Phase::Minecraft,
+            mc_pack::Step::Java => Phase::Java,
+            mc_pack::Step::NeoForge => Phase::NeoForge,
+            mc_pack::Step::Mods => Phase::Mods,
+            mc_pack::Step::Lock => Phase::Lock,
         }
     }
 }

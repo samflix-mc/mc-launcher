@@ -1,11 +1,11 @@
-//! Les empreintes, telles que les sources les publient.
+//! Digests, as the sources publish them.
 
 use anyhow::{Result, bail};
 use std::path::Path;
 
-/// Empreinte publiée par une source. Chacune utilise la sienne : Mojang donne
-/// du SHA-1, Adoptium du SHA-256, Modrinth les deux, CurseForge du SHA-1 ou du
-/// MD5 selon l'ancienneté du fichier.
+/// Digest published by a source. Each one uses its own: Mojang gives SHA-1,
+/// Adoptium SHA-256, Modrinth both, CurseForge SHA-1 or MD5 depending on how
+/// old the file is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Checksum {
     Sha1(String),
@@ -15,7 +15,7 @@ pub enum Checksum {
 }
 
 impl Checksum {
-    /// Calcule l'empreinte de `bytes` avec le même algorithme.
+    /// Computes the digest of `bytes` with the same algorithm.
     pub fn of(&self, bytes: &[u8]) -> String {
         use md5::Md5;
         use sha1::{Digest, Sha1};
@@ -54,41 +54,41 @@ impl Checksum {
             return Ok(());
         }
         bail!(
-            "{what} : empreinte {} attendue {}, obtenue {got}",
+            "{what}: {} digest expected {}, got {got}",
             self.algorithm(),
             self.expected()
         )
     }
 }
 
-/// Empreinte SHA-1 d'un fichier déjà sur le disque.
+/// SHA-1 digest of a file already on disk.
 ///
-/// Conservée pour ce que les sources amont imposent : Mojang adresse tout
-/// vanilla par SHA-1, et CurseForge ne publie rien de plus fort.
+/// Kept for what upstream sources impose: Mojang addresses everything
+/// vanilla by SHA-1, and CurseForge publishes nothing stronger.
 pub fn sha1_of_file(path: &Path) -> Result<String> {
     use sha1::{Digest, Sha1};
     Ok(hex::encode(Sha1::digest(std::fs::read(path)?)))
 }
 
-/// Empreinte SHA-512 d'un fichier déjà sur le disque.
+/// SHA-512 digest of a file already on disk.
 ///
-/// Celle qu'on calcule quand personne n'en publie : rien n'oblige alors à
-/// retenir l'algorithme le plus faible, et c'est elle que le verrou gardera
-/// pour toutes les vérifications suivantes.
+/// The one computed when nobody publishes one: nothing then forces settling
+/// for the weakest algorithm, and it's the one the lockfile will keep for
+/// every check that follows.
 pub fn sha512_of_file(path: &Path) -> Result<String> {
     use sha2::{Digest, Sha512};
     Ok(hex::encode(Sha512::digest(std::fs::read(path)?)))
 }
 
-/// Empreinte SHA-512 d'octets qui ne sont pas un fichier.
+/// SHA-512 digest of bytes that aren't a file.
 ///
-/// Le cas qui l'a fait naître est la comparaison du verrou publié à celui
-/// qu'on a posé : le premier arrive par le réseau et n'a jamais touché le
-/// disque. L'écrire quelque part pour pouvoir le hacher reviendrait à
-/// installer avant d'avoir décidé s'il fallait installer.
-pub fn sha512_of_bytes(octets: &[u8]) -> String {
+/// The case that brought it into being is comparing the published lockfile
+/// to the one that was written: the former arrives over the network and
+/// never touched disk. Writing it somewhere just to hash it would amount to
+/// installing before deciding whether to install.
+pub fn sha512_of_bytes(bytes: &[u8]) -> String {
     use sha2::{Digest, Sha512};
-    hex::encode(Sha512::digest(octets))
+    hex::encode(Sha512::digest(bytes))
 }
 
 #[cfg(test)]

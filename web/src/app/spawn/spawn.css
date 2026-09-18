@@ -3,13 +3,13 @@
   min-height: 0;
 }
 
-/* La tuile épinglée prend la hauteur de la colonne d'à côté : c'est ce que
-   `.hm-news--pinned { height: 100% }` attend de sa cellule. */
-.hm-spawn__vedette {
+/* The pinned tile takes the height of the column next to it: that's what
+   `.hm-news--pinned { height: 100% }` expects from its cell. */
+.hm-spawn__featured {
   min-height: 240px;
 }
 
-.hm-spawn__vide {
+.hm-spawn__empty {
   height: 100%;
   display: grid;
   align-content: center;
@@ -17,11 +17,11 @@
   border-radius: var(--radius-xl);
 }
 
-/* Le titre du panneau et sa pastille, sur la même ligne, la pastille poussée à
-   droite. Sur un panneau étroit, la pastille passe DESSOUS plutôt que d'écraser
-   le titre — c'est le défaut de mise en page qui rendait l'ancienne page
-   illisible sur une fenêtre réduite. */
-.hm-spawn__tete {
+/* The panel's title and its badge, on the same line, the badge pushed to
+   the right. On a narrow panel, the badge drops BELOW rather than crushing
+   the title — that's the layout defect that made the old page unreadable
+   on a shrunk window. */
+.hm-spawn__head {
   display: flex;
   flex-wrap: wrap;
   align-items: start;
@@ -30,20 +30,20 @@
   margin-bottom: var(--space-3);
 }
 
-/* `.hm-glass__title` porte une marge basse, faite pour un panneau dont le titre
-   est seul sur sa ligne. Ici il partage la ligne avec la pastille, et la marge
-   décalerait les deux l'un par rapport à l'autre. */
-.hm-spawn__titre {
+/* `.hm-glass__title` carries a bottom margin, made for a panel whose title
+   sits alone on its line. Here it shares the line with the badge, and the
+   margin would offset the two relative to each other. */
+.hm-spawn__title {
   margin: 0;
 }
 
-.hm-spawn__faits {
+.hm-spawn__facts {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
 }
 
-.hm-spawn__fait {
+.hm-spawn__fact {
   gap: var(--space-1);
   font-size: 12px;
   line-height: 16px;
@@ -58,10 +58,10 @@
   color: var(--ink-2);
 }
 
-/* Une alerte DANS un panneau ne rempile pas un verre sur un verre : le design
-   system l'interdit au-delà de deux épaisseurs, et trois donnent une boîte
-   grise. On lui retire sa base et son flou, on lui laisse sa teinte. */
-.hm-spawn__alerte {
+/* An alert INSIDE a panel doesn't stack glass on glass: the design system
+   forbids more than two layers, and three give a gray box. We strip its
+   base and its blur, and leave it its hue. */
+.hm-spawn__alert {
   margin-top: var(--space-3);
   background: color-mix(in srgb, var(--warning) 12%, transparent);
   -webkit-backdrop-filter: none;
@@ -69,18 +69,18 @@
   box-shadow: none;
 }
 
-.hm-spawn__alerte::before,
-.hm-spawn__alerte::after {
+.hm-spawn__alert::before,
+.hm-spawn__alert::after {
   display: none;
 }
 
-/* La colonne de droite ne s'étire PAS à la hauteur de la tuile.
+/* The right column does NOT stretch to the tile's height.
 
-   Par défaut, un élément de grille s'étire sur toute la rangée : le panneau
-   « Modpack » faisait alors deux cent quarante pixels de haut pour trois lignes
-   de contenu, avec un grand vide sous elles. `align-content: start` lui rend sa
-   hauteur naturelle — et ce qui est gagné retourne à l'image, ce qui est
-   précisément l'intention de cette page. */
+   By default, a grid item stretches across the whole row: the "Modpack"
+   panel then stood two hundred and forty pixels tall for three lines of
+   content, with a big empty space below them. `align-content: start` gives
+   it back its natural height — and what's gained goes back to the image,
+   which is precisely this page's intent. */
 .hm-stack {
   align-content: start;
 }

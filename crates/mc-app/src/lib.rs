@@ -1,217 +1,214 @@
-//! L'interface de Helm, le launcher du réseau samflix-mc.
+//! Helm's interface, the samflix-mc network's launcher.
 //!
-//! La fenêtre. Elle authentifie le joueur, installe le pack, le vérifie et
-//! lance le jeu — chacune de ces étapes étant déjà écrite et testée dans l'un
-//! des crates de la racine.
+//! The window. It authenticates the player, installs the pack, verifies it
+//! and launches the game — each of these steps already written and tested
+//! in one of the root's crates.
 //!
-//! ## Ce que ce crate fait, et ce qu'il ne fait pas
+//! ## What this crate does, and what it doesn't
 //!
-//! Il ne contient aucune logique de launcher. L'authentification est celle de
-//! `mc-auth`, l'installation celle de `mc-pack`, la journalisation celle de
-//! `mc-log`, les chemins ceux de `mc-chemins`. Ce module n'ajoute qu'un pont :
-//! des types sérialisables, les commandes que le front appelle, et l'ordre
-//! dans lequel tout cela démarre.
+//! It contains no launcher logic. Authentication is `mc-auth`'s,
+//! installation is `mc-pack`'s, logging is `mc-log`'s, paths are
+//! `mc-paths`'. This module only adds a bridge: serializable types, the
+//! commands the front end calls, and the order in which all of it starts.
 //!
-//! C'est aussi pourquoi il est hors du périmètre de mutation (voir
-//! `default-members` dans le Cargo.toml racine) : muter une enveloppe
-//! demanderait à un test de vérifier une délégation, ce que seul un essai de
-//! bout en bout — avec un serveur d'affichage — pourrait faire.
+//! That's also why it's outside the mutation scope (see `default-members`
+//! in the root Cargo.toml): mutating a wrapper would ask a test to verify a
+//! delegation, which only an end-to-end test — with a display server —
+//! could do.
 //!
-//! ## Pourquoi la fenêtre journalise par `mc-log`
+//! ## Why the window logs through `mc-log`
 //!
-//! `tauri-plugin-log` écrirait les jetons tels quels. `mc-log` les censure —
-//! `refresh_token`, `access_token` — sur la console, dans le fichier et avant
-//! Sentry. Un launcher graphique avale sa sortie standard : le fichier de
-//! journal est alors la seule chose qu'un joueur puisse joindre à un rapport,
-//! et c'est exactement le moment où il ne faut pas qu'un jeton s'y trouve.
+//! `tauri-plugin-log` would write tokens as is. `mc-log` redacts them —
+//! `refresh_token`, `access_token` — on the console, in the file and before
+//! Sentry. A graphical launcher swallows its standard output: the log file
+//! is then the only thing a player can attach to a report, and that's
+//! exactly the moment a token must not be in it.
 
-mod chemins;
-mod cinematique;
-mod commandes;
+mod brand;
+mod cinematic;
+mod commands;
 mod csp;
-mod demarrage;
-mod fenetres;
-mod journal;
-// Le launcher sans sa fenêtre, servi sur HTTP. Derrière une feature qui n'est
-// pas activée par défaut : `cargo tauri build` ne le compile pas.
-#[cfg(feature = "dev-serveur")]
-pub mod dev;
 mod diagnostic;
-mod marque;
+// The launcher without its window, served over HTTP. Behind a feature not
+// enabled by default: `cargo tauri build` doesn't compile it.
+mod acceptance;
+#[cfg(feature = "dev-server")]
+pub mod dev;
+mod game_session;
+mod log;
 mod navigation;
-mod partie;
+mod paths;
 mod phase;
-mod recette;
-mod suivi;
+mod startup;
+mod tracker;
 mod webkit;
+mod windows;
 
-/// Monte la fenêtre et rend la main quand elle se ferme.
+/// Mounts the window and returns control when it closes.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // En premier, avant le moindre fil : l'appel écrit l'environnement du
-    // processus, et ce n'est sûr que tant qu'il est seul à y toucher.
-    let dmabuf_desactive = webkit::regler_le_rendu();
+    // First, before any thread: the call writes the process environment,
+    // and that's only safe while nothing else touches it yet.
+    let dmabuf_disabled = webkit::configure_rendering();
 
-    // Avant la fenêtre et avant le journal : `--diagnostic` répond puis sort.
-    // C'est ce que la CI lance sur le binaire qu'elle vient de construire pour
-    // savoir s'il porte l'environnement qu'on croit — un binaire de production
-    // qui se croit « development » irait chercher le pack de dev et ferait
-    // entrer les joueurs sur le serveur de dev. Ouvrir une fenêtre pour
-    // répondre à cette question demanderait un serveur d'affichage sur un
-    // runner qui n'en a pas.
-    if diagnostic::demande(std::env::args()) {
-        print!("{}", diagnostic::rapport(dmabuf_desactive));
+    // Before the window and before the log: `--diagnostic` answers and
+    // exits. This is what CI runs on the binary it just built to know
+    // whether it carries the environment it's supposed to — a production
+    // binary that thinks it's "development" would go fetch the dev pack and
+    // let players onto the dev server. Opening a window to answer that
+    // question would require a display server on a runner that doesn't have
+    // one.
+    if diagnostic::requested(std::env::args()) {
+        print!("{}", diagnostic::report(dmabuf_disabled));
         return;
     }
 
-    // L'ORDRE DE CE QUI SUIT EST LE SUJET, et il se lit mal :
+    // THE ORDER OF WHAT FOLLOWS IS THE POINT, and it doesn't read easily:
     //
-    // 1. `build()` construit l'application SANS ouvrir de fenêtre, mais avec
-    //    son résolveur de chemins déjà en place.
-    // 2. On pose donc les emplacements ici — avant le journal, qui doit
-    //    ouvrir son fichier au bon endroit du premier coup.
-    // 3. `mc_log::init` ensuite.
-    // 4. `app.run()` enfin, et c'est lui qui crée la fenêtre.
+    // 1. `build()` builds the application WITHOUT opening a window, but
+    //    with its path resolver already in place.
+    // 2. So the locations are set here — before the log, which must open
+    //    its file in the right place on the first try.
+    // 3. `mc_log::init` next.
+    // 4. `app.run()` last, and it's the one that creates the window.
     //
-    // Le piège est à l'étape 1 : juste après `build()`,
-    // `get_webview_window("main")` rend `None`. Les fenêtres déclarées dans
-    // tauri.conf.json sont construites par la fonction libre `setup()`
-    // (app.rs:2520-2535), appelée sur `RuntimeRunEvent::Ready`
-    // (app.rs:1422-1428), à l'intérieur de `App::run`. C'est pour cela que le
-    // hook `.setup()` ci-dessous RESTE : y substituer un appel direct ici ne
-    // ferait rien — sans un avertissement — et la fenêtre garderait le titre
-    // figé du fichier de configuration.
+    // The trap is at step 1: right after `build()`,
+    // `get_webview_window("main")` returns `None`. The windows declared in
+    // tauri.conf.json are built by the free function `setup()`
+    // (app.rs:2520-2535), called on `RuntimeRunEvent::Ready`
+    // (app.rs:1422-1428), inside `App::run`. That's why the `.setup()` hook
+    // below STAYS: replacing it with a direct call here would do nothing —
+    // without a warning — and the window would keep the title frozen in the
+    // config file.
     let application = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        // La liste blanche de navigation. Sous forme de greffon parce que
-        // `on_navigation` n'existe pas sur `tauri::Builder` : seulement sur un
-        // constructeur de webview — or la nôtre est déclarée dans
-        // tauri.conf.json et n'existe pas encore ici — ou sur un constructeur
-        // de greffon, dont le magasin est consulté pour TOUTE webview
-        // (manager/webview.rs:596-602).
-        .plugin(navigation::greffon())
-        // La recette du build empaqueté, jouée par la fenêtre. Greffon parce
-        // qu'il faut poser le collecteur de violations AVANT le document, et
-        // qu'une webview déclarée dans tauri.conf.json n'existe pas encore
-        // ici. Absent du binaire de production.
-        .plugin(recette::greffon())
-        // Le compteur d'avancement vit aussi longtemps que la fenêtre : les
-        // téléchargements l'incrémentent depuis leurs tâches, la boucle
-        // d'émission le lit, et aucune commande ne peut le posséder.
-        .manage(commandes::Etat::default())
-        // Le hook `setup` fait deux choses, et c'est le seul endroit d'où
-        // elles soient possibles : il s'exécute une fois les fenêtres de
-        // `tauri.conf.json` réellement construites — ce qui n'est PAS le cas
-        // juste après `build()`.
+        // The navigation allowlist. As a plugin because `on_navigation`
+        // doesn't exist on `tauri::Builder`: only on a webview builder — and
+        // ours is declared in tauri.conf.json and doesn't exist yet here —
+        // or on a plugin builder, whose store is consulted for EVERY
+        // webview (manager/webview.rs:596-602).
+        .plugin(navigation::plugin())
+        // The packaged build's recipe, played by the window. A plugin
+        // because the violation collector must be set BEFORE the document,
+        // and a webview declared in tauri.conf.json doesn't exist yet here.
+        // Absent from the production binary.
+        .plugin(acceptance::plugin())
+        // The progress counter lives as long as the window: downloads
+        // increment it from their tasks, the emission loop reads it, and no
+        // command can own it.
+        .manage(commands::AppState::default())
+        // The `setup` hook does two things, and it's the only place where
+        // they're possible: it runs once `tauri.conf.json`'s windows are
+        // actually built — which is NOT the case right after `build()`.
         .setup(|app| {
             use tauri::Manager;
 
-            // Le titre de `tauri.conf.json` est figé dans le fichier ; celui-ci
-            // vient de `MC_LAUNCHER_NOM`. Le poser ici évite d'avoir deux
-            // endroits à changer pour renommer le launcher, dont un qu'on
-            // oublie.
-            if let Some(fenetre) = app.get_webview_window("main")
-                && let Err(erreur) = fenetre.set_title(marque::nom())
+            // `tauri.conf.json`'s title is frozen in the file; this one
+            // comes from `MC_LAUNCHER_NOM`. Setting it here avoids having
+            // two places to change to rename the launcher, one of which
+            // gets forgotten.
+            if let Some(window) = app.get_webview_window("main")
+                && let Err(error) = window.set_title(brand::name())
             {
-                tracing::warn!(erreur = %erreur, "titre de la fenêtre inchangé");
+                tracing::warn!(error = %error, "window title unchanged");
             }
 
-            // Sans elle, une erreur JavaScript laisserait la fenêtre
-            // principale cachée POUR TOUJOURS, derrière un écran de démarrage
-            // sans le moindre bouton pour le fermer.
-            demarrage::armer_la_garde(app.handle());
+            // Without it, a JavaScript error would leave the main window
+            // hidden FOREVER, behind a splash screen with no button to
+            // close it.
+            startup::arm_guard(app.handle());
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            commandes::marque,
-            commandes::chemin,
-            commandes::statut,
-            commandes::connexion,
-            commandes::deconnexion,
-            // Le front dit quand il a rendu : c'est ce qui referme l'écran de
-            // démarrage et montre la fenêtre.
-            demarrage::front_pret,
-            // Les deux temps de la fenêtre de connexion : on l'ouvre quand la
-            // session manque, on la referme quand elle est là.
-            fenetres::ouvrir_connexion,
-            fenetres::connexion_reussie,
-            fenetres::principale_prete,
-            // Le front écrit dans le MÊME journal que Rust : les défauts de
-            // séquence entre deux fenêtres ne se lisent que dans un seul flux.
-            journal::journal,
-            // Le geste unique, et ce qu'il faut pour le dessiner.
-            commandes::pack::etat_du_pack,
-            commandes::pack::installer,
-            commandes::pack::jouer,
-            commandes::pack::verifier_les_fichiers,
-            // De quoi reprendre la main sur un jeu qui ne répond plus.
-            partie::arreter_le_jeu,
-            // Les nouvelles du réseau.
-            commandes::nouvelles::nouvelles,
-            // Les réglages, et ce que l'écran permet.
-            commandes::reglages::reglages,
-            commandes::reglages::enregistrer_reglages,
-            commandes::reglages::ecran,
-            commandes::reglages::ouvrir_dossier,
+            commands::brand,
+            commands::path,
+            commands::status,
+            commands::sign_in,
+            commands::sign_out,
+            // The front end says when it has rendered: that's what closes
+            // the splash screen and shows the window.
+            startup::front_ready,
+            // The sign-in window's two moments: opened when the session is
+            // missing, closed when it's there.
+            windows::open_sign_in,
+            windows::sign_in_succeeded,
+            windows::main_ready,
+            // The front end writes into the SAME log as Rust: sequencing
+            // bugs between two windows only show up in a single stream.
+            log::log,
+            // The single gesture, and what's needed to draw it.
+            commands::pack::pack_state,
+            commands::pack::install,
+            commands::pack::play,
+            commands::pack::verify_files,
+            // A way to regain control over a game that stopped responding.
+            game_session::stop_game,
+            // The network's news.
+            commands::news::news,
+            // Settings, and what the screen allows.
+            commands::settings::settings,
+            commands::settings::save_settings,
+            commands::settings::screen,
+            commands::settings::open_folder,
         ])
         .build(tauri::generate_context!());
 
     let application = match application {
         Ok(application) => application,
-        Err(erreur) => {
-            // Un échec de `R::new()` — pas de serveur d'affichage, WebKit
-            // indisponible — sortirait sinon sur la seule sortie d'erreur
-            // d'une application graphique, que personne ne lit, et sans
-            // journal ni Sentry puisque `mc_log::init` n'a pas encore tourné.
-            secours_de_demarrage(&erreur);
-            panic!("démarrage de la fenêtre : {erreur}");
+        Err(error) => {
+            // A failed `R::new()` — no display server, WebKit unavailable —
+            // would otherwise only go to standard error from a graphical
+            // application, which nobody reads, and with no log or Sentry
+            // since `mc_log::init` hasn't run yet.
+            startup_fallback(&error);
+            panic!("window startup: {error}");
         }
     };
 
-    // Le résolveur de Tauri est disponible dès `build()` : les crates ne
-    // dérivent plus rien toutes seules à partir d'ici.
-    chemins::poser(&application);
+    // Tauri's resolver is available as soon as `build()` returns: the
+    // crates no longer derive anything on their own from here on.
+    paths::place(&application);
 
-    // Le garde tient les couches de journalisation ouvertes : le lâcher ici
-    // viderait le fichier de son contenu tamponné et couperait Sentry avant
-    // même l'affichage de la fenêtre.
-    let _journal = mc_log::init("helm");
+    // The guard keeps the logging layers open: dropping it here would flush
+    // the file's buffered content and cut off Sentry before the window even
+    // shows.
+    let _log = mc_log::init("helm");
 
-    chemins::journaliser_la_divergence();
+    paths::log_the_mismatch();
 
-    if dmabuf_desactive {
-        // Une fenêtre blanche sous NVIDIA se diagnostique mal ; savoir que le
-        // contournement s'est déclenché — ou pas — est la première chose à
-        // vérifier dans le journal.
-        tracing::info!("pilote NVIDIA détecté, rendu DMA-BUF de WebKit désactivé");
+    if dmabuf_disabled {
+        // A white window under NVIDIA is hard to diagnose; knowing whether
+        // the workaround kicked in — or not — is the first thing to check
+        // in the log.
+        tracing::info!("NVIDIA driver detected, WebKit DMA-BUF rendering disabled");
     }
 
-    // Prend une clôture, et ne rend rien : le `expect` d'avant portait sur
-    // `build`, pas sur `run`.
+    // Takes a closure, and returns nothing: the earlier `expect` was about
+    // `build`, not about `run`.
     application.run(|_, _| {});
 }
 
-/// Écrit la cause d'un démarrage impossible là où les journaux vont
-/// d'habitude, puisque `mc-log` n'a pas encore pu s'ouvrir.
+/// Writes the cause of a failed startup where logs usually go, since
+/// `mc-log` hasn't been able to open yet.
 ///
-/// Sans cela, la seule trace d'un poste sans serveur d'affichage serait une
-/// panique sur une sortie d'erreur que personne ne lit — et le rapport du
-/// joueur se résumerait à « ça ne s'ouvre pas ».
-fn secours_de_demarrage(erreur: &tauri::Error) {
+/// Without this, the only trace of a machine without a display server would
+/// be a panic on standard error that nobody reads — and the player's report
+/// would boil down to "it doesn't open".
+fn startup_fallback(error: &tauri::Error) {
     use std::io::Write as _;
 
-    eprintln!("[démarrage] la fenêtre n'a pas pu être construite : {erreur}");
+    eprintln!("[startup] the window could not be built: {error}");
 
-    let journaux = mc_chemins::du_systeme().journaux;
-    if std::fs::create_dir_all(&journaux).is_err() {
+    let logs = mc_paths::from_system().logs;
+    if std::fs::create_dir_all(&logs).is_err() {
         return;
     }
-    if let Ok(mut fichier) = std::fs::OpenOptions::new()
+    if let Ok(mut file) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(journaux.join("demarrage-impossible.log"))
+        .open(logs.join("startup-failed.log"))
     {
-        let _ = writeln!(fichier, "la fenêtre n'a pas pu être construite : {erreur}");
+        let _ = writeln!(file, "the window could not be built: {error}");
     }
 }

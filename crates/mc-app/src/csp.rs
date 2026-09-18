@@ -1,129 +1,129 @@
-//! Ce que le CSP SERVI dit — lu dans la fenêtre, et non dans la configuration.
+//! What the SERVED CSP says — read from the window, not from the config.
 //!
-//! ## Pourquoi la configuration ne suffit pas à répondre
+//! ## Why the config isn't enough to answer
 //!
-//! `tauri.conf.json` porte une chaîne ; ce que la fenêtre reçoit en est une
-//! autre. Entre les deux, Tauri réécrit : il ajoute à `script-src` les
-//! EMPREINTES des scripts qu'il injecte lui-même (`manager/mod.rs:64`), et il
-//! poserait un nonce sur `style-src` s'il trouvait une balise `<style>` dans
-//! le HTML embarqué (`tauri-utils/src/html.rs:154-157`). Or un nonce ANNULE
-//! `'unsafe-inline'` — c'est la règle du niveau 3 — et le desserrage sur
-//! lequel repose tout style de composant tomberait alors sans un mot, **en
-//! build empaqueté seulement**.
+//! `tauri.conf.json` carries a string; what the window receives is another
+//! one. Between the two, Tauri rewrites it: it adds to `script-src` the
+//! DIGESTS of the scripts it injects itself (`manager/mod.rs:64`), and it
+//! would set a nonce on `style-src` if it found a `<style>` tag in the
+//! embedded HTML (`tauri-utils/src/html.rs:154-157`). But a nonce CANCELS
+//! `'unsafe-inline'` — that's the level 3 rule — and the loosening that every
+//! component style relies on would then drop without a word, **in a packaged
+//! build only**.
 //!
-//! C'est exactement le genre de divergence qu'on ne découvre pas : la fenêtre
-//! ne plante pas, elle s'affiche sans mise en forme.
+//! That's exactly the kind of drift you don't discover: the window doesn't
+//! crash, it just renders without styling.
 //!
-//! ## Pourquoi une sonde plutôt qu'un coup d'œil dans l'inspecteur
+//! ## Why a probe rather than a glance at the inspector
 //!
-//! L'inspecteur n'existe qu'en compilation de développement, il demande un
-//! geste humain, et il ne répond que pour le build qu'on a sous la main ce
-//! jour-là. Une sonde qui journalise répond à chaque lancement, et le jour où
-//! quelqu'un ajoute un `<style>` dans `index.html` la ligne change toute
-//! seule.
+//! The inspector only exists in a development build, it requires a human
+//! action, and it only answers for the build at hand that day. A probe that
+//! logs answers on every launch, and the day someone adds a `<style>` in
+//! `index.html` the line changes on its own.
 //!
-//! La moitié qui compte — [`juger`] — est une fonction PURE : elle se relit
-//! dans un test, sans serveur d'affichage.
+//! The half that matters — [`judge`] — is a PURE function: it's testable
+//! without a display server.
 
-/// Le nom de l'événement par lequel la fenêtre rapporte son en-tête.
+/// The name of the event by which the window reports its header.
 #[cfg(debug_assertions)]
-const EVENEMENT: &str = "csp-servi";
+const EVENT: &str = "csp-served";
 
-/// Ce que la lecture de l'en-tête permet de conclure.
+/// What reading the header lets us conclude.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Verdict {
-    /// Les styles de composant passent : `style-src` admet l'inline, et rien
-    /// ne l'annule.
-    pub styles_de_composant_passent: bool,
-    /// Un nonce a été posé sur `style-src` — ce qui neutralise
-    /// `'unsafe-inline'`, et donc tous les `styleUrl` du front.
-    pub nonce_sur_style: bool,
-    /// `script-src` n'admet ni `eval` ni inline non couvert par un nonce :
-    /// c'est lui qui protège l'origine privilégiée où `invoke` est joignable.
-    pub scripts_stricts: bool,
+    /// Do component styles pass: does `style-src` admit inline, with nothing
+    /// canceling it?
+    pub component_styles_pass: bool,
+    /// Was a nonce set on `style-src` — which neutralizes `'unsafe-inline'`,
+    /// and therefore every `styleUrl` in the front end.
+    pub nonce_on_style: bool,
+    /// `script-src` admits neither `eval` nor inline uncovered by a nonce:
+    /// it's what protects the privileged origin where `invoke` is reachable.
+    pub strict_scripts: bool,
 }
 
-/// Juge un en-tête `Content-Security-Policy`.
+/// Judges a `Content-Security-Policy` header.
 ///
-/// Rend `None` si la directive `style-src` est absente : ce n'est pas un
-/// verdict par défaut mais une question sans réponse, et la confondre avec
-/// « tout va bien » serait le seul moyen de rater ce que la sonde cherche.
-pub fn juger(entete: &str) -> Option<Verdict> {
-    let style = directive(entete, "style-src")?;
-    let script = directive(entete, "script-src").unwrap_or_default();
+/// Returns `None` if the `style-src` directive is absent: that's not a
+/// default verdict but an unanswered question, and confusing it with
+/// "everything's fine" would be the only way to miss what the probe is
+/// looking for.
+pub fn judge(header: &str) -> Option<Verdict> {
+    let style = directive(header, "style-src")?;
+    let script = directive(header, "script-src").unwrap_or_default();
 
-    // Un nonce ANNULE `'unsafe-inline'` (CSP niveau 3) : les deux présents
-    // ensemble se lisent comme le nonce seul, et c'est toute la subtilité que
-    // cette sonde existe pour trancher.
-    let nonce_sur_style = style.contains("'nonce-");
-    let nonce_sur_script = script.contains("'nonce-");
+    // A nonce CANCELS `'unsafe-inline'` (CSP level 3): the two present
+    // together read as the nonce alone, and that's the entire subtlety this
+    // probe exists to settle.
+    let nonce_on_style = style.contains("'nonce-");
+    let nonce_on_script = script.contains("'nonce-");
 
     Some(Verdict {
-        styles_de_composant_passent: style.contains("'unsafe-inline'") && !nonce_sur_style,
-        nonce_sur_style,
-        scripts_stricts: !script.contains("'unsafe-eval'")
-            && (!script.contains("'unsafe-inline'") || nonce_sur_script),
+        component_styles_pass: style.contains("'unsafe-inline'") && !nonce_on_style,
+        nonce_on_style,
+        strict_scripts: !script.contains("'unsafe-eval'")
+            && (!script.contains("'unsafe-inline'") || nonce_on_script),
     })
 }
 
-/// Le contenu d'une directive, ou rien.
+/// The content of a directive, or nothing.
 ///
-/// Compare sur le NOM entier et non sur un préfixe : `script-src` est un
-/// préfixe de `script-src-elem`, et confondre les deux ferait juger la
-/// mauvaise directive — celle qui, justement, n'est pas celle qu'on desserre.
-fn directive<'a>(entete: &'a str, nom: &str) -> Option<&'a str> {
-    entete.split(';').map(str::trim).find_map(|morceau| {
-        let reste = morceau.strip_prefix(nom)?;
-        // Le nom doit être suivi d'une espace — ou de rien, pour une
-        // directive vide, qui existe et vaut « aucune source ».
-        match reste.chars().next() {
+/// Compares on the whole NAME and not on a prefix: `script-src` is a prefix
+/// of `script-src-elem`, and confusing the two would judge the wrong
+/// directive — precisely the one that isn't the one being loosened.
+fn directive<'a>(header: &'a str, name: &str) -> Option<&'a str> {
+    header.split(';').map(str::trim).find_map(|piece| {
+        let rest = piece.strip_prefix(name)?;
+        // The name must be followed by a space — or nothing, for an empty
+        // directive, which exists and means "no source".
+        match rest.chars().next() {
             None => Some(""),
-            Some(' ') => Some(reste.trim_start()),
+            Some(' ') => Some(rest.trim_start()),
             Some(_) => None,
         }
     })
 }
 
-/// Demande à la fenêtre l'en-tête qu'elle a réellement reçu, et le journalise.
+/// Asks the window for the header it actually received, and logs it.
 ///
-/// Appelée depuis `front_pret`, et de nulle part ailleurs : c'est le seul
-/// instant où la page est certainement chargée, donc le seul où un `eval`
-/// arrive à destination.
+/// Called from `front_ready`, and nowhere else: it's the only moment where
+/// the page is certainly loaded, so the only one where an `eval` reaches its
+/// target.
 ///
-/// Absente du binaire de production. Non pas que la ligne y serait dangereuse
-/// — elle ne dit rien qu'un `curl` sur le paquet ne dise — mais parce qu'un
-/// contrôle de cohérence interne n'a rien à coûter à un joueur.
+/// Absent from the production binary. Not that the line would be dangerous
+/// there — it says nothing a `curl` on the bundle wouldn't say — but because
+/// an internal consistency check should cost a player nothing.
 #[cfg(debug_assertions)]
-pub fn sonder(app: &tauri::AppHandle) {
+pub fn probe(app: &tauri::AppHandle) {
     use tauri::{Listener, Manager};
 
-    app.once(EVENEMENT, |evenement| {
-        let entete: String = serde_json::from_str(evenement.payload()).unwrap_or_default();
-        match juger(&entete) {
+    app.once(EVENT, |event| {
+        let header: String = serde_json::from_str(event.payload()).unwrap_or_default();
+        match judge(&header) {
             Some(verdict) => tracing::info!(
-                entete,
-                styles_de_composant_passent = verdict.styles_de_composant_passent,
-                nonce_sur_style = verdict.nonce_sur_style,
-                scripts_stricts = verdict.scripts_stricts,
-                "CSP servi à la fenêtre"
+                header,
+                component_styles_pass = verdict.component_styles_pass,
+                nonce_on_style = verdict.nonce_on_style,
+                strict_scripts = verdict.strict_scripts,
+                "CSP served to the window"
             ),
-            None => tracing::warn!(entete, "CSP servi sans directive style-src"),
+            None => tracing::warn!(header, "CSP served without a style-src directive"),
         }
     });
 
-    let Some(fenetre) = app.get_webview_window("main") else {
+    let Some(window) = app.get_webview_window("main") else {
         return;
     };
-    // `location.href` et non un chemin écrit en dur : l'origine change selon
-    // la plateforme — `tauri://localhost` sous Linux et macOS,
-    // `http://tauri.localhost` sous Windows — et un chemin figé ne
-    // rapporterait l'en-tête que d'un des trois.
-    if let Err(erreur) = fenetre.eval(concat!(
+    // `location.href` and not a hardcoded path: the origin changes with the
+    // platform — `tauri://localhost` on Linux and macOS,
+    // `http://tauri.localhost` on Windows — and a fixed path would only
+    // report the header on one of the three.
+    if let Err(error) = window.eval(concat!(
         "fetch(location.href).then(r=>window.__TAURI_INTERNALS__.invoke(",
-        "'plugin:event|emit',{event:'csp-servi',",
+        "'plugin:event|emit',{event:'csp-served',",
         "payload:r.headers.get('content-security-policy')||''}))",
     )) {
-        tracing::warn!(erreur = %erreur, "sonde CSP non exécutée");
+        tracing::warn!(error = %error, "CSP probe not executed");
     }
 }
 

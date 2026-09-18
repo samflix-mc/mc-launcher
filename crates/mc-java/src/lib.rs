@@ -1,45 +1,45 @@
-//! Détection du runtime Java EXACT que le pack exige, sinon installation d'un
+//! Detect the EXACT Java runtime the pack requires, otherwise install a
 //! Temurin.
 //!
-//! Minecraft 1.21.1 exige Java 21 : en dessous, le jeu s'arrête sur
-//! `UnsupportedClassVersionError` avant même d'afficher une fenêtre. Un joueur
-//! n'a aucune raison d'avoir un JDK, et celui qu'il a est souvent un 8 ou un 17
-//! laissé par un vieux modpack.
+//! Minecraft 1.21.1 requires Java 21: below that, the game stops on
+//! `UnsupportedClassVersionError` before even showing a window. A player has
+//! no reason to have a JDK, and the one they have is often an 8 or a 17 left
+//! over by some old modpack.
 //!
-//! ## « Exactement », et non « au moins »
+//! ## "Exactly", not "at least"
 //!
-//! La majeure demandée est celle que le VERROU porte — donc celle avec
-//! laquelle NeoForge a été installé. Un Java plus récent n'est pas « assez
-//! bon » : il change le comportement des mixins et le format des registres, et
-//! le serveur tranche par une éjection qui ne nomme pas sa cause.
+//! The major version demanded is the one the LOCK carries — so the one
+//! NeoForge was installed with. A newer Java isn't "good enough": it changes
+//! mixin behavior and the registry format, and the server cuts it off with an
+//! ejection that doesn't name its cause.
 //!
-//! Le launcher vérifie donc l'égalité, et à chaque lancement. Un poste qui a
-//! un Java 22 et un pack qui demande 21 recevra un Temurin 21 dédié, sans
-//! qu'on touche au 22 du système.
+//! The launcher therefore checks for equality, and does so on every launch. A
+//! machine with a Java 22 and a pack that asks for 21 will get a dedicated
+//! Temurin 21, without touching the system's 22.
 //!
-//! La règle vaut aux DEUX bouts — [`detect`] et l'installation — et ce n'est
-//! pas une symétrie décorative : sans elle, l'installation accepterait ce que
-//! la détection refuse, et `ensure` réinstallerait cent quatre-vingts
-//! mégaoctets à chaque lancement sans jamais converger.
+//! The rule holds at BOTH ends — [`detect`] and installation — and this isn't
+//! decorative symmetry: without both, installation would accept what
+//! detection refuses, and `ensure` would reinstall a hundred and eighty
+//! megabytes on every launch without ever converging.
 //!
-//! La stratégie est donc : chercher, vérifier, et n'installer qu'en dernier
-//! recours — installer systématiquement coûterait 50 Mo à chaque poste pour
-//! rien, et ne jamais installer renverrait l'utilisateur vers une page de
-//! téléchargement, ce qui est précisément ce qu'un launcher doit éviter.
+//! The strategy is therefore: search, verify, and only install as a last
+//! resort — installing unconditionally would cost 50 MB on every machine for
+//! nothing, and never installing would send the user to a download page,
+//! which is exactly what a launcher should avoid.
 //!
-//! Le runtime installé est **dédié au launcher** : il vit dans son répertoire
-//! de données, n'est pas ajouté au `PATH`, et ne touche pas au Java du système.
+//! The installed runtime is **dedicated to the launcher**: it lives in its
+//! data directory, isn't added to `PATH`, and doesn't touch the system's Java.
 mod adoptium;
 mod archive;
 mod detection;
-mod emplacements;
 mod installation;
+mod locations;
 mod version;
 
 pub use detection::{detect, ensure};
-pub use emplacements::{default_runtime_dir, managed_home};
 pub use installation::install;
+pub use locations::{default_runtime_dir, managed_home};
 pub use version::{Java, Origin, Version, parse_major, probe};
 
 #[cfg(test)]
-mod essais;
+mod fixtures;

@@ -1,0 +1,104 @@
+@if (account(); as player) {
+  <div class="hm-player-widget" data-test="player">
+    @if (menuOpen()) {
+      <!--
+        The layer that closes on the first click elsewhere.
+
+        A `document:click` on the host would also work, but it would have to
+        tell the OPENING click apart from the closing one, or the menu would
+        close in the same task as its opening. A layer is shorter to read,
+        and it also blocks clicks on what it covers — which an open menu
+        must do.
+      -->
+      <button
+        type="button"
+        class="hm-player-widget__scrim"
+        (click)="closeMenu()"
+        aria-label="Close account menu"
+        tabindex="-1"
+      ></button>
+
+      <div class="hm-menu hm-player-widget__menu" role="menu" data-test="account-menu">
+        <p class="hm-menu__label">{{ player.username }}</p>
+
+        <button
+          type="button"
+          class="hm-menu__item"
+          role="menuitem"
+          (click)="refresh()"
+          [disabled]="busy()"
+          data-test="refresh"
+        >
+          <lucide-icon [img]="RefreshCw" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+          Refresh session
+        </button>
+
+        <div class="hm-menu__sep" role="separator"></div>
+
+        <button
+          type="button"
+          class="hm-menu__item hm-menu__item--danger"
+          role="menuitem"
+          (click)="signOut()"
+          [disabled]="busy()"
+          data-test="sign-out"
+        >
+          <lucide-icon [img]="LogOut" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+          Sign out
+        </button>
+      </div>
+    }
+
+    <button
+      type="button"
+      class="hm-player"
+      (click)="toggleMenu()"
+      [attr.aria-expanded]="menuOpen()"
+      aria-haspopup="menu"
+      data-test="player-badge"
+    >
+      <span class="hm-player__head">
+        @if (head(); as url) {
+          @if (!headMissing()) {
+            <!--
+              `(error)` and not an `onerror`: offline, or if the heads host
+              is unreachable, the image breaks and the badge would show the
+              empty square of a missing image. We fall back to the cube.
+            -->
+            <img
+              [src]="url"
+              [alt]="player.username + '\'s head'"
+              width="40"
+              height="40"
+              loading="lazy"
+              (error)="headMissing.set(true)"
+              data-test="head"
+            />
+          }
+        }
+        @if (!head() || headMissing()) {
+          <!-- The design system's neutral cube: neither face nor character. -->
+          <svg viewBox="0 0 40 40" aria-hidden="true" data-test="head-missing">
+            <rect width="40" height="40" fill="#2a2620" />
+            <path d="M8 14l12-6 12 6-12 6z" fill="#8f887d" />
+            <path d="M8 14v12l12 6V20z" fill="#5c5750" />
+            <path d="M32 14v12l-12 6V20z" fill="#403c36" />
+          </svg>
+        }
+      </span>
+
+      <span class="hm-player__text">
+        <span class="hm-player__name" data-test="username">{{ player.username }}</span>
+        <span class="hm-player__state">Signed in</span>
+      </span>
+
+      <lucide-icon
+        class="hm-player__chevron"
+        [img]="ChevronDown"
+        [size]="16"
+        [strokeWidth]="2"
+        aria-hidden="true"
+      />
+    </button>
+  </div>
+}

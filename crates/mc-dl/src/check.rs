@@ -1,39 +1,39 @@
-//! Jusqu'où vérifier un fichier déjà présent.
+//! How far to verify a file that's already present.
 
 use crate::Checksum;
 use std::path::Path;
 
-/// Ce qu'a fait [`Downloader::to_file`], pour distinguer un vrai
-/// téléchargement d'un fichier déjà conforme dans le compte rendu.
+/// What [`Downloader::to_file`] did, to distinguish an actual download from
+/// an already-matching file in the report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Fetched {
     Downloaded,
     AlreadyPresent,
 }
 
-/// Comment décider qu'un fichier déjà présent n'a pas besoin d'être repris.
+/// How to decide that a file that's already present doesn't need to be
+/// redownloaded.
 ///
-/// La distinction n'est pas cosmétique : les assets d'une version de Minecraft
-/// pèsent plus de 800 Mo répartis sur quelques milliers d'objets. Recalculer
-/// leur SHA-1 à chaque lancement relit tout le disque pour ne presque jamais
-/// rien trouver.
+/// The distinction isn't cosmetic: a Minecraft version's assets weigh more
+/// than 800 MB spread across a few thousand objects. Recomputing their SHA-1
+/// on every launch rereads the whole disk to almost never find anything.
 #[derive(Debug, Clone, Copy)]
 pub enum Check<'a> {
-    /// Empreinte recalculée à chaque passage. Pour ce qui est exécuté — jars,
-    /// bibliothèques, runtimes.
+    /// Digest recomputed on every pass. For what gets executed — jars,
+    /// libraries, runtimes.
     Full(&'a Checksum),
-    /// Taille comme première barrière, empreinte vérifiée seulement à
-    /// l'écriture. Pour les gros volumes de petits fichiers inertes : un asset
-    /// tronqué a la mauvaise taille, et une altération silencieuse à taille
-    /// constante donne au pire une texture fausse, jamais du code exécuté.
-    /// La vérification exhaustive reste disponible à la demande.
+    /// Size as a first barrier, digest checked only on write. For large
+    /// volumes of small inert files: a truncated asset has the wrong size,
+    /// and a silent corruption at a constant size gives at worst a wrong
+    /// texture, never executed code. The exhaustive check stays available on
+    /// demand.
     Quick { sum: &'a Checksum, size: u64 },
-    /// Aucune empreinte publiée, mais une taille annoncée. C'est tout ce
-    /// qu'offrent certaines sources ; mieux vaut contrôler la taille que rien,
-    /// une réponse d'erreur servie en HTTP 200 ne faisant jamais le bon
-    /// nombre d'octets.
+    /// No digest published, but a size announced. That's all some sources
+    /// offer; checking the size beats checking nothing, since an error
+    /// response served over HTTP 200 never happens to have the right byte
+    /// count.
     Size(u64),
-    /// Aucune empreinte publiée : seule la présence peut être constatée.
+    /// No digest published: only presence can be established.
     Presence,
 }
 
@@ -46,7 +46,7 @@ impl Check<'_> {
         }
     }
 
-    /// Taille attendue, quand la source la publie.
+    /// Expected size, when the source publishes it.
     pub(crate) fn size(&self) -> Option<u64> {
         match self {
             Check::Quick { size, .. } | Check::Size(size) => Some(*size),
@@ -54,7 +54,7 @@ impl Check<'_> {
         }
     }
 
-    /// Le fichier présent peut-il être conservé sans téléchargement ?
+    /// Can the file already present be kept without downloading?
     pub(crate) fn accepts_existing(&self, path: &Path) -> bool {
         match self {
             Check::Full(sum) => std::fs::read(path)

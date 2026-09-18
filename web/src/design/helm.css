@@ -1,22 +1,21 @@
 /*
- * Les composants du design system « Helm ».
+ * The components of the "Helm" design system.
  *
- * ## Ce fichier est une COPIE, et il se remplace en entier
+ * ## This file is a COPY, and it gets replaced whole
  *
- * Il vient de `docs/helm-design-system.zip`, dans `components/bundle.css`, à
- * deux choses près, énumérées ici pour que la prochaine copie les reporte :
+ * It comes from `docs/helm-design-system.zip`, from `components/bundle.css`, with
+ * two exceptions, listed here so the next copy carries them over:
  *
- * 1. L'`@import` vers Google Fonts a été RETIRÉ. Le CSP du launcher pose
- *    `default-src 'self'` : la requête serait refusée, et une fenêtre hors
- *    ligne se retrouverait sans police quoi qu'il arrive. Les trois familles
- *    sont servies par le paquet, depuis `styles.css`.
- * 2. Un bloc du launcher est ajouté À LA FIN, sous une barre qui le dit. Il ne
- *    porte que ce que le design system ne pouvait pas savoir : la fenêtre du
- *    launcher n'est pas un rectangle dans une page de démonstration, c'est la
- *    fenêtre du système.
+ * 1. The `@import` for Google Fonts was REMOVED. The launcher's CSP sets
+ *    `default-src 'self'`: the request would be refused, and an offline
+ *    window would end up with no font regardless. The three families
+ *    are served by the package instead, from `styles.css`.
+ * 2. A launcher block is appended AT THE END, under a bar that says so. It only
+ *    carries what the design system couldn't know: the launcher's window
+ *    isn't a rectangle on a demo page, it's the system window.
  *
- * Tout le reste est verbatim. Ne rien y retoucher : une correction faite ici
- * disparaîtrait à la copie suivante sans que rien ne s'en aperçoive.
+ * Everything else is verbatim. Don't touch anything here: a fix made here
+ * would vanish at the next copy without anyone noticing.
  */
 
 :root {
@@ -2366,39 +2365,38 @@ body {
 }
 
 /* ==========================================================================
-   AJOUTS DU LAUNCHER — tout ce qui précède est le design system, verbatim.
+   LAUNCHER ADDITIONS — everything above this is the design system, verbatim.
    ==========================================================================
 
-   Ce que le design system ne pouvait pas savoir : sa fenêtre est un rectangle
-   dans une page de démonstration, la nôtre est la fenêtre du système. Et ses
-   pages posent leur grille en `style=` dans les aperçus, ce qu'un gabarit
-   Angular n'a pas à recopier. */
+   What the design system couldn't know: its window is a rectangle on a
+   demo page, ours is the system window. And its pages set their grid with
+   `style=` in the previews, which an Angular template doesn't need to copy. */
 
-/* La fenêtre, quand elle EST la fenêtre du système.
+/* The window, when it IS the system window.
 
-   Ni rayon ni ombre : `decorations: false` avec une fenêtre OPAQUE — le choix
-   du design system quand on ne veut pas de transparence — fait que des coins
-   arrondis laisseraient voir du noir, et qu'une ombre interne ne tomberait sur
-   rien. Le composeur du bureau dessine la sienne. */
-.hm-window--systeme {
+   No radius, no shadow: `decorations: false` with an OPAQUE window — the
+   design system's choice when transparency isn't wanted — means rounded
+   corners would show black underneath, and an inner shadow would fall on
+   nothing. The desktop compositor draws its own. */
+.hm-window--system {
   border-radius: 0;
   box-shadow: none;
   width: 100%;
   height: 100%;
 }
 
-/* La page en trois rangs — la nav, le contenu, la barre du bas — telle que les
-   aperçus SpawnPage et NewsPage la posent. */
-.hm-page--trois-rangs {
+/* The three-row page — nav, content, bottom bar — as the SpawnPage and
+   NewsPage previews lay it out. */
+.hm-page--three-rows {
   display: grid;
   grid-template-rows: auto 1fr auto;
   gap: var(--space-5);
   min-height: 0;
 }
 
-/* Deux rangs : la Configuration, qui laisse tomber la barre du bas et donne sa
-   hauteur au corps. */
-.hm-page--deux-rangs {
+/* Two rows: Settings, which drops the bottom bar and gives its
+   height to the body. */
+.hm-page--two-rows {
   display: grid;
   grid-template-rows: auto 1fr;
   gap: var(--space-5);
@@ -2410,9 +2408,9 @@ body {
   justify-content: center;
 }
 
-/* Trois colonnes égales aux extrémités : c'est ce qui garde la playbar
-   RÉELLEMENT centrée quel que soit ce qu'il y a à droite. Un `space-between`
-   la décalerait de la moitié de la largeur du badge joueur. */
+/* Three columns, equal at the ends: this is what keeps the playbar
+   ACTUALLY centered no matter what's on the right. A `space-between`
+   would shift it by half the width of the player badge. */
 .hm-bottombar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
@@ -2428,8 +2426,8 @@ body {
   justify-self: end;
 }
 
-/* La grille de Spawn : la tuile épinglée à gauche, les panneaux d'état à
-   droite. Le milieu de la page reste vide — c'est là que l'image passe. */
+/* The Spawn grid: the pinned tile on the left, the state panels on the
+   right. The middle of the page stays empty — that's where the artwork shows. */
 .hm-spawn {
   display: grid;
   grid-template-columns: 1.25fr 1fr;
@@ -2438,27 +2436,27 @@ body {
   min-height: 0;
 }
 
-/* Sous neuf cents pixels, la tuile passe au-dessus des panneaux plutôt que de
-   les écraser : à 1.25fr / 1fr, deux colonnes sous cette largeur donnent des
-   panneaux où le badge d'état retombe sous son titre. */
+/* Below nine hundred pixels, the tile moves above the panels instead of
+   squeezing them: at 1.25fr / 1fr, two columns below this width give
+   panels where the state badge falls back under its title. */
 @media (max-width: 900px) {
   .hm-spawn {
     grid-template-columns: 1fr;
   }
 }
 
-/* Les bords de redimensionnement — le CURSEUR seulement.
+/* The resize edges — the CURSOR only.
 
-   `tauri-runtime-wry` branche déjà le redimensionnement sous Linux : il pose un
-   gestionnaire sur la WebView, avec une bande de cinq pixels multipliée par le
-   facteur d'échelle, et il s'exécute AVANT que WebKit ne dispatche l'événement.
-   Le geste marche donc ; c'est le curseur qui manque, parce qu'aucun élément du
-   document ne le demande et que WebKit dessine le sien par-dessus celui de GTK.
+   `tauri-runtime-wry` already wires up resizing on Linux: it sets a
+   handler on the WebView, with a five-pixel band multiplied by the
+   scale factor, and it runs BEFORE WebKit dispatches the event.
+   The gesture works, then; it's the cursor that's missing, because no
+   element in the document asks for it and WebKit draws its own over GTK's.
 
-   Ces zones ne portent AUCUN gestionnaire et ne doivent pas en porter : elles
-   ne servent qu'à annoncer ce qui va se passer. Elles sont plus larges que la
-   bande de GTK (huit contre cinq) pour que le curseur arrive avant la zone,
-   jamais après. */
+   These zones carry NO handler and must not carry one: they only
+   exist to announce what's about to happen. They're wider than
+   GTK's band (eight versus five) so the cursor arrives before the zone,
+   never after. */
 .hm-bords {
   position: absolute;
   inset: 0;
@@ -2485,28 +2483,28 @@ body {
   bottom: 0;
 }
 
-.hm-bords__o,
+.hm-bords__w,
 .hm-bords__e {
   top: 8px;
   bottom: 8px;
   width: 8px;
   cursor: ew-resize;
 }
-.hm-bords__o {
+.hm-bords__w {
   left: 0;
 }
 .hm-bords__e {
   right: 0;
 }
 
-.hm-bords__no,
+.hm-bords__nw,
 .hm-bords__ne,
-.hm-bords__so,
+.hm-bords__sw,
 .hm-bords__se {
   width: 8px;
   height: 8px;
 }
-.hm-bords__no {
+.hm-bords__nw {
   top: 0;
   left: 0;
   cursor: nwse-resize;
@@ -2516,7 +2514,7 @@ body {
   right: 0;
   cursor: nesw-resize;
 }
-.hm-bords__so {
+.hm-bords__sw {
   bottom: 0;
   left: 0;
   cursor: nesw-resize;
@@ -2527,34 +2525,34 @@ body {
   cursor: nwse-resize;
 }
 
-/* Une fenêtre maximisée ne se redimensionne pas : la garde `!is_maximized()` de
-   `tauri-runtime-wry` désarme son gestionnaire, et laisser le curseur promettre
-   un geste que rien n'exécute est pire que de ne rien promettre. */
-.hm-window--maximisee .hm-bords {
+/* A maximized window doesn't resize: the `!is_maximized()` guard in
+   `tauri-runtime-wry` disarms its handler, and letting the cursor promise
+   a gesture that nothing executes is worse than promising nothing. */
+.hm-window--maximized .hm-bords {
   display: none;
 }
 
-/* Ce qu'on peut sélectionner, et c'est une liste courte : une fenêtre
-   d'application ne se surligne pas, sauf ce qu'on demande au joueur de
-   recopier — un code d'appareil, le détail d'une erreur. */
+/* What can be selected, and it's a short list: an application window
+   doesn't highlight, except what we ask the player to
+   copy — a device code, an error's detail. */
 .hm-selectionnable {
   user-select: text;
   -webkit-user-select: text;
   cursor: text;
 }
 
-/* Les icônes, quand elles viennent de `lucide-angular`.
+/* The icons, when they come from `lucide-angular`.
 
-   Le design system inline des SVG portant `.hm-icon`, qui leur donne leur
-   taille, leur graisse de trait et `currentColor`. Nous passons par le
-   composant `<lucide-icon>`, qui dessine le SVG lui-même à partir de ses
-   entrées `[size]` et `[strokeWidth]` : `.hm-icon` posé sur l'hôte ne
-   toucherait pas le SVG intérieur.
+   The design system inlines SVGs carrying `.hm-icon`, which gives them
+   their size, stroke weight, and `currentColor`. We go through the
+   `<lucide-icon>` component instead, which draws the SVG itself from its
+   `[size]` and `[strokeWidth]` inputs: `.hm-icon` set on the host wouldn't
+   reach the inner SVG.
 
-   Ces deux règles font donc ce que `.hm-icon` fait, là où il faut : l'hôte se
-   comporte comme une icône — il ne s'étire pas, il hérite de la couleur — et le
-   SVG intérieur cesse d'être une ligne de texte avec son talon sous la
-   ligne de base. La taille et la graisse restent aux entrées du composant. */
+   These two rules therefore do what `.hm-icon` does, where it's needed: the
+   host behaves like an icon — it doesn't stretch, it inherits color — and the
+   inner SVG stops being a line of text with its descender under the
+   baseline. Size and weight stay with the component's inputs. */
 lucide-icon {
   display: inline-flex;
   align-items: center;

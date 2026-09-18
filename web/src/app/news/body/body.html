@@ -1,0 +1,108 @@
+<!--
+  One `@switch` per level, and nothing else. Not a single `innerHTML`: that's
+  the condition under which the CSP was loosened, and this template is the
+  front half of the guarantee.
+
+  The fragments template is written once, as `ng-template`, and reused by
+  the three blocks that contain some. Copying it three times would give
+  three chances to forget a case — and a forgotten case renders blank, not
+  an error.
+-->
+@for (block of blocks(); track $index) {
+  @switch (block.type) {
+    @case ('paragraph') {
+      <p data-test="paragraph">
+        <ng-container
+          *ngTemplateOutlet="fragments; context: { $implicit: block.content }"
+        ></ng-container>
+      </p>
+    }
+
+    @case ('heading') {
+      <!--
+        The level comes from Rust, bounded to 2..=4: the post's title
+        already occupies level 1 of the page, and a `#` from the body must
+        not compete with it — neither in rendering, nor for a screen
+        reader, which uses the hierarchy to navigate.
+      -->
+      @switch (block.level) {
+        @case (2) {
+          <h2 data-test="heading">
+            <ng-container
+              *ngTemplateOutlet="fragments; context: { $implicit: block.content }"
+            ></ng-container>
+          </h2>
+        }
+        @case (3) {
+          <h3 data-test="heading">
+            <ng-container
+              *ngTemplateOutlet="fragments; context: { $implicit: block.content }"
+            ></ng-container>
+          </h3>
+        }
+        @default {
+          <h4 data-test="heading">
+            <ng-container
+              *ngTemplateOutlet="fragments; context: { $implicit: block.content }"
+            ></ng-container>
+          </h4>
+        }
+      }
+    }
+
+    @case ('list') {
+      <ul data-test="list">
+        @for (bullet of block.bullets; track $index) {
+          <li>
+            <ng-container
+              *ngTemplateOutlet="fragments; context: { $implicit: bullet }"
+            ></ng-container>
+          </li>
+        }
+      </ul>
+    }
+
+    @case ('separator') {
+      <hr data-test="separator" />
+    }
+  }
+}
+
+<ng-template #fragments let-content>
+  @for (piece of content; track $index) {
+    @switch (piece.type) {
+      @case ('text') {
+        {{ piece.text }}
+      }
+      @case ('bold') {
+        <strong>{{ piece.text }}</strong>
+      }
+      @case ('italic') {
+        <em>{{ piece.text }}</em>
+      }
+      @case ('code') {
+        <code>{{ piece.text }}</code>
+      }
+      @case ('link') {
+        <!--
+          A `<button>` and not an `<a href>`: an `href` would make the
+          window navigate, which Rust's navigation plugin would refuse —
+          leaving the player in front of a link that does nothing. It goes
+          through the system's browser.
+        -->
+        <button type="button" class="link" (click)="open(piece)" data-test="link">
+          {{ piece.text }}<!--
+            The icon says the link LEAVES the launcher: it will open in the
+            system's browser, not in this window. Without it, a click that
+            switches windows looks like an accident.
+          --><lucide-icon
+            [img]="ExternalLink"
+            [size]="12"
+            class="inline align-baseline"
+            aria-hidden="true"
+          />
+        </button>
+      }
+    }
+  }
+</ng-template>

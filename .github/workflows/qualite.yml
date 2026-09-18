@@ -93,7 +93,7 @@ jobs:
 
       - name: Mesurer la couverture du front
         working-directory: web
-        run: pnpm test:couverture
+        run: pnpm test:coverage
 
       # vitest écrit des chemins relatifs à web/. Sonar les résout depuis la
       # racine du dépôt : sans cette réécriture il chercherait « src/app/… »

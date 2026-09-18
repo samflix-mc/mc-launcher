@@ -6,7 +6,7 @@ license.workspace = true
 description = "Chaîne d'authentification Microsoft → Xbox Live → XSTS → Minecraft"
 
 [dependencies]
-mc-chemins = { path = "../mc-chemins" }
+mc-paths = { path = "../mc-paths" }
 anyhow.workspace = true
 tracing.workspace = true
 mc-log = { path = "../mc-log" }
@@ -40,7 +40,7 @@ reqwest = { version = "0.13", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-mc-essais = { path = "../mc-essais" }
+mc-testkit = { path = "../mc-testkit" }
 
 [[bin]]
 name = "mc-auth"

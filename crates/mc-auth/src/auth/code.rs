@@ -1,13 +1,13 @@
-//! Le code que l'utilisateur saisit pour autoriser le launcher.
+//! The code the user enters to authorize the launcher.
 
-/// Ce qu'on affiche à l'utilisateur pour qu'il autorise le launcher.
+/// What's shown to the user so they authorize the launcher.
 ///
-/// `verification_uri_directe` préremplit le code dans l'URL : un clic au lieu
-/// d'un copier-coller. Les deux sont donnés, parce qu'un terminal qui n'ouvre
-/// pas de navigateur a besoin de la forme longue.
+/// `direct_verification_uri` prefills the code into the URL: a click instead
+/// of a copy-paste. Both are given, because a terminal that doesn't open a
+/// browser needs the long form.
 #[derive(Debug, Clone)]
 pub struct DeviceCode {
     pub user_code: String,
     pub verification_uri: String,
-    pub verification_uri_directe: String,
+    pub direct_verification_uri: String,
 }

@@ -1,132 +1,130 @@
 #!/usr/bin/env node
 /**
- * Les invariants du front que rien d'autre ne tient.
+ * The front end's invariants, held by nothing else.
  *
- * Ce ne sont pas des règles de style — ESLint et Prettier s'en chargent. Ce
- * sont les conditions auxquelles des décisions ont été prises, et qui se
- * perdraient en silence si personne ne les vérifiait : leur violation ne
- * casse aucun test et ne rougit aucun linter, elle desserre une garantie.
+ * These aren't style rules — ESLint and Prettier already handle those.
+ * These are the conditions under which decisions were made, and which
+ * would be lost silently if nobody checked them: breaking one fails no
+ * test and reddens no linter, it loosens a guarantee.
  *
- * Écrit en Node et non en `grep` : le script tourne en CI et sur le poste, et
- * un `grep -r` n'a pas le même comportement partout. Surtout, un grep en
- * ligne de package.json ne peut pas porter la raison — et un contrôle dont on
- * a perdu la raison finit par être retiré parce qu'il gêne.
+ * Written in Node and not in `grep`: the script runs in CI and on the
+ * machine, and a `grep -r` doesn't behave the same way everywhere. Above
+ * all, a grep line in package.json can't carry the reason — and a check
+ * whose reason has been lost ends up removed because it's in the way.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const RACINE = fileURLToPath(new URL('..', import.meta.url));
-const SOURCE = join(RACINE, 'src');
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const SOURCE = join(ROOT, 'src');
 
 /**
- * Chaque invariant : ce qu'on cherche, où, et pourquoi c'est interdit.
+ * Each invariant: what's being looked for, where, and why it's forbidden.
  *
- * `actif: false` marque ceux qui ne sont pas encore tenus. Les écrire avant
- * de pouvoir les activer est délibéré : c'est la liste de ce qui reste à
- * fermer, à l'endroit où on la relira, plutôt qu'une ligne dans un plan que
- * personne ne rouvre.
+ * `active: false` marks the ones not yet held. Writing them before they can
+ * be turned on is deliberate: it's the list of what's left to close, right
+ * where it will be read again, rather than a line in a plan nobody reopens.
  */
 const INVARIANTS = [
   {
-    nom: 'aucun innerHTML',
-    actif: true,
-    // Les DEUX formes qui écrivent réellement du DOM, et elles seules :
-    // l'affectation de propriété, et la liaison de propriété d'Angular.
+    name: 'no innerHTML',
+    active: true,
+    // The TWO forms that actually write to the DOM, and only those:
+    // property assignment, and Angular's property binding.
     //
-    // Le motif était `\binnerHTML\b` au départ, ce qui se déclenchait sur les
-    // commentaires expliquant pourquoi on n'en met pas — un contrôle qui
-    // punit sa propre documentation finit par être désactivé, et l'on perd
-    // avec lui les cas qu'il attrapait vraiment.
-    motif: /\.innerHTML\s*=|\[innerHTML\]|\binnerHTML\s*:/,
+    // The pattern was `\binnerHTML\b` at first, which triggered on the
+    // comments explaining why none is used — a check that punishes its own
+    // documentation ends up disabled, and with it go the cases it was
+    // genuinely catching.
+    pattern: /\.innerHTML\s*=|\[innerHTML\]|\binnerHTML\s*:/,
     extensions: ['.ts', '.html'],
-    pourquoi: [
-      "Le CSP du launcher desserre `style-src` jusqu'à 'unsafe-inline' pour",
-      'que les composants aient leurs propres styles. Ce desserrage ne tient',
-      "que parce qu'aucun balisage ne vient d'ailleurs que du compilateur",
-      'Angular. Un seul innerHTML — sur un titre de news, sur un message',
-      "d'erreur venu de Rust — et du texte distant deviendrait du DOM dans",
-      'une origine privilégiée où `invoke` est joignable. Le markdown des',
-      'nouvelles est analysé en Rust vers un arbre typé pour cette raison.',
+    why: [
+      "The launcher's CSP loosens `style-src` up to 'unsafe-inline' so that",
+      'components can have their own styles. This loosening only holds',
+      'because no markup comes from anywhere but the Angular compiler. A',
+      'single innerHTML — on a news title, on an error message coming from',
+      'Rust — and remote text would become DOM in a privileged origin where',
+      '`invoke` is reachable. The news markdown is parsed in Rust into a',
+      'typed tree for this exact reason.',
     ],
   },
   {
-    nom: 'aucun sélecteur de classe dans les tests',
-    // Activé : les cinq dernières assertions de classe — `.etape`,
-    // `.jauge__glisseur`, `.jauge__barre`, `.overlay`, `.app[data-flou]` — ont
-    // disparu avec la refonte de l'interface, et les gabarits posent
-    // désormais quatre-vingt-dix `data-test`.
+    name: 'no class selector in tests',
+    // Enabled: the last five class assertions — `.etape`, `.jauge__glisseur`,
+    // `.jauge__barre`, `.overlay`, `.app[data-flou]` — disappeared with the
+    // interface redesign, and the templates now carry ninety `data-test`
+    // attributes.
     //
-    // Il était à `false` pendant tout le temps où l'on remplaçait ce code :
-    // un contrôle qui échoue sur ce qu'on est en train de réécrire se
-    // désactive au bout de deux jours, et ne se réactive jamais.
-    actif: true,
-    motif: /querySelector(All)?\((['"`])\./,
+    // It stayed at `false` for the whole time this code was being
+    // replaced: a check that fails on what's currently being rewritten
+    // gets disabled within two days, and never gets re-enabled.
+    active: true,
+    pattern: /querySelector(All)?\((['"`])\./,
     extensions: ['.ts'],
-    pourquoi: [
-      "Trois familles d'attributs, et une seule est un contrat : `class` est",
-      'lue par le navigateur et le design system, `data-<état>` par le style et',
-      'les tests, `data-test` par les tests seuls. Un test qui vise une classe',
-      'se casse au premier changement de mise en forme — et, pire, il',
-      'décourage de la changer.',
+    why: [
+      'Three families of attributes, and only one is a contract: `class` is',
+      'read by the browser and the design system, `data-<state>` by styling',
+      'and tests, `data-test` by tests alone. A test that targets a class',
+      'breaks at the first layout change — and, worse, discourages changing it.',
     ],
   },
 ];
 
-/** Tous les fichiers sous `src`, sans les répertoires générés. */
-function fichiers(racine) {
-  const trouves = [];
-  for (const entree of readdirSync(racine)) {
-    const chemin = join(racine, entree);
-    if (statSync(chemin).isDirectory()) {
-      trouves.push(...fichiers(chemin));
+/** Every file under `src`, excluding generated directories. */
+function files(root) {
+  const found = [];
+  for (const entry of readdirSync(root)) {
+    const path = join(root, entry);
+    if (statSync(path).isDirectory()) {
+      found.push(...files(path));
     } else {
-      trouves.push(chemin);
+      found.push(path);
     }
   }
-  return trouves;
+  return found;
 }
 
-const tous = fichiers(SOURCE);
-let echecs = 0;
+const allFiles = files(SOURCE);
+let failures = 0;
 
 for (const invariant of INVARIANTS) {
-  if (!invariant.actif) {
-    console.log(`  ~ ${invariant.nom} — pas encore tenu, contrôle en attente`);
+  if (!invariant.active) {
+    console.log(`  ~ ${invariant.name} — not enforced yet, check pending`);
     continue;
   }
 
-  const fautifs = [];
-  for (const chemin of tous) {
-    if (!invariant.extensions.some((ext) => chemin.endsWith(ext))) {
+  const violations = [];
+  for (const path of allFiles) {
+    if (!invariant.extensions.some((ext) => path.endsWith(ext))) {
       continue;
     }
-    const lignes = readFileSync(chemin, 'utf8').split('\n');
-    lignes.forEach((ligne, index) => {
-      if (invariant.motif.test(ligne)) {
-        fautifs.push(`${relative(RACINE, chemin)}:${index + 1}`);
+    const lines = readFileSync(path, 'utf8').split('\n');
+    lines.forEach((line, index) => {
+      if (invariant.pattern.test(line)) {
+        violations.push(`${relative(ROOT, path)}:${index + 1}`);
       }
     });
   }
 
-  if (fautifs.length === 0) {
-    console.log(`  ✓ ${invariant.nom}`);
+  if (violations.length === 0) {
+    console.log(`  ✓ ${invariant.name}`);
     continue;
   }
 
-  echecs += 1;
-  console.error(`\n  ✗ ${invariant.nom}`);
-  for (const ligne of invariant.pourquoi) {
-    console.error(`    ${ligne}`);
+  failures += 1;
+  console.error(`\n  ✗ ${invariant.name}`);
+  for (const line of invariant.why) {
+    console.error(`    ${line}`);
   }
   console.error('');
-  for (const fautif of fautifs) {
-    console.error(`    ${fautif}`);
+  for (const violation of violations) {
+    console.error(`    ${violation}`);
   }
 }
 
-if (echecs > 0) {
-  console.error(`\n${echecs} invariant(s) rompu(s).`);
+if (failures > 0) {
+  console.error(`\n${failures} invariant(s) broken.`);
   process.exit(1);
 }

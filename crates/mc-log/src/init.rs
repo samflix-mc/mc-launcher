@@ -1,24 +1,24 @@
-//! Mise en place des trois destinations.
+//! Setting up the three destinations.
 
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::guard::{Guard, current_log_name};
 use crate::redact::redact;
-use crate::{BoxedLayer, console, fichier, incidents};
+use crate::{BoxedLayer, console, file, incidents};
 
-/// Met en place la journalisation pour un composant donné.
+/// Sets up logging for a given component.
 ///
-/// `component` nomme le binaire — il préfixe le fichier de journal et étiquette
-/// les incidents, ce qui permet de distinguer un échec d'installation d'un
-/// échec d'authentification sans ouvrir le rapport.
+/// `component` names the binary — it prefixes the log file and tags
+/// incidents, which makes it possible to tell an install failure apart from
+/// an auth failure without opening the report.
 pub fn init(component: &str) -> Guard {
-    // Avant Sentry : celui-ci chaîne son gestionnaire par-dessus l'existant.
-    // Posé après, le nôtre le remplacerait et plus aucune panique ne serait
-    // rapportée.
+    // Before Sentry: it chains its handler on top of the existing one.
+    // Set after, ours would replace it and no panic would ever be reported
+    // again.
     install_panic_hook();
     let sentry_guard = incidents::init_sentry(component);
-    let (file_layer, file_guard, log_dir) = fichier::file_layer(component);
+    let (file_layer, file_guard, log_dir) = file::file_layer(component);
 
     let mut layers: Vec<BoxedLayer> = Vec::new();
     layers.push(console::layer());
@@ -26,43 +26,43 @@ pub fn init(component: &str) -> Guard {
         layers.push(layer);
     }
     if sentry_guard.is_some() {
-        layers.push(incidents::couche());
+        layers.push(incidents::layer());
     }
 
     tracing_subscriber::registry().with(layers).init();
 
-    let journal = log_dir.map(|dir| (dir, component.to_string()));
-    if let Some((dir, component)) = &journal {
+    let log = log_dir.map(|dir| (dir, component.to_string()));
+    if let Some((dir, component)) = &log {
         tracing::debug!(
-            fichier = %dir.join(current_log_name(component)).display(),
-            "journal ouvert"
+            file = %dir.join(current_log_name(component)).display(),
+            "log opened"
         );
     }
 
-    Guard::new(file_guard, sentry_guard, journal)
+    Guard::new(file_guard, sentry_guard, log)
 }
 
-/// Remplace l'affichage par défaut d'une panique.
+/// Replaces the default display of a panic.
 ///
-/// Le gestionnaire standard de Rust écrit le message de panique directement sur
-/// la sortie d'erreur, sans passer par `tracing` : il échappe donc à la censure
-/// et au fichier de journal. Deux conséquences, toutes deux constatées avant
-/// d'écrire ceci — un jeton présent dans un message de panique s'affichait en
-/// clair dans le terminal, et la panique restait absente du fichier qu'on
-/// demande justement de joindre.
+/// Rust's standard handler writes the panic message directly to standard
+/// error, without going through `tracing`: it therefore escapes both
+/// redaction and the log file. Two consequences, both observed before
+/// writing this — a token present in a panic message showed up in the clear
+/// in the terminal, and the panic stayed absent from the very file players
+/// are asked to attach.
 ///
-/// Le message part en `warn` et non en `error` : l'incident lui-même est
-/// rapporté par le gestionnaire de Sentry, avec sa trace d'appels complète, et
-/// un `error` ici le ferait remonter une seconde fois.
+/// The message goes out at `warn` and not `error`: the incident itself is
+/// reported by Sentry's handler, with its full call trace, and an `error`
+/// here would surface it a second time.
 fn install_panic_hook() {
-    // Le gestionnaire d'origine n'est délibérément pas rappelé : il réécrirait
-    // le message non censuré sur la sortie d'erreur, ce qui est précisément ce
-    // qu'on vient d'éviter.
+    // The original handler is deliberately not called back: it would
+    // rewrite the unredacted message to standard error, which is precisely
+    // what was just avoided.
     std::panic::set_hook(Box::new(move |info| {
         let message = redact(&info.to_string());
         eprintln!("\n{message}");
-        eprintln!("(relancer avec RUST_BACKTRACE=1 pour la trace d'appels)");
-        tracing::warn!(panique = %message, "le programme s'est arrêté sur une panique");
+        eprintln!("(rerun with RUST_BACKTRACE=1 for the call trace)");
+        tracing::warn!(panic = %message, "the program stopped on a panic");
     }));
 }
 

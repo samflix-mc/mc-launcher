@@ -1,35 +1,37 @@
-//! La décision se vérifie ; le pilote de la machine qui exécute les tests, non.
+//! The decision is testable; the driver of the machine running the tests is
+//! not.
 //!
-//! `regler_le_rendu` lit `/sys/module/nvidia` et écrit l'environnement du
-//! processus : son résultat dépend du poste, et son effet fuiterait d'un test
-//! à l'autre. C'est `doit_desactiver_dmabuf` qui porte le choix, et elle prend
-//! ses deux entrées en argument exactement pour ça.
+//! `configure_rendering` reads `/sys/module/nvidia` and writes the process
+//! environment: its result depends on the machine, and its effect would leak
+//! from one test to another. `should_disable_dmabuf` is what carries the
+//! choice, and it takes both its inputs as arguments exactly for that
+//! reason.
 
 use super::*;
 
 #[test]
-fn nvidia_seul_declenche_le_contournement() {
-    assert!(doit_desactiver_dmabuf(true, false));
+fn nvidia_alone_triggers_the_workaround() {
+    assert!(should_disable_dmabuf(true, false));
 }
 
 #[test]
-fn sans_nvidia_le_rendu_reste_intact() {
-    // DMA-BUF fonctionne ailleurs, et le couper coûterait une copie par image.
-    assert!(!doit_desactiver_dmabuf(false, false));
+fn without_nvidia_rendering_stays_intact() {
+    // DMA-BUF works elsewhere, and disabling it would cost a copy per frame.
+    assert!(!should_disable_dmabuf(false, false));
 }
 
 #[test]
-fn un_choix_explicite_n_est_jamais_ecrase() {
-    // Y compris sur NVIDIA : poser la variable à « 0 » est le seul moyen de
-    // réclamer DMA-BUF quand le pilote a été corrigé.
-    assert!(!doit_desactiver_dmabuf(true, true));
-    assert!(!doit_desactiver_dmabuf(false, true));
+fn an_explicit_choice_is_never_overwritten() {
+    // Including on NVIDIA: setting the variable to "0" is the only way to
+    // reclaim DMA-BUF once the driver has been fixed.
+    assert!(!should_disable_dmabuf(true, true));
+    assert!(!should_disable_dmabuf(false, true));
 }
 
 #[test]
-fn les_deux_noms_ne_bougent_pas() {
-    // L'un est lu par WebKitGTK, l'autre par le noyau : une faute de frappe ne
-    // casse rien à la compilation et rend le contournement muet.
+fn the_two_names_do_not_move() {
+    // One is read by WebKitGTK, the other by the kernel: a typo doesn't
+    // break the build and silently makes the workaround a no-op.
     assert_eq!(VARIABLE, "WEBKIT_DISABLE_DMABUF_RENDERER");
-    assert_eq!(MODULE_NVIDIA, "/sys/module/nvidia");
+    assert_eq!(NVIDIA_MODULE, "/sys/module/nvidia");
 }

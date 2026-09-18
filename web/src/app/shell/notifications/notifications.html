@@ -1,0 +1,99 @@
+<!--
+  The toasts, bottom left. The most recent AT THE BOTTOM: the stack grows
+  upward, and the eye always comes back to the same spot.
+-->
+@if (toasts().length > 0) {
+  <div class="hm-toasts" data-test="toasts">
+    @for (notice of toasts(); track notice.id) {
+      <div
+        [class]="'hm-toast hm-toast--' + notice.tone"
+        [attr.role]="notice.tone === 'danger' ? 'alert' : 'status'"
+        [attr.data-ton]="notice.tone"
+        data-test="toast"
+      >
+        <lucide-icon
+          class="hm-toast__icon"
+          [img]="icon(notice.tone)"
+          [size]="20"
+          [strokeWidth]="1.75"
+          aria-hidden="true"
+        />
+        <p class="hm-toast__title">{{ notice.title }}</p>
+        <button
+          type="button"
+          class="hm-btn hm-btn--ghost hm-btn--icon hm-btn--sm hm-toast__close"
+          (click)="close(notice.id)"
+          aria-label="Hide this notification"
+          data-test="close-toast"
+        >
+          <lucide-icon [img]="X" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+        </button>
+        @if (notice.text) {
+          <p class="hm-toast__text">{{ notice.text }}</p>
+        }
+      </div>
+    }
+  </div>
+}
+
+<!-- The center, under the title bar's bell. -->
+@if (panelOpen()) {
+  <!--
+    The layer that closes on the first click elsewhere. It also blocks
+    clicks on what it covers, which an open panel must do.
+  -->
+  <button
+    type="button"
+    class="hm-notif__scrim"
+    (click)="closePanel()"
+    aria-label="Close notifications"
+    tabindex="-1"
+  ></button>
+
+  <div class="hm-notif" role="dialog" aria-label="Notifications" data-test="center">
+    <div class="hm-notif__head">
+      <h3 class="hm-notif__title">Notifications</h3>
+      <button
+        type="button"
+        class="hm-btn hm-btn--sm hm-btn--ghost"
+        (click)="clear()"
+        [disabled]="log().length === 0"
+        data-test="clear-all"
+      >
+        <lucide-icon [img]="Trash2" [size]="12" [strokeWidth]="2" aria-hidden="true" />
+        Clear all
+      </button>
+    </div>
+
+    <div class="hm-notif__list hm-scroll">
+      @for (notice of log(); track notice.id) {
+        <div
+          [class]="
+            'hm-notif__item hm-notif__item--' +
+            notice.tone +
+            (notice.read ? '' : ' hm-notif__item--unread')
+          "
+          data-test="row"
+        >
+          <span class="hm-notif__dot" aria-hidden="true"></span>
+          <lucide-icon
+            class="hm-notif__icon"
+            [img]="icon(notice.tone)"
+            [size]="20"
+            [strokeWidth]="1.75"
+            aria-hidden="true"
+          />
+          <span class="hm-notif__body">
+            <p class="hm-notif__item-title">{{ notice.title }}</p>
+            @if (notice.text) {
+              <p class="hm-notif__text">{{ notice.text }}</p>
+            }
+          </span>
+          <span class="hm-notif__time">{{ when(notice.date) }}</span>
+        </div>
+      } @empty {
+        <p class="hm-notif__empty" data-test="center-empty">Nothing to report.</p>
+      }
+    </div>
+  </div>
+}

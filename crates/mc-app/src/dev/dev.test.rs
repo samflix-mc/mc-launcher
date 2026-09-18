@@ -1,204 +1,195 @@
-use super::http::Requete;
-use super::scenario::Etat;
-use super::{Contexte, argument, router};
+use super::http::Request;
+use super::scenario::State;
+use super::{Context, argument, router};
 
-fn requete(chemin: &str) -> Requete {
-    Requete {
-        methode: "POST".to_string(),
-        chemin: chemin.to_string(),
-        corps: String::new(),
+fn request(path: &str) -> Request {
+    Request {
+        method: "POST".to_string(),
+        path: path.to_string(),
+        body: String::new(),
     }
 }
 
-/// **Le contrat du serveur : les mêmes noms que ceux du pont.**
+/// **The server's contract: the same names as the bridge's.**
 ///
-/// Si un nom diverge, le front reçoit un 404 pour une commande qui existe —
-/// et le symptôme est un écran vide sans message, puisque `invoke` et `fetch`
-/// échouent silencieusement de la même façon.
+/// If a name drifts, the front gets a 404 for a command that exists — and
+/// the symptom is a blank screen with no message, since `invoke` and `fetch`
+/// fail silently the same way.
 #[tokio::test]
-async fn toutes_les_commandes_du_pont_repondent() {
-    let contexte = Contexte::neuf(Etat::PretAJouer);
+async fn all_the_bridge_commands_answer() {
+    let context = Context::new(State::ReadyToPlay);
 
-    for nom in [
-        "marque",
-        "chemin",
-        "statut",
-        "etat_du_pack",
-        "nouvelles",
-        "reglages",
-        "verifier_les_fichiers",
-        "ecran",
-        "ouvrir_dossier",
-        "front_pret",
-        "ouvrir_connexion",
-        "connexion_reussie",
-        "principale_prete",
+    for name in [
+        "brand",
+        "path",
+        "status",
+        "pack_state",
+        "news",
+        "settings",
+        "verify_files",
+        "screen",
+        "open_folder",
+        "front_ready",
+        "open_sign_in",
+        "sign_in_succeeded",
+        "main_ready",
     ] {
-        let reponse = router(contexte.clone(), requete(&format!("/commande/{nom}"))).await;
-        assert_eq!(reponse.code, 200, "{nom} : {}", reponse.corps);
+        let response = router(context.clone(), request(&format!("/command/{name}"))).await;
+        assert_eq!(response.code, 200, "{name}: {}", response.body);
     }
 }
 
 #[tokio::test]
-async fn une_commande_inconnue_le_dit() {
-    let contexte = Contexte::neuf(Etat::PretAJouer);
-    let reponse = router(contexte, requete("/commande/plante")).await;
+async fn an_unknown_command_says_so() {
+    let context = Context::new(State::ReadyToPlay);
+    let response = router(context, request("/command/crash")).await;
 
-    assert_eq!(reponse.code, 404);
-    assert!(reponse.corps.contains("plante"), "{}", reponse.corps);
+    assert_eq!(response.code, 404);
+    assert!(response.body.contains("crash"), "{}", response.body);
 }
 
-/// Le scénario change en une requête, et la réponse suivante en tient compte.
-/// C'est tout l'intérêt du serveur : atteindre un état sans avoir à le
-/// provoquer pour de bon.
+/// The scenario changes in one request, and the next response takes it into
+/// account. That's the whole point of the server: reaching a state without
+/// having to trigger it for real.
 #[tokio::test]
-async fn le_scenario_se_change_et_la_suite_le_suit() {
-    let contexte = Contexte::neuf(Etat::Deconnecte);
+async fn the_scenario_changes_and_what_follows_tracks_it() {
+    let context = Context::new(State::SignedOut);
 
-    let avant = router(contexte.clone(), requete("/commande/statut")).await;
-    assert_eq!(avant.corps, "null", "personne n'est connecté au départ");
+    let before = router(context.clone(), request("/command/status")).await;
+    assert_eq!(before.body, "null", "nobody is signed in at the start");
 
-    let bascule = router(contexte.clone(), requete("/scenario/pret-a-jouer")).await;
-    assert_eq!(bascule.code, 200);
+    let switch = router(context.clone(), request("/scenario/ready-to-play")).await;
+    assert_eq!(switch.code, 200);
 
-    let apres = router(contexte.clone(), requete("/commande/statut")).await;
-    assert!(apres.corps.contains("thesam1798"), "{}", apres.corps);
+    let after = router(context.clone(), request("/command/status")).await;
+    assert!(after.body.contains("thesam1798"), "{}", after.body);
 }
 
 #[tokio::test]
-async fn un_scenario_inconnu_le_dit() {
-    let contexte = Contexte::neuf(Etat::Deconnecte);
-    let reponse = router(contexte, requete("/scenario/n-importe-quoi")).await;
+async fn an_unknown_scenario_says_so() {
+    let context = Context::new(State::SignedOut);
+    let response = router(context, request("/scenario/whatever")).await;
 
-    assert_eq!(reponse.code, 404);
+    assert_eq!(response.code, 404);
 }
 
-/// Chaque scénario doit pouvoir être demandé par son nom : un nom dans la
-/// liste que `depuis_nom` ne reconnaît pas serait un scénario annoncé et
-/// inatteignable.
+/// Every scenario must be reachable by its name: a name in the list that
+/// `from_name` doesn't recognize would be an announced but unreachable
+/// scenario.
 #[tokio::test]
-async fn chaque_scenario_annonce_est_atteignable() {
-    let contexte = Contexte::neuf(Etat::Deconnecte);
+async fn every_announced_scenario_is_reachable() {
+    let context = Context::new(State::SignedOut);
 
-    for (nom, attendu) in Etat::TOUS {
-        let reponse = router(contexte.clone(), requete(&format!("/scenario/{nom}"))).await;
-        assert_eq!(reponse.code, 200, "{nom}");
+    for (name, expected) in State::ALL {
+        let response = router(context.clone(), request(&format!("/scenario/{name}"))).await;
+        assert_eq!(response.code, 200, "{name}");
         assert_eq!(
-            *contexte.etat.lock().expect("état"),
-            attendu,
-            "{nom} n'a pas posé l'état qu'il annonce"
+            *context.state.lock().expect("state"),
+            expected,
+            "{name} did not set the state it announces"
         );
     }
 }
 
-/// Le compte SANS LICENCE est un état à part entière, pas une absence de
-/// compte : c'est celui que la page Connexion doit savoir afficher.
+/// The account with NO LICENSE is a state in its own right, not the absence
+/// of an account: it's the one the Sign In page has to know how to display.
 #[tokio::test]
-async fn sans_licence_rend_un_compte_qui_ne_possede_pas_le_jeu() {
-    let contexte = Contexte::neuf(Etat::SansLicence);
-    let reponse = router(contexte, requete("/commande/statut")).await;
+async fn no_license_renders_an_account_that_does_not_own_the_game() {
+    let context = Context::new(State::NoLicense);
+    let response = router(context, request("/command/status")).await;
 
     assert!(
-        reponse.corps.contains("\"possedeLeJeu\":false"),
+        response.body.contains("\"ownsTheGame\":false"),
         "{}",
-        reponse.corps
+        response.body
     );
 }
 
-/// La racine annonce ce qu'on peut demander. C'est la documentation qu'on lit
-/// quand on a oublié les noms — donc elle doit être exacte.
+/// The root announces what can be requested. It's the documentation you
+/// read when you've forgotten the names — so it has to be exact.
 #[tokio::test]
-async fn la_racine_annonce_les_scenarios_et_les_commandes() {
-    let contexte = Contexte::neuf(Etat::HorsLigne);
-    let reponse = router(contexte, requete("/")).await;
+async fn the_root_announces_the_scenarios_and_the_commands() {
+    let context = Context::new(State::Offline);
+    let response = router(context, request("/")).await;
 
-    assert_eq!(reponse.code, 200);
-    assert!(reponse.corps.contains("hors-ligne"), "{}", reponse.corps);
-    assert!(reponse.corps.contains("etat_du_pack"));
+    assert_eq!(response.code, 200);
+    assert!(response.body.contains("offline"), "{}", response.body);
+    assert!(response.body.contains("pack_state"));
 }
 
-/// Les arguments arrivent comme `invoke` les envoie : un objet dont les clés
-/// sont les noms des paramètres.
+/// Arguments arrive as `invoke` would send them: an object whose keys are
+/// the parameter names.
 #[test]
-fn un_argument_nomme_se_lit_dans_le_corps() {
+fn a_named_argument_reads_from_the_body() {
     assert_eq!(
-        argument(r#"{"profond":true}"#, "profond"),
+        argument(r#"{"deep":true}"#, "deep"),
         Some(serde_json::Value::Bool(true))
     );
-    assert_eq!(argument(r#"{"autre":1}"#, "profond"), None);
-    assert_eq!(argument("pas du json", "profond"), None);
+    assert_eq!(argument(r#"{"other":1}"#, "deep"), None);
+    assert_eq!(argument("not json", "deep"), None);
 }
 
-/// Le fil n'est vide QUE hors ligne : ailleurs, la page des nouvelles doit
-/// avoir du contenu à montrer — c'est la seule façon de la regarder tant que
-/// mc-content n'a rien publié.
+/// The feed is empty ONLY offline: everywhere else, the news page has to
+/// have content to show — it's the only way to look at it as long as
+/// mc-content hasn't published anything.
 #[tokio::test]
-async fn le_fil_porte_des_billets_sauf_hors_ligne() {
-    let avec = Contexte::neuf(Etat::PretAJouer);
-    let reponse = router(avec, requete("/commande/nouvelles")).await;
+async fn the_feed_carries_posts_except_offline() {
+    let with_news = Context::new(State::ReadyToPlay);
+    let response = router(with_news, request("/command/news")).await;
     assert!(
-        reponse.corps.contains("Le launcher est là"),
+        response.body.contains("The launcher is here"),
         "{}",
-        reponse.corps
+        response.body
     );
 
-    let sans = Contexte::neuf(Etat::HorsLigne);
-    let reponse = router(sans, requete("/commande/nouvelles")).await;
-    assert!(
-        reponse.corps.contains("\"billets\":[]"),
-        "{}",
-        reponse.corps
-    );
+    let without_news = Context::new(State::Offline);
+    let response = router(without_news, request("/command/news")).await;
+    assert!(response.body.contains("\"posts\":[]"), "{}", response.body);
 }
 
-/// Le corps des billets est un ARBRE, jamais du HTML : c'est la condition à
-/// laquelle le CSP a été desserré, et elle vaut aussi pour les données de
-/// démonstration.
+/// A post's body is a TREE, never HTML: that's the condition under which the
+/// CSP was loosened, and it holds for the demo data too.
 #[tokio::test]
-async fn les_billets_de_demonstration_sont_des_arbres() {
-    let contexte = Contexte::neuf(Etat::PretAJouer);
-    let reponse = router(contexte, requete("/commande/nouvelles")).await;
+async fn the_demo_posts_are_trees() {
+    let context = Context::new(State::ReadyToPlay);
+    let response = router(context, request("/command/news")).await;
 
     assert!(
-        reponse.corps.contains("\"type\":\"paragraphe\""),
+        response.body.contains("\"type\":\"paragraph\""),
         "{}",
-        reponse.corps
+        response.body
     );
-    assert!(
-        !reponse.corps.contains("<p>"),
-        "du HTML a fui dans le corps"
-    );
+    assert!(!response.body.contains("<p>"), "HTML leaked into the body");
 }
 
-/// **La forme de ce que rend une commande qui peut échouer.**
+/// **The shape of what a command that can fail renders.**
 ///
-/// `#[tauri::command]` déballe le `Result` : le succès part comme la valeur
-/// NUE, l'erreur rejette avec la valeur d'erreur telle quelle. Sérialiser le
-/// `Result` tel quel donnait `{"Ok": {…}}` — une réponse qui a l'air d'une
-/// réussite, qui porte un code 200, et dont le front lit un champ qui
-/// n'existe pas.
+/// `#[tauri::command]` unwraps the `Result`: success leaves as the BARE
+/// value, error rejects with the error value as-is. Serializing the
+/// `Result` as-is used to give `{"Ok": {…}}` — a response that looks like a
+/// success, that carries a 200 code, and whose front reads a field that
+/// doesn't exist.
 ///
-/// Le symptôme était illisible : la page de configuration ouvrait un incident
-/// par frappe de curseur — trois cent vingt-six en une session — et rien dans
-/// le serveur ne le disait, puisque de son point de vue tout s'était bien
-/// passé.
+/// The symptom was unreadable: the settings page opened an incident per
+/// cursor keystroke — three hundred and twenty-six in one session — and
+/// nothing in the server said so, since from its point of view everything
+/// had gone fine.
 ///
-/// Le test porte sur la fonction et non sur une commande, et c'est délibéré :
-/// `enregistrer_reglages` écrit RÉELLEMENT sur le disque du développeur, et un
-/// test qui l'appellerait remplacerait ses préférences par les valeurs par
-/// défaut.
+/// The test targets the function and not a command, and that's deliberate:
+/// `save_settings` REALLY writes to the developer's disk, and a test that
+/// called it would replace their preferences with the defaults.
 #[test]
-fn un_resultat_est_deballe_comme_le_pont_le_fait() {
-    let bon: Result<Vec<&str>, String> = Ok(vec!["a", "b"]);
-    let rendu = super::resultat(bon);
-    assert_eq!(rendu.code, 200);
-    assert_eq!(rendu.corps, r#"["a","b"]"#, "la valeur doit partir NUE");
+fn a_result_is_unwrapped_like_the_bridge_does_it() {
+    let good: Result<Vec<&str>, String> = Ok(vec!["a", "b"]);
+    let rendered = super::result(good);
+    assert_eq!(rendered.code, 200);
+    assert_eq!(rendered.body, r#"["a","b"]"#, "the value must leave BARE");
 
-    let mauvais: Result<Vec<&str>, String> = Err("le disque est plein".to_string());
-    let rendu = super::resultat(mauvais);
-    assert_eq!(rendu.code, 500);
+    let bad: Result<Vec<&str>, String> = Err("the disk is full".to_string());
+    let rendered = super::result(bad);
+    assert_eq!(rendered.code, 500);
     assert_eq!(
-        rendu.corps, "\"le disque est plein\"",
-        "l'erreur doit avoir la MÊME forme que celle du pont : une chaîne JSON"
+        rendered.body, "\"the disk is full\"",
+        "the error must have the SAME shape as the bridge's: a JSON string"
     );
 }

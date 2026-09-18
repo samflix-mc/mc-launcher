@@ -1,0 +1,58 @@
+:host {
+  display: block;
+}
+
+/* The badge anchors its menu: the menu is `position: absolute` relative to
+   it, not to the window. */
+.hm-player-widget {
+  position: relative;
+}
+
+/* The menu opens ABOVE the badge — it sits at the bottom of the window, and
+   a menu that dropped down would go off the frame.
+
+   It's EXACTLY the width of the badge: `left` and `right` at zero stretch it
+   over its anchor, and `min-width: 0` disarms the two hundred pixels
+   `.hm-menu` imposes by default. The design system sets that minimum for
+   floating menus that have no anchor to hug; here there is one, and a menu
+   wider than the button that opens it reads as a mistake. */
+.hm-player-widget__menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + var(--space-2));
+  min-width: 0;
+}
+
+/* Labels don't overflow on a narrow badge — a four-letter username gives a
+   hundred-and-eighty-pixel menu, where "Refresh session" barely fits. They
+   ellipsize rather than push the menu wider. */
+.hm-player-widget__menu .hm-menu__item {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The layer that closes the menu. It covers the whole window, under the
+   menu and above everything else; it draws nothing. */
+.hm-player-widget__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-menu) - 1);
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
+/* A disabled menu item has to say so: the design system's `.hm-menu__item`
+   doesn't carry that state, because none of its examples has one. */
+.hm-menu__item:disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+
+.hm-menu__item:disabled:hover {
+  background: transparent;
+}

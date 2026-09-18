@@ -10,11 +10,11 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:ci": "ng test --watch=false",
-    "test:couverture": "ng test --watch=false --coverage",
+    "test:coverage": "ng test --watch=false --coverage",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "invariants": "node scripts/invariants.mjs",
-    "verifier:prefixes": "node scripts/prefixes.mjs",
+    "check:prefixes": "node scripts/prefixes.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

@@ -1,21 +1,21 @@
 /*
- * Les jetons du design system « Helm ».
+ * The design tokens for the "Helm" design system.
  *
- * ## Ce fichier est une COPIE, et il se remplace en entier
+ * ## This file is a COPY, and it gets replaced whole
  *
- * Il vient de `docs/helm-design-system.zip`, dans `tokens.css`. Rien ici n'est
- * décidé par le launcher : ni une couleur, ni une graisse, ni un rayon. Le jour
- * où le design system est republié, ce fichier se remplace d'un `cp` — et c'est
- * précisément pourquoi il ne faut RIEN y ajouter. Ce qui appartient au
- * launcher vit dans `styles.css` ou dans le style du composant qui le dessine.
+ * It comes from `docs/helm-design-system.zip`, from `tokens.css`. Nothing here is
+ * decided by the launcher: not a color, not a weight, not a radius. The day
+ * the design system is republished, this file gets replaced with a `cp` — and that's
+ * precisely why nothing should be added here. What belongs to the
+ * launcher lives in `styles.css` or in the style of the component that draws it.
  *
- * ## Les trois familles, et pourquoi elles ne sont pas chargées ici
+ * ## The three families, and why they aren't loaded here
  *
- * `--font-pixel`, `--font-sans` et `--font-mono` nomment Pixelify Sans, Manrope
- * et JetBrains Mono. Le design system les fait venir de Google Fonts ; nous ne
- * le pouvons pas — le CSP du launcher ne laisse passer que l'origine locale, et
- * une fenêtre hors ligne se retrouverait sans police. Elles sont donc servies
- * par le paquet, depuis `styles.css`.
+ * `--font-pixel`, `--font-sans` and `--font-mono` name Pixelify Sans, Manrope
+ * and JetBrains Mono. The design system pulls them from Google Fonts; we can't —
+ * the launcher's CSP only lets the local origin through, and an offline window
+ * would end up with no font. They're served by the package instead,
+ * from `styles.css`.
  */
 
 :root,

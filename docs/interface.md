@@ -626,7 +626,7 @@ Huit points décident qu'un build empaqueté rend ce que `ng serve` montre, et
 **aucun ne se voit en développement** : c'est en production seulement que Tauri
 sert la page, réécrit le CSP et applique les `import()` dynamiques.
 
-Ils ne se déroulent plus à la main. `crates/mc-app/src/recette.rs` les joue à
+Ils ne se déroulent plus à la main. `crates/mc-app/src/acceptance.rs` les joue à
 chaque lancement d'une compilation de développement, et les résume en une
 ligne :
 
@@ -737,7 +737,7 @@ un endroit que la ligne de commande ne regardait pas. Il vit dans
 `crates/mc-auth/src/stockage/`, et les deux voient le même compte.
 
 Même histoire, enfin, pour les chemins : chaque crate dérivait les siens. C'est
-`mc-chemins` qui décide, et `crates/mc-app/src/chemins.rs` qui pose ceux du
+`mc-chemins` qui décide, et `crates/mc-app/src/paths.rs` qui pose ceux du
 résolveur de Tauri au démarrage.
 
 `mc-log` plutôt que `tauri-plugin-log`, d'ailleurs : le second écrirait les

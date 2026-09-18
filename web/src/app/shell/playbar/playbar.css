@@ -1,0 +1,39 @@
+:host {
+  display: block;
+}
+
+/* The button is a real `<button>`, so it can carry `disabled` — which the
+   design system doesn't have to say, since its examples are static HTML.
+   `disabled` removes the button from tab order, which `aria-disabled` alone
+   doesn't do; both are set, one for the keyboard, the other for what
+   assistive technologies announce. */
+.hm-play:disabled {
+  cursor: not-allowed;
+}
+
+/* `.hm-play--busy` isn't a disabled button: it's working. The design system
+   gives it `cursor: progress`; it has to be restated here, because
+   `:disabled` above would otherwise win by source order. */
+.hm-play--busy:disabled {
+  cursor: progress;
+}
+
+/* The second line, during work.
+
+   The design system doesn't have one: its mockup of the bottom bar shows an
+   at-rest state, where there's nothing to say. It therefore reuses
+   `.hm-playbar__hint`'s values — same family, same drop shadow — one notch
+   down in size and contrast, so the step reads first and the detail second. */
+.hm-playbar__detail {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  /* One line, never two: a long file name would grow the bottom bar and
+     push the button up mid-install. */
+  max-width: min(680px, 80vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

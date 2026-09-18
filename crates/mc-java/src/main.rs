@@ -1,9 +1,9 @@
-//! Vérifie qu'un Java utilisable est disponible, et l'installe sinon.
+//! Checks that a usable Java is available, and installs one otherwise.
 //!
-//!     mc-java              détecte un Java 21, l'installe s'il n'y en a pas
-//!     mc-java --check      détecte seulement, code de sortie 1 si absent
-//!     mc-java --major 17   autre version majeure
-//!     mc-java --dir <DIR>  autre répertoire de runtimes
+//!     mc-java              detects a Java 21, installs one if there isn't
+//!     mc-java --check      detects only, exit code 1 if absent
+//!     mc-java --major 17   another major version
+//!     mc-java --dir <DIR>  another runtime directory
 
 use anyhow::{Context, Result, bail};
 use std::path::PathBuf;
@@ -11,32 +11,32 @@ use std::process::ExitCode;
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    // Le guard vit jusqu'au retour de `main` pour que le journal se vide : un
-    // `std::process::exit` au milieu de `run` le laisserait dans la file.
+    // The guard lives until `main` returns so the log flushes: a
+    // `std::process::exit` in the middle of `run` would leave it queued.
     let _log = mc_log::init("mc-java");
 
     match run().await {
         Ok(code) => code,
         Err(error) => {
-            eprintln!("Erreur : {error:?}");
+            eprintln!("Error: {error:?}");
             ExitCode::FAILURE
         }
     }
 }
 
-/// Ce que la ligne de commande demande.
+/// What the command line asks for.
 #[derive(Debug, PartialEq, Eq)]
-struct Reglages {
+struct Settings {
     major: u32,
     check_only: bool,
     dir: Option<PathBuf>,
 }
 
-impl Default for Reglages {
+impl Default for Settings {
     fn default() -> Self {
-        // Minecraft 1.21.1 exige Java 21 : en dessous, le jeu s'arrête sur
-        // `UnsupportedClassVersionError` avant même d'afficher une fenêtre.
-        Reglages {
+        // Minecraft 1.21.1 requires Java 21: below that, the game stops on
+        // `UnsupportedClassVersionError` before even showing a window.
+        Settings {
             major: 21,
             check_only: false,
             dir: None,
@@ -44,58 +44,55 @@ impl Default for Reglages {
     }
 }
 
-/// Lecture des arguments, séparée de ce qu'ils déclenchent.
-fn analyser(args: impl Iterator<Item = String>) -> Result<Reglages> {
-    let mut reglages = Reglages::default();
+/// Reading the arguments, kept separate from what they trigger.
+fn parse(args: impl Iterator<Item = String>) -> Result<Settings> {
+    let mut settings = Settings::default();
     let mut args = args.peekable();
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--check" => reglages.check_only = true,
+            "--check" => settings.check_only = true,
             "--major" => {
-                // Une valeur illisible s'annonce comme une erreur ordinaire :
-                // une panique afficherait une trace d'appels là où il n'y a
-                // qu'une faute de frappe.
-                let brut = args.next().context("--major attend un entier")?;
-                reglages.major = brut
+                // An unreadable value is announced as an ordinary error: a
+                // panic would show a stack trace where there's only a typo.
+                let raw = args.next().context("--major expects an integer")?;
+                settings.major = raw
                     .parse()
-                    .with_context(|| format!("--major attend un entier, reçu « {brut} »"))?;
+                    .with_context(|| format!("--major expects an integer, got \"{raw}\""))?;
             }
             "--dir" => {
-                reglages.dir = Some(PathBuf::from(
-                    args.next().context("--dir attend un chemin")?,
-                ));
+                settings.dir = Some(PathBuf::from(args.next().context("--dir expects a path")?));
             }
-            other => bail!("option inconnue : {other}"),
+            other => bail!("unknown option: {other}"),
         }
     }
-    Ok(reglages)
+    Ok(settings)
 }
 
 async fn run() -> Result<ExitCode> {
-    let Reglages {
+    let Settings {
         major,
         check_only,
         dir,
-    } = analyser(std::env::args().skip(1))?;
+    } = parse(std::env::args().skip(1))?;
 
-    executer(major, check_only, dir).await
+    execute(major, check_only, dir).await
 }
 
-/// Ce que les réglages déclenchent, séparé de leur lecture.
+/// What the settings trigger, kept separate from reading them.
 ///
-/// `--check` est le seul chemin qui ne touche à rien : il dit si ce poste a
-/// déjà un Java utilisable, et c'est celui qu'une CI appelle.
-async fn executer(major: u32, check_only: bool, dir: Option<PathBuf>) -> Result<ExitCode> {
+/// `--check` is the only path that touches nothing: it says whether this
+/// machine already has a usable Java, and that's the one a CI calls.
+async fn execute(major: u32, check_only: bool, dir: Option<PathBuf>) -> Result<ExitCode> {
     let runtime_dir = dir.unwrap_or_else(mc_java::default_runtime_dir);
 
     if let Some(java) = mc_java::detect(major, &runtime_dir).await {
         println!(
-            "Java {} trouvé ({}) — {}",
+            "Java {} found ({}) — {}",
             java.version.full,
             match java.origin {
-                mc_java::Origin::Managed => "installé par le launcher",
-                mc_java::Origin::System => "runtime du système",
+                mc_java::Origin::Managed => "installed by the launcher",
+                mc_java::Origin::System => "system runtime",
             },
             java.path.display()
         );
@@ -103,14 +100,14 @@ async fn executer(major: u32, check_only: bool, dir: Option<PathBuf>) -> Result<
     }
 
     if check_only {
-        eprintln!("Aucun Java {major} ou supérieur sur ce poste.");
+        eprintln!("No Java {major} or higher on this machine.");
         return Ok(ExitCode::FAILURE);
     }
 
-    println!("Aucun Java {major} détecté, installation de Temurin {major}…");
+    println!("No Java {major} detected, installing Temurin {major}…");
     let java = mc_java::install(major, &runtime_dir, None).await?;
     println!(
-        "Java {} installé — {}",
+        "Java {} installed — {}",
         java.version.full,
         java.path.display()
     );

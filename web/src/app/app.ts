@@ -8,277 +8,280 @@ import {
 } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet, type ActivatedRouteSnapshot } from '@angular/router';
 
-import { Amorce } from './amorce/amorce';
-import { BarreTitre } from './coque/barre-titre/barre-titre';
-import { Incident } from './coque/incident/incident';
-import { Joueur } from './coque/joueur/joueur';
-import { Nav } from './coque/nav/nav';
-import { Notifications as PanneauNotifications } from './coque/notifications/notifications';
-import { Playbar } from './coque/playbar/playbar';
-import { Fenetre } from './noyau/fenetre';
-import { Incidents } from './noyau/incidents';
-import { Journal } from './noyau/journal';
-import { Marque } from './noyau/marque';
-import { Pack } from './noyau/pack';
-import { Pont } from './noyau/pont';
-import { Reglages } from './noyau/reglages';
-import { Session } from './noyau/session';
+import { Boot } from './boot/boot';
+import { TitleBar } from './shell/title-bar/title-bar';
+import { Incident } from './shell/incident/incident';
+import { Player } from './shell/player/player';
+import { Nav } from './shell/nav/nav';
+import { Notifications as NotificationsPanel } from './shell/notifications/notifications';
+import { Playbar } from './shell/playbar/playbar';
+import { WindowService } from './core/window';
+import { Incidents } from './core/incidents';
+import { Log } from './core/log';
+import { Brand } from './core/brand';
+import { Pack } from './core/pack';
+import { Bridge } from './core/bridge';
+import { SettingsService } from './core/settings';
+import { Session } from './core/session';
 
 /**
- * Le plancher de l'amorce Angular, en millisecondes.
+ * The floor of the Angular boot screen, in milliseconds.
  *
- * Depuis qu'une vraie fenêtre d'écran de démarrage couvre le chargement — voir
- * `crates/mc-app/src/demarrage.rs` — cette amorce-ci ne couvre plus que
- * l'attente du RÉSEAU, après que la fenêtre s'est affichée. Quatre cents reste
- * un plancher, parce qu'il en faut un : sans lui, une session déjà en cache
- * ferait clignoter l'amorce le temps d'une image.
+ * Now that a real splash window covers loading — see
+ * `crates/mc-app/src/startup.rs` — this boot screen only covers the NETWORK
+ * wait, after the window has shown. Four hundred stays a floor, because it
+ * needs one: without it, a session already cached would flash the boot
+ * screen for a single frame.
  */
-const PLANCHER_AMORCE = 400;
+const BOOT_FLOOR_MS = 400;
 
 /**
- * Le délai entre le premier rendu et le signal envoyé à Rust.
+ * The delay between the first render and the signal sent to Rust.
  *
- * `afterNextRender` se déclenche quand Angular a écrit dans le DOM — pas quand
- * le navigateur a PEINT. Montrer la fenêtre à cet instant précis la ferait
- * apparaître sur une image encore vide, ce qui remplacerait un écran de
- * démarrage propre par un clignotement.
+ * `afterNextRender` fires when Angular has written to the DOM — not when the
+ * browser has PAINTED. Showing the window at that exact instant would make
+ * it appear on a still-empty frame, which would replace a clean splash
+ * screen with a flash.
  */
-const AVANT_DE_MONTRER = 250;
+const BEFORE_SHOWING_MS = 250;
 
-/** Ce que la barre du bas porte, selon la page. Voir `routes.ts`. */
-export type Bas = 'jouer' | 'joueur' | 'aucune';
+/** What the bottom bar carries, depending on the page. See `routes.ts`. */
+export type Bottom = 'play' | 'player' | 'none';
 
-/** La route qui vit dans sa propre fenêtre. */
-const ROUTE_CONNEXION = '/connexion';
+/** The route that lives in its own window. */
+const SIGNIN_ROUTE = '/signin';
 
 /**
- * La coque : la fenêtre, la scène, la barre de titre, la page.
+ * The shell: the window, the scene, the title bar, the page.
  *
- * ## La charpente vient du design system, telle quelle
+ * ## The frame comes from the design system, as-is
  *
- * `.hm-window` contient `.hm-stage` — l'image et son dégradé de lisibilité —
- * puis `.hm-titlebar`, qui flotte par-dessus, puis `.hm-page`, dont les trois
- * rangs sont la pilule de navigation centrée, le contenu, et la barre du bas.
- * Le MILIEU de la page est laissé vide à dessein : c'est par là que l'image
- * passe, et c'est le seul endroit de l'écran où elle se voit vraiment.
+ * `.hm-window` contains `.hm-stage` — the image and its readability
+ * gradient — then `.hm-titlebar`, which floats above it, then `.hm-page`,
+ * whose three rows are the centered navigation pill, the content, and the
+ * bottom bar. The MIDDLE of the page is left empty on purpose: that's where
+ * the image shows through, and it's the only spot on screen where it's
+ * really seen.
  *
- * ## L'amorce ne couvre pas la barre de titre
+ * ## The boot screen doesn't cover the title bar
  *
- * Elle occupe la zone de contenu, sous la barre. `statut()` enchaîne deux
- * allers-retours réseau : sur un réseau lent ou derrière un portail captif, une
- * amorce plein écran laisserait une fenêtre sans bouton système — on les a
- * retirés — et sans bouton applicatif — ils seraient dessous. Recette : ouvrir
- * le build packagé SANS RÉSEAU, et fermer pendant l'amorce.
+ * It occupies the content area, below the bar. `status()` chains two
+ * network round-trips: on a slow network or behind a captive portal, a
+ * full-screen boot screen would leave a window with no system button — we
+ * removed those — and no app button — they'd be underneath. Acceptance
+ * check: open the packaged build WITH NO NETWORK, and close it during boot.
  *
- * ## Tant que la session n'est pas jouable, il n'y a pas de coque
+ * ## As long as the session isn't playable, there's no shell
  *
- * Ni pilule de navigation, ni barre du bas, ni badge joueur : la page de
- * connexion est une modale par-dessus la scène, et rien derrière elle n'est
- * atteignable. Montrer un menu et un bouton « se déconnecter » à quelqu'un qui
- * n'est pas connecté était le premier reproche de la recette.
+ * No navigation pill, no bottom bar, no player badge: the sign-in page is a
+ * modal over the scene, and nothing behind it is reachable. Showing a menu
+ * and a "sign out" button to someone who isn't signed in was the first
+ * complaint the acceptance check raised.
  */
 @Component({
   selector: 'app-root',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterOutlet, Amorce, BarreTitre, Nav, Joueur, Playbar, Incident, PanneauNotifications],
+  imports: [RouterOutlet, Boot, TitleBar, Nav, Player, Playbar, Incident, NotificationsPanel],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
-  // Tous injectés en CHAMPS et non dans `demarrer()` : `inject()` n'est
-  // utilisable que dans un contexte d'injection, et une méthode asynchrone en
-  // sort dès le premier `await`. L'erreur ne se voit qu'à l'exécution, sur un
-  // NG0203 qui ne nomme pas la ligne fautive.
-  private readonly pont = inject(Pont);
+  // All injected as FIELDS and not inside `start()`: `inject()` is only
+  // usable in an injection context, and an async method leaves it as soon
+  // as the first `await` runs. The error only shows up at runtime, as an
+  // NG0203 that doesn't name the offending line.
+  private readonly bridge = inject(Bridge);
   private readonly session = inject(Session);
   private readonly incidents = inject(Incidents);
-  private readonly marqueService = inject(Marque);
-  private readonly reglages = inject(Reglages);
-  private readonly fenetre = inject(Fenetre);
+  private readonly brandService = inject(Brand);
+  private readonly settings = inject(SettingsService);
+  private readonly windowService = inject(WindowService);
   private readonly pack = inject(Pack);
   private readonly router = inject(Router);
-  private readonly trace = inject(Journal);
+  private readonly trace = inject(Log);
 
-  /** Faux hors de la fenêtre Tauri ET hors du serveur de développement. */
-  protected readonly disponible = this.pont.disponible;
+  /** False outside the Tauri window AND outside the dev server. */
+  protected readonly available = this.bridge.available;
 
-  /** L'amorce est-elle encore affichée ? */
-  protected readonly amorce = signal(true);
+  /** Is the boot screen still showing? */
+  protected readonly boot = signal(true);
 
-  protected readonly marque = this.marqueService.vue;
-  protected readonly maximisee = this.fenetre.maximisee;
-  protected readonly jouable = this.session.jouable;
-
-  /**
-   * Sommes-nous sur la page de connexion ?
-   *
-   * Elle ne se dessine pas comme les autres : c'est une FENÊTRE à elle, de
-   * quatre cent quarante pixels, avec une feuille dépolie pleine surface et une
-   * barre de titre sans bouton d'agrandissement. La coque — navigation, bouton
-   * de jeu, badge joueur — n'y existe pas.
-   */
-  protected readonly surConnexion = signal(false);
+  protected readonly brand = this.brandService.view;
+  protected readonly maximized = this.windowService.maximized;
+  protected readonly playable = this.session.playable;
 
   /**
-   * Ce que la barre du bas porte, lu sur la route courante.
+   * Are we on the sign-in page?
    *
-   * Dans les DONNÉES de la route et non dans un test sur l'URL : une chaîne
-   * comparée à `'/spawn'` se casse le jour où une route gagne un paramètre, et
-   * le symptôme est une barre du bas vide que rien n'explique.
+   * It isn't drawn like the others: it's its own WINDOW, four hundred and
+   * forty pixels wide, with a full-surface frosted sheet and a title bar
+   * with no maximize button. The shell — navigation, play button, player
+   * badge — doesn't exist there.
    */
-  protected readonly bas = signal<Bas>('aucune');
+  protected readonly onSignIn = signal(false);
 
-  /** Vrai quand la page occupe les trois rangs, faux quand elle en occupe deux. */
-  protected readonly troisRangs = computed(() => this.bas() !== 'aucune');
+  /**
+   * What the bottom bar carries, read from the current route.
+   *
+   * From the route's DATA, and not from a test on the URL: a string
+   * compared to `'/spawn'` breaks the day a route gains a parameter, and the
+   * symptom is an empty bottom bar that nothing explains.
+   */
+  protected readonly bottom = signal<Bottom>('none');
+
+  /** True when the page occupies all three rows, false when it occupies two. */
+  protected readonly threeRows = computed(() => this.bottom() !== 'none');
 
   constructor() {
-    this.trace.etape(
-      `coque montée — étiquette « ${this.fenetre.etiquette ?? 'hors-tauri'} », ` +
-        `principale=${this.fenetre.estPrincipale}, dédiée=${this.fenetre.dansUneFenetreDediee}`,
+    this.trace.step(
+      `shell mounted — label "${this.windowService.label ?? 'outside-tauri'}", ` +
+        `main=${this.windowService.isMain}, dedicated=${this.windowService.inADedicatedWindow}`,
     );
 
-    this.router.events.subscribe((evenement) => {
-      if (!(evenement instanceof NavigationEnd)) {
+    this.router.events.subscribe((event) => {
+      if (!(event instanceof NavigationEnd)) {
         return;
       }
-      this.bas.set(this.basDe(this.router.routerState.snapshot.root));
+      this.bottom.set(this.bottomOf(this.router.routerState.snapshot.root));
 
-      const connexion = evenement.urlAfterRedirects.startsWith(ROUTE_CONNEXION);
-      this.surConnexion.set(connexion);
+      const onSignIn = event.urlAfterRedirects.startsWith(SIGNIN_ROUTE);
+      this.onSignIn.set(onSignIn);
 
-      // LA ligne à lire quand une fenêtre affiche une page qui n'est pas la
-      // sienne : elle dit qui a navigué, vers quoi, et depuis quelle URL.
-      this.trace.etape(
-        `navigation terminée — « ${evenement.url} » → « ${evenement.urlAfterRedirects} », ` +
-          `surConnexion=${connexion}, bas=${this.bas()}`,
+      // THE line to read when a window shows a page that isn't its own: it
+      // says who navigated, to what, and from which URL.
+      this.trace.step(
+        `navigation done — "${event.url}" → "${event.urlAfterRedirects}", ` +
+          `onSignIn=${onSignIn}, bottom=${this.bottom()}`,
       );
 
-      // La fenêtre PRINCIPALE ne montre jamais la connexion : elle la
-      // délègue à une fenêtre dédiée, et s'efface derrière. Elle reste sur
-      // cette route — personne ne la voit, puisqu'elle est cachée — et
-      // reprendra la main sur le signal de session.
+      // The MAIN window never shows sign-in: it delegates it to a dedicated
+      // window, and hides itself behind it. It stays on this route —
+      // nobody sees it, since it's hidden — and will take back control once
+      // the session signal fires.
       //
-      // La fenêtre de connexion, elle, EST déjà sur cette route : elle
-      // n'ouvrirait qu'elle-même.
-      if (connexion && this.fenetre.estPrincipale) {
-        void this.pont.ouvrirConnexion().catch(() => {});
+      // The sign-in window, on the other hand, IS already on this route: it
+      // would only open itself.
+      if (onSignIn && this.windowService.isMain) {
+        void this.bridge.openSignIn().catch(() => {});
       }
     });
 
-    // Quand la session s'ouvre dans l'autre fenêtre, celle-ci doit l'apprendre :
-    // son service de session porte un compte nul depuis son chargement, et rien
-    // ne le lui dirait.
+    // When the session opens in the other window, this one has to learn
+    // about it: its session service carries a null account since it
+    // loaded, and nothing would tell it otherwise.
     //
-    // **Seule une fenêtre qui n'est pas dédiée s'y abonne**, et c'est une
-    // ceinture par-dessus la bretelle de `transport.ts`. Rust émet vers
-    // « main » nommément ; l'écouteur JS s'enregistrait pourtant sur `Any`,
-    // que Tauri sert SANS filtre — si bien que la fenêtre de connexion
-    // recevait le signal, naviguait vers Spawn, et le dessinait dans quatre
-    // cent quarante pixels juste avant de disparaître.
+    // **Only a window that isn't dedicated subscribes to this**, and it's a
+    // belt on top of `transport.ts`'s suspenders. Rust emits to "main" by
+    // name; the JS listener registered on `Any` regardless, which Tauri
+    // serves with NO filter — so the sign-in window would receive the
+    // signal, navigate to Spawn, and draw it in four hundred and forty
+    // pixels right before disappearing.
     //
-    // Le ciblage est corrigé à la source ; cette garde-ci dit en plus ce que
-    // la règle VEUT, à l'endroit où on la lit.
-    if (this.fenetre.dansUneFenetreDediee) {
-      this.trace.detail('fenêtre dédiée : elle n’écoute pas « session-ouverte »');
+    // The targeting is fixed at the source; this guard also states what the
+    // rule WANTS, right where you read it.
+    if (this.windowService.inADedicatedWindow) {
+      this.trace.detail('dedicated window: not listening for "session-opened"');
     } else {
-      void this.pont
-        .surSessionOuverte(() => {
-          this.trace.etape('« session-ouverte » reçu');
-          void this.reprendreLaMain();
+      void this.bridge
+        .onSessionOpened(() => {
+          this.trace.step('"session-opened" received');
+          void this.resumeControl();
         })
         .catch(() => {});
     }
 
-    // Le signal qui referme l'écran de démarrage et montre la fenêtre.
+    // The signal that closes the splash screen and shows the window.
     //
-    // Il ne dépend PAS de `demarrer()`, et c'est délibéré : celui-ci interroge
-    // le réseau, ce qui peut durer derrière un portail captif. Attendre ses
-    // données pour montrer la fenêtre garderait le joueur devant un écran de
-    // démarrage sans le moindre bouton.
+    // It does NOT depend on `start()`, and that's deliberate: that one
+    // queries the network, which can take a while behind a captive portal.
+    // Waiting on its data to show the window would leave the player facing
+    // a splash screen with no button at all.
     afterNextRender(() => {
       setTimeout(() => {
-        this.trace.etape('premier rendu : « front_pret » envoyé');
-        void this.pont.frontPret().catch(() => {});
-      }, AVANT_DE_MONTRER);
+        this.trace.step('first render: "front_ready" sent');
+        void this.bridge.frontReady().catch(() => {});
+      }, BEFORE_SHOWING_MS);
     });
 
-    void this.demarrer();
+    void this.start();
   }
 
   /**
-   * Ce qui se passe pendant l'amorce.
+   * What happens during the boot screen.
    *
-   * Tout en parallèle : la marque, les réglages, l'état de la fenêtre et la
-   * session partent ensemble. Les enchaîner ferait de l'amorce la somme de
-   * quatre latences au lieu de la plus grande.
+   * All in parallel: the brand, the settings, the window state and the
+   * session start together. Chaining them would turn the boot screen into
+   * the sum of four latencies instead of the largest one.
    *
-   * `finally` et non la seule branche de succès : si `statut()` échoue — réseau
-   * coupé, jeton illisible — l'amorce doit s'effacer quand même, sinon le
-   * launcher reste bloqué sur son écran de démarrage sans une erreur visible.
+   * `finally` and not just the success branch: if `status()` fails —
+   * network down, unreadable token — the boot screen must still clear,
+   * otherwise the launcher stays stuck on its splash screen with no visible
+   * error.
    */
-  private async demarrer(): Promise<void> {
-    const plancher = new Promise((suite) => setTimeout(suite, PLANCHER_AMORCE));
+  private async start(): Promise<void> {
+    const floor = new Promise((resolve) => setTimeout(resolve, BOOT_FLOOR_MS));
 
     try {
       await Promise.all([
-        this.marqueService.charger(),
-        this.reglages.charger(),
-        this.fenetre.observer(),
-        this.session.ouvrir(),
-        // L'état du pack est de la COQUE et non de Spawn : la barre de titre en
-        // tire le nom du modpack, et le bouton de jeu tout le reste. L'ouvrir
-        // depuis Spawn faisait disparaître le nom dès qu'on changeait de page.
-        this.pack.ouvrir(),
+        this.brandService.load(),
+        this.settings.load(),
+        this.windowService.watch(),
+        this.session.open(),
+        // The pack state belongs to the SHELL and not to Spawn: the title
+        // bar draws the modpack name from it, and the play button draws
+        // everything else. Opening it from Spawn made the name disappear
+        // as soon as you changed page.
+        this.pack.open(),
       ]);
     } catch (cause) {
-      this.trace.souci(`démarrage en échec : ${String(cause)}`);
-      this.incidents.signaler(cause);
+      this.trace.concern(`startup failed: ${String(cause)}`);
+      this.incidents.report(cause);
     } finally {
-      await plancher;
-      this.amorce.set(false);
-      this.trace.etape(`amorce effacée — jouable=${this.session.jouable()}`);
+      await floor;
+      this.boot.set(false);
+      this.trace.step(`boot screen cleared — playable=${this.session.playable()}`);
     }
   }
 
   /**
-   * La session vient de s'ouvrir dans la fenêtre de connexion.
+   * The session just opened in the sign-in window.
    *
-   * On relit le compte, puis on va à Spawn : la fenêtre principale était restée
-   * sur `/connexion` pendant qu'elle était cachée, et l'y laisser lui ferait
-   * afficher une page de connexion à quelqu'un qui vient de se connecter.
+   * We re-read the account, then go to Spawn: the main window had stayed on
+   * `/signin` while it was hidden, and leaving it there would show a
+   * sign-in page to someone who just signed in.
    */
-  private async reprendreLaMain(): Promise<void> {
-    this.trace.etape('reprise de la main : relecture de la session');
-    await this.incidents.pendant(async () => {
-      await this.session.ouvrir();
-      this.trace.detail(`session relue — jouable=${this.session.jouable()}`);
-      await this.pack.rafraichir();
-      this.trace.detail('état du pack rafraîchi ; navigation vers Spawn');
-      const allee = await this.router.navigate(['/spawn']);
-      this.trace.etape(`navigation vers Spawn : ${allee ? 'acceptée' : 'REFUSÉE'}`);
+  private async resumeControl(): Promise<void> {
+    this.trace.step('resuming control: re-reading the session');
+    await this.incidents.guard(async () => {
+      await this.session.open();
+      this.trace.detail(`session re-read — playable=${this.session.playable()}`);
+      await this.pack.refresh();
+      this.trace.detail('pack state refreshed; navigating to Spawn');
+      const navigated = await this.router.navigate(['/spawn']);
+      this.trace.step(`navigation to Spawn: ${navigated ? 'accepted' : 'REFUSED'}`);
     });
 
-    // On ne dit PAS ici qu'on est prêt : c'est l'accueil qui le dira, depuis
-    // son `afterNextRender`. `navigate` rend la main quand la route est
-    // activée, ce qui précède le premier pixel — et Rust montrerait alors une
-    // fenêtre encore vide.
+    // We do NOT say we're ready here: the home page says so, from its own
+    // `afterNextRender`. `navigate` returns control once the route is
+    // activated, which precedes the first pixel — and Rust would then show
+    // a still-empty window.
     //
-    // Si la navigation a échoué, personne ne le dira : le délai de garde de
-    // `connexion_reussie` bascule au bout de huit secondes plutôt que de
-    // laisser un « Connecté » qui ne mène nulle part.
+    // If the navigation failed, nobody will say so: the guard delay of
+    // `sign_in_succeeded` switches after eight seconds rather than leaving
+    // a "Signed in" that leads nowhere.
   }
 
-  /** La donnée `bas` de la route la plus profonde, ou « aucune » à défaut. */
-  private basDe(racine: ActivatedRouteSnapshot): Bas {
-    let noeud: ActivatedRouteSnapshot | undefined = racine;
-    let trouve: Bas = 'aucune';
-    while (noeud) {
-      const valeur = noeud.data['bas'] as Bas | undefined;
-      if (valeur) {
-        trouve = valeur;
+  /** The `bottom` data of the deepest route, or "none" if there isn't one. */
+  private bottomOf(root: ActivatedRouteSnapshot): Bottom {
+    let node: ActivatedRouteSnapshot | undefined = root;
+    let found: Bottom = 'none';
+    while (node) {
+      const value = node.data['bottom'] as Bottom | undefined;
+      if (value) {
+        found = value;
       }
-      noeud = noeud.firstChild ?? undefined;
+      node = node.firstChild ?? undefined;
     }
-    return trouve;
+    return found;
   }
 }

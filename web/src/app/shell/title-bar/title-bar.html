@@ -1,0 +1,97 @@
+<!--
+  `data-tauri-drag-region` on the whole bar: that's what makes it grabbable.
+  The buttons are excluded by Tauri's own script, with no need for us to
+  neutralize their pointer events.
+-->
+<div
+  class="hm-titlebar"
+  [class.hm-titlebar--dialog]="dialog()"
+  [class.hm-titlebar--glass]="dialog()"
+  data-tauri-drag-region
+  data-test="title-bar"
+>
+  <span class="hm-titlebar__title" data-tauri-drag-region>
+    <span class="hm-titlebar__brand" data-tauri-drag-region data-test="title">
+      {{ brand().name }}
+    </span>
+    @if (pack(); as name) {
+      <span class="hm-titlebar__sep" data-tauri-drag-region aria-hidden="true"></span>
+      <span data-tauri-drag-region data-test="pack">{{ name }}</span>
+    }
+  </span>
+
+  <!--
+    The bell. Thirty-two pixels, not forty-six: it isn't a caption button,
+    and the design system sets it apart for that reason.
+  -->
+  @if (!dialog()) {
+    <div class="hm-titlebar__tools">
+      <button
+        type="button"
+        class="hm-bell"
+        (click)="switchNotifications()"
+        [attr.aria-expanded]="panelOpen()"
+        aria-label="Notifications"
+        title="Notifications"
+        data-test="bell"
+      >
+        <lucide-icon [img]="Bell" [size]="16" [strokeWidth]="1.75" aria-hidden="true" />
+        @if (unread() > 0) {
+          <!-- Hidden at zero: a badge that says "0" makes you read it just to
+               learn there's nothing there. -->
+          <span class="hm-bell__count" data-test="unread">{{ unread() }}</span>
+        }
+      </button>
+    </div>
+  }
+
+  <!--
+    The three system buttons. Their permissions are NOT in
+    core:window:default: they're declared by name in
+    capabilities/default.json, and their absence only shows up in a packaged
+    build.
+  -->
+  <div class="hm-winctl">
+    <button
+      type="button"
+      class="hm-winctl__btn hm-winctl__btn--min"
+      (click)="minimize()"
+      data-test="minimize"
+      aria-label="Minimize the window"
+      title="Minimize"
+    >
+      <lucide-icon [img]="Minus" [size]="12" [strokeWidth]="1.5" aria-hidden="true" />
+    </button>
+
+    <button
+      type="button"
+      class="hm-winctl__btn hm-winctl__btn--max"
+      (click)="switchMaximized()"
+      data-test="maximize"
+      [attr.aria-label]="maximized() ? 'Restore the window' : 'Maximize the window'"
+      [title]="maximized() ? 'Restore' : 'Maximize'"
+    >
+      <!--
+        Two distinct icons: "restore" is not "maximize", and the same square
+        for both would force the player to click just to find out.
+      -->
+      <lucide-icon
+        [img]="maximized() ? Copy : Square"
+        [size]="12"
+        [strokeWidth]="1.5"
+        aria-hidden="true"
+      />
+    </button>
+
+    <button
+      type="button"
+      class="hm-winctl__btn hm-winctl__btn--close"
+      (click)="close()"
+      data-test="close"
+      aria-label="Close the launcher"
+      title="Close"
+    >
+      <lucide-icon [img]="X" [size]="12" [strokeWidth]="1.5" aria-hidden="true" />
+    </button>
+  </div>
+</div>

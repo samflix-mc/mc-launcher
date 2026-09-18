@@ -17,20 +17,20 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # du serveur n'est pas « désactivé » dans le binaire du launcher, il n'y est
 # pas. Le binaire qui la porte est déclaré plus bas avec `required-features`.
 [features]
-dev-serveur = []
+dev-server = []
 
 # Le launcher sans sa fenêtre, servi sur HTTP — pour travailler l'interface
 # dans un navigateur ordinaire, avec le rechargement à chaud.
 [[bin]]
-name = "mc-dev-serveur"
-path = "src/bin/dev-serveur.rs"
-required-features = ["dev-serveur"]
+name = "mc-dev-server"
+path = "src/bin/dev-server.rs"
+required-features = ["dev-server"]
 
 [build-dependencies]
 tauri-build.workspace = true
 
 [dependencies]
-mc-chemins = { path = "../mc-chemins" }
+mc-paths = { path = "../mc-paths" }
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -47,12 +47,12 @@ mc-auth = { path = "../mc-auth" }
 mc-dl = { path = "../mc-dl" }
 mc-instance = { path = "../mc-instance" }
 mc-java = { path = "../mc-java" }
-mc-nouvelles = { path = "../mc-nouvelles" }
+mc-news = { path = "../mc-news" }
 mc-pack = { path = "../mc-pack" }
 # Ce que le joueur règle. mc-pack n'en dépend PAS : la bibliothèque
 # d'installation n'a pas à savoir qu'une interface existe, et le CLI garde ses
 # propres drapeaux. C'est l'application qui lit le fichier et passe les VALEURS.
-mc-reglages = { path = "../mc-reglages" }
+mc-settings = { path = "../mc-settings" }
 # Pour la censure des jetons : tout ce que ce binaire journalise passe par
 # elle, fenêtre graphique comprise.
 mc-log = { path = "../mc-log" }

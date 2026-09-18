@@ -1,8 +1,8 @@
-//! Censure de tout ce qui sort vers Sentry.
+//! Scrubbing everything headed for Sentry.
 
 use crate::redact::redact;
 
-/// Censure un événement de bout en bout.
+/// Scrubs an event end to end.
 pub(crate) fn scrub_event(event: &mut sentry::protocol::Event<'static>) {
     if let Some(message) = event.message.take() {
         event.message = Some(redact(&message));
@@ -12,11 +12,11 @@ pub(crate) fn scrub_event(event: &mut sentry::protocol::Event<'static>) {
         scrub_stacktrace(exception.stacktrace.as_mut());
         scrub_stacktrace(exception.raw_stacktrace.as_mut());
     }
-    // `attach_stacktrace` fait joindre la pile du fil courant par une
-    // intégration du SDK, et les intégrations tournent avant `before_send`. Un
-    // événement sans exception — un `capture_message`, un plantage du jeu —
-    // n'expose donc ses chemins de compilation que par là, à côté de la boucle
-    // qui les censure.
+    // `attach_stacktrace` has the current thread's stack attached by an
+    // SDK integration, and integrations run before `before_send`. An
+    // event without an exception — a `capture_message`, a game crash —
+    // therefore only exposes its build paths through here, alongside the
+    // loop that scrubs them.
     for thread in &mut event.threads.values {
         scrub_stacktrace(thread.stacktrace.as_mut());
         scrub_stacktrace(thread.raw_stacktrace.as_mut());
@@ -25,10 +25,11 @@ pub(crate) fn scrub_event(event: &mut sentry::protocol::Event<'static>) {
     for value in event.extra.values_mut() {
         scrub_value(value);
     }
-    // Les champs d'un `tracing::error!` n'arrivent pas dans `extra` :
-    // `sentry-tracing` les range dans le contexte « Rust Tracing Fields ».
-    // Sans ce passage, un `erreur = ?error` partirait tel quel — soit le canal
-    // le plus riche de tous, et le seul que la censure aurait laissé filer.
+    // The fields of a `tracing::error!` don't land in `extra`:
+    // `sentry-tracing` files them under the "Rust Tracing Fields"
+    // context. Without this pass, an `error = ?error` would go out
+    // unchanged — the richest channel of all, and the only one scrubbing
+    // would have let slip through.
     for context in event.contexts.values_mut() {
         if let sentry::protocol::Context::Other(fields) = context {
             for value in fields.values_mut() {
@@ -41,10 +42,10 @@ pub(crate) fn scrub_event(event: &mut sentry::protocol::Event<'static>) {
     }
 }
 
-/// Censure les chemins d'une pile d'appels.
+/// Scrubs the paths in a call stack.
 ///
-/// Un chemin absolu porte le nom de compte de celui qui a compilé, et une
-/// variable capturée porte ce qu'elle porte.
+/// An absolute path carries the account name of whoever compiled it, and
+/// a captured variable carries whatever it carries.
 fn scrub_stacktrace(stacktrace: Option<&mut sentry::protocol::Stacktrace>) {
     let Some(stacktrace) = stacktrace else {
         return;
@@ -58,12 +59,12 @@ fn scrub_stacktrace(stacktrace: Option<&mut sentry::protocol::Stacktrace>) {
     }
 }
 
-/// Censure un attribut de journal structuré.
+/// Scrubs a structured log attribute.
 ///
-/// Les champs d'un événement `tracing` deviennent des attributs : un
-/// `tracing::info!(url = %url, ...)` les expose tels quels. Seules les chaînes
-/// peuvent porter un secret ; les nombres et booléens sont laissés intacts,
-/// puisqu'ils restent utiles au tri et au filtrage.
+/// The fields of a `tracing` event become attributes: a
+/// `tracing::info!(url = %url, ...)` exposes them as-is. Only strings can
+/// carry a secret; numbers and booleans are left intact, since they stay
+/// useful for sorting and filtering.
 pub(crate) fn scrub_log_attribute(attribute: &mut sentry::protocol::LogAttribute) {
     use sentry::protocol::Value;
     if let Value::String(text) = &attribute.0 {
@@ -71,7 +72,7 @@ pub(crate) fn scrub_log_attribute(attribute: &mut sentry::protocol::LogAttribute
     }
 }
 
-/// Censure récursivement une valeur JSON.
+/// Recursively scrubs a JSON value.
 pub(crate) fn scrub_value(value: &mut sentry::protocol::Value) {
     use sentry::protocol::Value;
     match value {

@@ -1,13 +1,13 @@
-//! Ce que ${…} désigne dans les arguments du descripteur.
+//! What `${…}` refers to in the descriptor's arguments.
 
-mod drapeaux;
+mod flags;
 
 use std::collections::BTreeMap;
 use std::path::Path;
 
 use super::session::{LaunchOptions, QuickPlay, Session};
 
-pub(in crate::launch) use drapeaux::active_features;
+pub(in crate::launch) use flags::active_features;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn variables(
@@ -48,7 +48,7 @@ pub(super) fn variables(
     set("classpath_separator", separator.to_string());
     set("launcher_name", "Helm".into());
     set("launcher_version", env!("CARGO_PKG_VERSION").to_string());
-    // Le jar du socle, que NeoForge nomme dans son `ignoreList`.
+    // The base's jar, which NeoForge names in its `ignoreList`.
     set("primary_jar_name", format!("{base_id}.jar"));
 
     if let Some((width, height)) = options.resolution {

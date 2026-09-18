@@ -1,49 +1,49 @@
-//! Enchaînement complet : d'un manifeste JSON à une instance jouable.
+//! Full sequence: from a JSON manifest to a playable instance.
 //!
-//! **Sept étapes**, et [`Etape::TOUTES`] en fait foi — ce commentaire en
-//! annonçait six, en oubliant la première, alors même qu'un affichage dessine
-//! le chemin entier à partir de cette liste. L'ordre n'est pas arbitraire :
-//! chacune dépend de la précédente.
+//! **Seven steps**, and [`Step::ALL`] is the proof of it — this comment used
+//! to announce six, forgetting the first one, even though a display draws
+//! the whole path from this very list. The order isn't arbitrary: each one
+//! depends on the previous.
 //!
-//! 1. **le pack** — le manifeste, et le verrou s'il y en a un ; c'est aussi ici
-//!    qu'une purge se décide, quand la génération publiée a changé ;
-//! 2. **le chargeur** — `latest` est résolu tout de suite, pour que le verrou
-//!    consigne une version exacte et non un mot ;
-//! 3. **les fichiers de Mojang** — ils donnent au passage la version de Java
-//!    qu'exige cette version du jeu ;
-//! 4. **Java** — détecté ou installé, à la majeure EXACTE que le verrou porte ;
-//! 5. **NeoForge** — son installateur patche le client vanilla et a besoin du
-//!    Java de l'étape précédente ;
-//! 6. **les mods** — résolus, téléchargés, puis répartis entre client et
-//!    serveur ;
-//! 7. **le verrou** — écrit en dernier, il décrit ce qui a réellement été fait.
+//! 1. **the pack** — the manifest, and the lockfile if there is one; this is
+//!    also where a purge gets decided, when the published generation has
+//!    changed;
+//! 2. **the loader** — `latest` is resolved right away, so the lockfile
+//!    records an exact version and not a word;
+//! 3. **Mojang's files** — they also give the Java version this game version
+//!    requires;
+//! 4. **Java** — detected or installed, at the EXACT major version the
+//!    lockfile carries;
+//! 5. **NeoForge** — its installer patches the vanilla client and needs the
+//!    Java from the previous step;
+//! 6. **the mods** — resolved, downloaded, then split between client and
+//!    server;
+//! 7. **the lockfile** — written last, it describes what was actually done.
 
 mod coherence;
-pub mod comparaison;
-pub mod etat;
+pub mod comparison;
 mod installation;
+pub mod state;
 mod verification;
 
-pub mod jeu;
+pub mod game;
 pub mod lockfile;
 pub mod manifest;
-pub mod progression;
+pub mod progress;
 pub mod source;
 
-pub use coherence::mods_client_absents;
-pub use comparaison::{Action, Ecart, EtatDuPack, comparer, presence, verrou_publie};
-pub use etat::{Avant, EtatLocal, Purge};
+pub use coherence::missing_client_mods;
+pub use comparison::{Action, Drift, PackState, compare, presence, published_lock};
+pub use game::{GameSession, Identity, UpdateOutcome, play, prepare, update, update_and_play};
 pub use installation::install;
-pub use jeu::{
-    Deroulement, Identite, Partie, jouer, mettre_a_jour, mettre_a_jour_et_jouer, preparer,
-};
-pub use progression::{Etape, Muet, Rapport};
+pub use progress::{Report, Silent, Step};
+pub use state::{Before, LocalState, Purge};
 pub use verification::verify;
 
 use lockfile::Lockfile;
 use std::path::PathBuf;
 
-/// Ce qu'une installation a produit, pour le compte rendu.
+/// What an installation produced, for the report.
 #[derive(Debug)]
 pub struct Outcome {
     pub instance: mc_instance::Instance,
@@ -58,34 +58,33 @@ pub struct Outcome {
     pub lock: Lockfile,
     pub lock_path: PathBuf,
     pub previous_lock: Option<Lockfile>,
-    /// D'où venait le pack, tel qu'on l'a demandé.
+    /// Where the pack came from, as it was requested.
     pub source: String,
-    /// Le pack distant était injoignable et la copie locale a servi.
+    /// The remote pack was unreachable and the local copy was used.
     pub from_cache: bool,
-    /// Ce par quoi l'installation s'écarte du verrou rejoué. Vide quand les
-    /// deux coïncident un pour un — et toujours vide hors rejeu, où il n'y a
-    /// rien à quoi se comparer.
-    pub ecarts: Vec<String>,
-    /// Ce que la purge a effacé avant d'installer, s'il y a eu purge.
+    /// What the installation drifts from when replaying the lockfile. Empty
+    /// when the two match one for one — and always empty outside a replay,
+    /// where there's nothing to compare against.
+    pub drifts: Vec<String>,
+    /// What the purge erased before installing, if there was a purge.
     ///
-    /// Dans le COMPTE RENDU et non dans une note d'avancement : `Rapport::note`
-    /// est un emplacement unique, écrasé sans condition, et sept notes
-    /// ultérieures l'écrasent dans la seconde qui suit. Un fait durable ne
-    /// voyage pas dans un champ transitoire — c'est déjà pourquoi
-    /// `introuvables` et `ecarts` sont ici.
-    pub purge: crate::etat::Purge,
+    /// In the REPORT and not in a progress note: `Report::note` is a single
+    /// slot, overwritten unconditionally, and seven later notes overwrite it
+    /// within the following second. A durable fact doesn't travel in a
+    /// transient field — that's already why `missing` and `drifts` are here.
+    pub purge: crate::state::Purge,
 }
 
 #[derive(Debug, Default)]
 pub struct Options {
-    /// Rejouer exactement le verrou au lieu de rechercher les versions.
+    /// Replay the lockfile exactly instead of resolving versions.
     pub locked: bool,
-    /// Installer aussi un serveur NeoForge complet, et pas seulement ses mods.
+    /// Also install a full NeoForge server, not just its mods.
     pub with_server: bool,
-    /// Nom de l'instance ; par défaut, celui du pack.
+    /// Instance name; by default, the pack's own.
     pub instance_name: Option<String>,
     pub layout: mc_instance::Layout,
 }
 
 #[cfg(test)]
-mod essais;
+mod fixtures;

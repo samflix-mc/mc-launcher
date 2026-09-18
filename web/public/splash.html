@@ -1,46 +1,44 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>Helm</title>
     <style>
       /*
-        Tout est ici, en dur, et c'est le sujet de ce fichier.
+        Everything is here, hardcoded, and that's the point of this file.
 
-        Cette fenêtre existe pour s'afficher AVANT qu'Angular n'existe. Elle ne
-        peut donc dépendre d'aucun morceau produit par le build : ni la feuille
-        du design system, ni un fichier de police. Le moindre `<link>` vers un
-        fichier ajouterait un aller-retour du protocole d'actifs entre
-        l'ouverture de la fenêtre et son premier rendu — c'est-à-dire exactement
-        le trou qu'on cherche à combler.
+        This window exists to show BEFORE Angular exists. It can therefore
+        depend on nothing produced by the build: not the design system's
+        sheet, not a font file. The slightest `<link>` to a file would add an
+        asset-protocol round trip between the window opening and its first
+        render — exactly the gap this exists to close.
 
-        ## Le style en ligne, et pourquoi il passe le CSP
+        ## The inline style, and why it clears the CSP
 
-        Tauri injecte un nonce dans toute balise `<style>` qu'il trouve dans le
-        HTML embarqué, et la règle du CSP niveau 3 veut qu'un nonce annule
-        `'unsafe-inline'`. C'est précisément la situation que
-        `dangerousDisableAssetCspModification: ["style-src"]` a été posé pour
-        couvrir : la directive `style-src` n'est pas réécrite, donc
-        `'unsafe-inline'` reste effectif et ce bloc s'applique.
+        Tauri injects a nonce into every `<style>` tag it finds in the
+        embedded HTML, and the level-3 CSP rule says a nonce cancels
+        `'unsafe-inline'`. That's exactly the situation
+        `dangerousDisableAssetCspModification: ["style-src"]` was set to
+        cover: the `style-src` directive isn't rewritten, so
+        `'unsafe-inline'` stays in effect and this block applies.
 
-        Si ce fichier devenait blanc un jour, c'est la première chose à
-        vérifier.
+        If this file ever went blank, that's the first thing to check.
 
-        ## La police, en base64, et pourquoi elle en vaut la peine
+        ## The font, in base64, and why it's worth it
 
-        Le mot-symbole du design system est en Pixelify Sans. Le servir par un
-        fichier rendrait le premier tracé en police système, puis le ferait
-        sauter à la bonne — sur une fenêtre qui dure une seconde, c'est le seul
-        mouvement qu'on verrait. Onze kilooctets en base64 suppriment l'aller-
-        retour ET le saut. Le sous-ensemble est le latin, graisse 500 : la seule
-        que le design system autorise pour cette face.
+        The design system's wordmark is in Pixelify Sans. Serving it as a
+        file would render the first pass in the system font, then jump to
+        the right one — on a window that lasts a second, that's the only
+        motion you'd see. Eleven kilobytes in base64 remove both the round
+        trip AND the jump. The subset is latin, weight 500: the only one the
+        design system allows for this face.
 
-        ## Les valeurs sont recopiées de `src/design/tokens.css`
+        ## The values are copied from `src/design/tokens.css`
 
-        Elles ne peuvent pas être importées : ce fichier n'a pas de feuille.
-        Elles doivent donc être reportées à la main le jour où le design system
-        est republié — c'est le prix d'une fenêtre qui s'ouvre instantanément,
-        et il est payé une fois par refonte.
+        They can't be imported: this file has no sheet. They have to be
+        carried over by hand the day the design system is republished —
+        that's the price of a window that opens instantly, and it's paid
+        once per redesign.
       */
       @font-face {
         font-family: 'Pixelify Sans';
@@ -73,25 +71,25 @@
       }
 
       body {
-        /* La MÊME couleur que `backgroundColor` de la fenêtre et que
-           `--bg-raised` du design system. Les deux doivent coïncider : c'est ce
-           qui fait qu'aucune des transitions ne se voit. */
+        /* The SAME color as the window's `backgroundColor` and the design
+           system's `--bg-raised`. The two must match: that's what makes
+           none of the transitions visible. */
         background: var(--bg-raised);
         color: var(--ink);
         font-family: Manrope, 'Segoe UI', system-ui, sans-serif;
         font-size: 14px;
         line-height: 20px;
         -webkit-font-smoothing: antialiased;
-        /* La fenêtre n'a ni décorations ni boutons : rien ne doit s'y
-           sélectionner, et le curseur ne doit rien promettre. */
+        /* The window has no decorations and no buttons: nothing in it
+           should be selectable, and the cursor shouldn't promise anything. */
         user-select: none;
         -webkit-user-select: none;
         cursor: default;
       }
 
-      /* `.hm-splash` du design system : une pile centrée, verticale, avec une
-         lueur dorée derrière. Portrait à dessein, comme le chargeur d'un client
-         de jeu — le mot-symbole dans la moitié haute, la barre sous lui. */
+      /* The design system's `.hm-splash`: a centered, vertical stack with a
+         golden glow behind it. Portrait by design, like a game client's
+         loader — the wordmark in the upper half, the bar below it. */
       .splash {
         position: relative;
         height: 100%;
@@ -102,7 +100,7 @@
         padding: 32px;
         box-sizing: border-box;
         overflow: hidden;
-        /* Un liseré, parce que sans décorations la fenêtre n'a aucun bord. */
+        /* A border, because without decorations the window has no edge at all. */
         border: 1px solid rgb(255 255 255 / 0.08);
       }
 
@@ -149,10 +147,10 @@
         flex: none;
       }
 
-      /* La barre, indéterminée : à cet instant personne ne sait combien de temps
-         le manifeste et la session vont prendre, et une barre qui monterait à un
-         rythme inventé mentirait. */
-      .piste {
+      /* The track, indeterminate: at this instant nobody knows how long the
+         manifest and the session will take, and a bar climbing at a made-up
+         pace would lie. */
+      .track {
         position: relative;
         width: 220px;
         height: 8px;
@@ -164,7 +162,7 @@
         overflow: hidden;
       }
 
-      .piste::after {
+      .track::after {
         content: '';
         position: absolute;
         top: 0;
@@ -172,10 +170,10 @@
         width: 40%;
         border-radius: 999px;
         background: linear-gradient(90deg, var(--gold-deep), var(--gold-bright));
-        animation: glisse 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+        animation: slide 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
       }
 
-      @keyframes glisse {
+      @keyframes slide {
         0% {
           left: -40%;
         }
@@ -184,7 +182,7 @@
         }
       }
 
-      .statut {
+      .status {
         display: inline-flex;
         align-items: center;
         gap: 8px;
@@ -194,23 +192,23 @@
         color: var(--ink-2);
       }
 
-      .rond {
+      .circle {
         width: 16px;
         height: 16px;
         border-radius: 50%;
         border: 2px solid var(--glass-line);
         border-top-color: var(--gold);
-        animation: tourne 0.8s linear infinite;
+        animation: spin 0.8s linear infinite;
         flex: none;
       }
 
-      @keyframes tourne {
+      @keyframes spin {
         to {
           transform: rotate(360deg);
         }
       }
 
-      .pied {
+      .footer {
         position: absolute;
         left: 16px;
         right: 16px;
@@ -225,17 +223,17 @@
         color: var(--ink-3);
       }
 
-      /* Une barre qui glisse sans fin est exactement ce que « mouvement réduit »
-         demande d'éviter. On la fige et on l'étale : elle dit alors « il se
-         passe quelque chose » sans rien déplacer. */
+      /* A bar that slides forever is exactly what "reduced motion" asks to
+         avoid. We freeze it and stretch it out: it then says "something is
+         happening" without moving anything. */
       @media (prefers-reduced-motion: reduce) {
-        .piste::after {
+        .track::after {
           animation: none;
           left: 0;
           width: 100%;
           opacity: 0.6;
         }
-        .rond {
+        .circle {
           animation-duration: 1.5s;
         }
       }
@@ -244,9 +242,11 @@
   <body>
     <div class="splash">
       <h1 class="wordmark">Helm<span aria-hidden="true"></span></h1>
-      <div class="piste" role="progressbar" aria-label="Démarrage"></div>
-      <div class="statut"><span class="rond" aria-hidden="true"></span>Démarrage du launcher…</div>
-      <div class="pied"><span>samflix-mc</span></div>
+      <div class="track" role="progressbar" aria-label="Starting"></div>
+      <div class="status">
+        <span class="circle" aria-hidden="true"></span>Starting the launcher…
+      </div>
+      <div class="footer"><span>samflix-mc</span></div>
     </div>
   </body>
 </html>

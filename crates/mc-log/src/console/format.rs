@@ -1,18 +1,19 @@
-//! Mise en forme d'une ligne de console.
+//! Formatting of a console line.
 
-/// Mise en forme de la console : temps écoulé, niveau, message.
+/// Console formatting: elapsed time, level, message.
 ///
-/// Le format par défaut de `tracing-subscriber` répète les champs du span
-/// courant devant chaque ligne. C'est précieux dans un fichier relu plus tard,
-/// illisible dans un terminal : sept lignes précédées du même
-/// `commande{nom=lock manifeste=… environnement=local}` noient ce qu'on essaie
-/// de lire.
+/// `tracing-subscriber`'s default format repeats the current span's fields
+/// in front of every line. That's valuable in a file reread later, unreadable
+/// in a terminal: seven lines all preceded by the same
+/// `command{name=lock manifest=… environment=local}` drown out what one is
+/// trying to read.
 ///
-/// Ici le message porte l'information et les champs viennent après, discrets.
-/// Le fichier, lui, conserve le format complet avec les spans.
+/// Here the message carries the information and the fields come after,
+/// unobtrusive. The file, on the other hand, keeps the full format with
+/// spans.
 pub(super) struct ConsoleFormat {
-    /// Début de l'exécution. Capturé une fois : recréer l'horloge à chaque
-    /// ligne afficherait zéro partout, ce qui fut le premier essai.
+    /// Start of the run. Captured once: recreating the clock on every line
+    /// would show zero everywhere, which was the first attempt.
     start: std::time::Instant,
 }
 
@@ -37,9 +38,9 @@ where
     ) -> std::fmt::Result {
         use tracing_subscriber::fmt::FormatFields;
 
-        // Deux décimales suffisent à situer une étape dans une commande qui
-        // dure quelques secondes ; la nanoseconde du format par défaut ne sert
-        // qu'à allonger la ligne.
+        // Two decimals are enough to place a step within a command that runs
+        // for a few seconds; the default format's nanosecond only serves to
+        // lengthen the line.
         write!(
             writer,
             "{:>6.2}s {:<5} ",
@@ -49,23 +50,24 @@ where
 
         let level = *event.metadata().level();
         if level <= tracing::Level::INFO {
-            // À partir d'`info`, le message se suffit à lui-même — c'est la
-            // règle qu'on s'est donnée. Répéter les champs qu'il contient déjà
-            // doublerait la ligne sans rien apprendre. Ils restent dans le
-            // fichier et dans Sentry, où ils servent à filtrer.
+            // From `info` on, the message stands on its own — that's the
+            // rule we've set ourselves. Repeating the fields it already
+            // carries would double the line without teaching anything new.
+            // They stay in the file and in Sentry, where they're used to
+            // filter.
             let mut message = MessageOnly(String::new());
             event.record(&mut message);
             write!(writer, "{}", message.0)?;
         } else {
-            // En `debug` et `trace`, les champs *sont* l'information : le
-            // message n'est qu'une étiquette au-dessus d'eux.
+            // At `debug` and `trace`, the fields *are* the information: the
+            // message is just a label above them.
             ctx.format_fields(writer.by_ref(), event)?;
         }
         writeln!(writer)
     }
 }
 
-/// Ne retient que le champ `message` d'un événement.
+/// Keeps only the `message` field of an event.
 struct MessageOnly(String);
 
 impl tracing::field::Visit for MessageOnly {

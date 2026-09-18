@@ -1,4 +1,4 @@
-//! Ce que les jars exigent vraiment, une fois ouverts.
+//! What jars really require, once opened.
 
 use anyhow::Result;
 use std::collections::{BTreeMap, BTreeSet};
@@ -8,7 +8,7 @@ use crate::jar::Side;
 
 use super::plan::Installed;
 
-/// Lit le descripteur de chaque jar fraîchement téléchargé.
+/// Reads the descriptor of every freshly downloaded jar.
 pub(super) fn inspect_all(chosen: &mut BTreeMap<(Origin, String), Installed>) -> Result<()> {
     for entry in chosen.values_mut() {
         if !entry.provides.is_empty() || entry.path.as_os_str().is_empty() {
@@ -22,14 +22,14 @@ pub(super) fn inspect_all(chosen: &mut BTreeMap<(Origin, String), Installed>) ->
     Ok(())
 }
 
-/// `modId` exigés par au moins un jar et fournis par aucun.
+/// `modId`s required by at least one jar and supplied by none.
 pub(super) fn missing_requirements(
     chosen: &BTreeMap<(Origin, String), Installed>,
 ) -> Vec<(String, String, Side)> {
-    // Racine *et* embarqués : ce qui satisfait une dépendance n'est pas ce qui
-    // définit une identité. Un mod qui embarque sa bibliothèque la fournit —
-    // l'installer en plus donnerait deux versions du même modId.
-    let provided: BTreeSet<&String> = chosen.values().flat_map(|m| m.fournit()).collect();
+    // Root *and* bundled: what satisfies a dependency isn't what defines an
+    // identity. A mod that bundles its library supplies it — installing it
+    // again would give two versions of the same modId.
+    let provided: BTreeSet<&String> = chosen.values().flat_map(|m| m.supplies()).collect();
 
     let mut missing: BTreeMap<String, (String, Side)> = BTreeMap::new();
     for entry in chosen.values() {

@@ -4,47 +4,47 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { App } from './app';
 import { ROUTES } from './routes';
-import { Session } from './noyau/session';
+import { Session } from './core/session';
 
 /**
- * La coque.
+ * The shell.
  *
- * Trois mises en page, et c'est la route qui décide : la fenêtre de connexion,
- * la page à trois rangs — navigation, contenu, barre du bas — et celle à deux,
- * qui laisse tomber la barre du bas et donne sa hauteur au corps.
+ * Three layouts, and it's the route that decides: the sign-in window, the
+ * three-row page — navigation, content, bottom bar — and the two-row one,
+ * which drops the bottom bar and gives its height to the body.
  */
 describe('App', () => {
   let router: Router;
   let session: Session;
 
   /**
-   * Monte la coque ET passe l'amorce.
+   * Mounts the shell AND clears the boot screen.
    *
-   * L'amorce tient un PLANCHER de quatre cents millisecondes — sans lui, une
-   * session déjà en cache la ferait clignoter le temps d'une image. Un test qui
-   * ne l'attendrait pas ne verrait jamais que l'écran de démarrage, et
-   * conclurait que la coque ne se dessine pas.
+   * The boot screen holds a FLOOR of four hundred milliseconds — without
+   * it, a session already cached would flash it for a single frame. A test
+   * that didn't wait for it would only ever see the splash screen, and
+   * would conclude the shell never renders.
    */
-  async function monter() {
+  async function mount() {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    await new Promise((suite) => setTimeout(suite, 600));
+    await new Promise((resolve) => setTimeout(resolve, 600));
     await fixture.whenStable();
     fixture.detectChanges();
     return fixture;
   }
 
   /**
-   * Va sur une route et laisse la coque se redessiner.
+   * Goes to a route and lets the shell redraw.
    *
-   * Le compte est reposé JUSTE AVANT : hors de tout backend, `session.ouvrir()`
-   * remet le compte à nul — c'est son comportement voulu, et `demarrer()`
-   * l'appelle au montage. Sans ce rappel, les gardes trouveraient une session
-   * vide et renverraient tout vers `/connexion`.
+   * The account is set JUST BEFORE: outside any backend, `session.open()`
+   * resets the account to null — that's its intended behavior, and
+   * `start()` calls it on mount. Without this reset, the guards would find
+   * an empty session and send everything back to `/signin`.
    */
-  async function aller(fixture: Awaited<ReturnType<typeof monter>>, url: string, connecte = true) {
-    session.compte.set(
-      connecte ? { pseudo: 'thesam1798', uuid: '0123', possedeLeJeu: true } : null,
+  async function goTo(fixture: Awaited<ReturnType<typeof mount>>, url: string, signedIn = true) {
+    session.account.set(
+      signedIn ? { username: 'thesam1798', uuid: '0123', ownsTheGame: true } : null,
     );
     await router.navigateByUrl(url);
     await fixture.whenStable();
@@ -55,107 +55,108 @@ describe('App', () => {
     TestBed.configureTestingModule({ providers: [provideRouter(ROUTES)] });
     router = TestBed.inject(Router);
     session = TestBed.inject(Session);
-    session.compte.set({ pseudo: 'thesam1798', uuid: '0123', possedeLeJeu: true });
+    session.account.set({ username: 'thesam1798', uuid: '0123', ownsTheGame: true });
   });
 
   /**
-   * **Hors de tout backend, l'écran le dit plutôt que d'échouer** sur un
-   * `invoke` qui n'existe pas. C'est le seul cas où cet avertissement paraît.
+   * **Outside any backend, the screen says so** instead of failing on an
+   * `invoke` that doesn't exist. This is the only case where this warning
+   * appears.
    */
-  it('sans backend joignable, la fenêtre le dit', async () => {
-    const fixture = await monter();
+  it('with no backend reachable, the window says so', async () => {
+    const fixture = await mount();
 
-    expect(fixture.nativeElement.querySelector('[data-test="hors-tauri"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="outside-tauri"]')).not.toBeNull();
   });
 
-  it('la barre de titre est là dès la première image', async () => {
-    const fixture = await monter();
+  it('the title bar is there from the first frame', async () => {
+    const fixture = await mount();
 
-    expect(fixture.nativeElement.querySelector('[data-test="barre-titre"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="title-bar"]')).not.toBeNull();
   });
 
   /**
-   * Spawn porte les trois rangs : la navigation, le contenu, et une barre du
-   * bas qui tient le bouton de jeu ET le badge joueur.
+   * Spawn carries the three rows: navigation, content, and a bottom bar
+   * holding both the play button AND the player badge.
    */
-  it('sur Spawn, la page a trois rangs et le bouton de jeu', async () => {
-    const fixture = await monter();
-    await aller(fixture, '/spawn');
+  it('on Spawn, the page has three rows and the play button', async () => {
+    const fixture = await mount();
+    await goTo(fixture, '/spawn');
 
     const page = fixture.nativeElement.querySelector('[data-test="page"]');
     expect(page.classList.contains('hm-page--trois-rangs')).toBe(true);
     expect(fixture.nativeElement.querySelector('[data-test="nav"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-test="playbar"]')).not.toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-test="badge-joueur"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="player-badge"]')).not.toBeNull();
   });
 
-  /** Les Nouvelles gardent le badge joueur, et rien au centre. */
-  it('sur les Nouvelles, le badge reste mais pas le bouton', async () => {
-    const fixture = await monter();
-    await aller(fixture, '/nouvelles');
+  /** News keeps the player badge, and nothing in the center. */
+  it('on News, the badge stays but not the button', async () => {
+    const fixture = await mount();
+    await goTo(fixture, '/news');
 
-    expect(fixture.nativeElement.querySelector('[data-test="barre-basse"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="bottom-bar"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-test="playbar"]')).toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-test="badge-joueur"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="player-badge"]')).not.toBeNull();
   });
 
   /**
-   * **La Configuration laisse tomber la barre du bas**, et le corps prend la
-   * hauteur : c'est une règle explicite du design system, et c'est ce qui donne
-   * à la liste de réglages de quoi défiler.
+   * **Settings drops the bottom bar**, and the body takes the height: it's
+   * an explicit design system rule, and it's what gives the settings list
+   * room to scroll.
    */
-  it('sur la Configuration, la barre du bas disparaît', async () => {
-    const fixture = await monter();
-    await aller(fixture, '/configuration');
+  it('on Settings, the bottom bar disappears', async () => {
+    const fixture = await mount();
+    await goTo(fixture, '/settings');
 
     const page = fixture.nativeElement.querySelector('[data-test="page"]');
     expect(page.classList.contains('hm-page--deux-rangs')).toBe(true);
-    expect(fixture.nativeElement.querySelector('[data-test="barre-basse"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="bottom-bar"]')).toBeNull();
   });
 
   /**
-   * **La connexion n'a pas de coque du tout.**
+   * **Sign-in has no shell at all.**
    *
-   * Ni navigation, ni bouton de jeu, ni badge joueur : montrer un menu et un
-   * bouton « se déconnecter » à quelqu'un qui n'est pas connecté était le
-   * premier reproche de la recette.
+   * No navigation, no play button, no player badge: showing a menu and a
+   * "sign out" button to someone who isn't signed in was the first
+   * complaint the acceptance check raised.
    */
-  it('sur la connexion, il n’y a ni navigation ni barre du bas', async () => {
-    session.compte.set(null);
-    const fixture = await monter();
-    await aller(fixture, '/connexion', false);
+  it('on sign-in, there is neither navigation nor a bottom bar', async () => {
+    session.account.set(null);
+    const fixture = await mount();
+    await goTo(fixture, '/signin', false);
 
     expect(fixture.nativeElement.querySelector('[data-test="page"]')).toBeNull();
     expect(fixture.nativeElement.querySelector('[data-test="nav"]')).toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-test="barre-basse"]')).toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-test="feuille"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="bottom-bar"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="sheet"]')).not.toBeNull();
   });
 
   /**
-   * La fenêtre de connexion ne se redimensionne pas : laisser le curseur
-   * promettre un geste que rien n'exécute est pire que de ne rien promettre.
+   * The sign-in window doesn't resize: letting the cursor promise a gesture
+   * that nothing executes is worse than not promising anything.
    */
-  it('sur la connexion, les bords ne promettent pas de redimensionnement', async () => {
-    session.compte.set(null);
-    const fixture = await monter();
-    await aller(fixture, '/connexion', false);
+  it('on sign-in, the edges do not promise resizing', async () => {
+    session.account.set(null);
+    const fixture = await mount();
+    await goTo(fixture, '/signin', false);
 
-    expect(fixture.nativeElement.querySelector('[data-test="bords"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="edges"]')).toBeNull();
   });
 
-  /** Ailleurs, ils sont là — c'est ce qui manquait au curseur. */
-  it('ailleurs, les huit bords portent le curseur', async () => {
-    const fixture = await monter();
-    await aller(fixture, '/spawn');
+  /** Elsewhere, they're there — that's what the cursor was missing. */
+  it('elsewhere, the eight edges carry the cursor', async () => {
+    const fixture = await mount();
+    await goTo(fixture, '/spawn');
 
-    const bords = fixture.nativeElement.querySelector('[data-test="bords"]');
-    expect(bords).not.toBeNull();
-    expect(bords.children.length).toBe(8);
+    const edges = fixture.nativeElement.querySelector('[data-test="edges"]');
+    expect(edges).not.toBeNull();
+    expect(edges.children.length).toBe(8);
   });
 
-  /** La scène porte l'image : c'est elle qui donne au verre quelque chose à flouter. */
-  it('la scène est toujours là, sous tout le reste', async () => {
-    const fixture = await monter();
+  /** The scene carries the image: it's what gives the glass something to blur. */
+  it('the scene is always there, beneath everything else', async () => {
+    const fixture = await mount();
 
     expect(fixture.nativeElement.querySelector('[data-test="scene"]')).not.toBeNull();
   });

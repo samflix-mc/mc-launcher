@@ -27,14 +27,14 @@ doit s'ouvrir sur un hôte qui ne publie pas encore de nouvelles.
 ```jsonc
 {
   "schema": 1,
-  "billets": [
+  "posts": [
     {
       "id": "2026-09-saison-3",        // stable : c'est la clé du front
-      "titre": "La saison 3 ouvre",
+      "title": "La saison 3 ouvre",
       "date": "2026-09-18T18:00:00Z",  // RFC 3339, en UTC
-      "epinglee": true,                // facultatif, défaut false
+      "pinned": true,                // facultatif, défaut false
       "image": "images/saison3.webp",  // facultatif, relatif au fil
-      "corps": "Texte **markdown**."
+      "body": "Texte **markdown**."
     }
   ]
 }
@@ -44,11 +44,11 @@ doit s'ouvrir sur un hôte qui ne publie pas encore de nouvelles.
 |---|---|---|
 | `schema` | oui | un autre numéro **se lit quand même**, et le dit dans le repli « écartés » |
 | `id` | oui | billet ignoré |
-| `titre` | oui | vide ou blanc → billet écarté |
+| `title` | oui | vide ou blanc → billet écarté |
 | `date` | oui | hors RFC 3339 UTC → billet écarté |
-| `epinglee` | non | absent = `false` |
+| `pinned` | non | absent = `false` |
 | `image` | non | hors de l'hôte du fil → image ignorée, **billet gardé** |
-| `corps` | oui | ce qui n'est pas reconnu devient du texte |
+| `body` | oui | ce qui n'est pas reconnu devient du texte |
 
 **Un billet fautif est écarté seul.** C'est la différence entre « la page des
 news a un trou » et « la page des news est vide », et la seconde se lit comme
@@ -167,19 +167,19 @@ Deux choses, indépendantes l'une de l'autre :
 ```json
 {
   "schema": 1,
-  "billets": [
+  "posts": [
     {
       "id": "2026-09-ouverture",
-      "titre": "Le launcher est là",
+      "title": "Le launcher est là",
       "date": "2026-09-18T18:00:00Z",
-      "epinglee": true,
-      "corps": "Le launcher installe le pack et lance le jeu **en un seul geste**.\n\nCe qu'il faut savoir :\n\n- il installe ce que le serveur charge, à la version près\n- il pose le Java qu'il faut, sans toucher à celui du système\n- il ne réinstalle rien tant que le pack n'a pas bougé\n\nLes réglages sont dans `Configuration`."
+      "pinned": true,
+      "body": "Le launcher installe le pack et lance le jeu **en un seul geste**.\n\nCe qu'il faut savoir :\n\n- il installe ce que le serveur charge, à la version près\n- il pose le Java qu'il faut, sans toucher à celui du système\n- il ne réinstalle rien tant que le pack n'a pas bougé\n\nLes réglages sont dans `Configuration`."
     },
     {
       "id": "2026-09-regles",
-      "titre": "Les règles du serveur",
+      "title": "Les règles du serveur",
       "date": "2026-09-17T12:00:00Z",
-      "corps": "Trois règles, et elles tiennent en une ligne chacune.\n\n## Le respect\n\nPas d'insulte, pas de harcèlement. C'est la seule qui mène à un bannissement immédiat.\n\n## Les constructions\n\nOn ne casse pas chez les autres. Un `/back` mal placé n'est pas une excuse.\n\n## Les mods\n\nCeux du pack, et eux seuls — le serveur vérifie de toute façon."
+      "body": "Trois règles, et elles tiennent en une ligne chacune.\n\n## Le respect\n\nPas d'insulte, pas de harcèlement. C'est la seule qui mène à un bannissement immédiat.\n\n## Les constructions\n\nOn ne casse pas chez les autres. Un `/back` mal placé n'est pas une excuse.\n\n## Les mods\n\nCeux du pack, et eux seuls — le serveur vérifie de toute façon."
     }
   ]
 }

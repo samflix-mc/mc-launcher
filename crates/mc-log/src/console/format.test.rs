@@ -1,21 +1,21 @@
 use super::ConsoleFormat;
 use std::sync::{Arc, Mutex};
 
-/// Un écrivain partagé, pour relire ce que la console aurait affiché.
+/// A shared writer, to read back what the console would have shown.
 #[derive(Clone)]
-struct Tampon(Arc<Mutex<Vec<u8>>>);
+struct Buffer(Arc<Mutex<Vec<u8>>>);
 
-impl Tampon {
-    fn neuf() -> Self {
+impl Buffer {
+    fn new() -> Self {
         Self(Arc::new(Mutex::new(Vec::new())))
     }
 
-    fn lu(&self) -> String {
+    fn read(&self) -> String {
         String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
     }
 }
 
-impl std::io::Write for Tampon {
+impl std::io::Write for Buffer {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.0.lock().unwrap().extend_from_slice(buf);
         Ok(buf.len())
@@ -26,118 +26,117 @@ impl std::io::Write for Tampon {
     }
 }
 
-impl tracing_subscriber::fmt::MakeWriter<'_> for Tampon {
-    type Writer = Tampon;
+impl tracing_subscriber::fmt::MakeWriter<'_> for Buffer {
+    type Writer = Buffer;
 
     fn make_writer(&self) -> Self::Writer {
         self.clone()
     }
 }
 
-/// Émet les événements de `corps` dans une console mise en forme par
-/// [`ConsoleFormat`], et rend ce qui en est sorti.
-fn console(corps: impl FnOnce()) -> String {
-    let tampon = Tampon::neuf();
-    let souscripteur = tracing_subscriber::fmt()
+/// Emits `body`'s events into a console formatted by [`ConsoleFormat`], and
+/// returns what came out of it.
+fn console(body: impl FnOnce()) -> String {
+    let buffer = Buffer::new();
+    let subscriber = tracing_subscriber::fmt()
         .event_format(ConsoleFormat::new())
-        .with_writer(tampon.clone())
+        .with_writer(buffer.clone())
         .with_max_level(tracing::Level::TRACE)
         .finish();
-    tracing::subscriber::with_default(souscripteur, corps);
-    tampon.lu()
+    tracing::subscriber::with_default(subscriber, body);
+    buffer.read()
 }
 
-/// À partir d'`info`, le message se suffit à lui-même. Répéter les champs
-/// qu'il contient déjà doublerait la ligne sans rien apprendre — ils restent
-/// dans le fichier et dans Sentry, où ils servent à filtrer.
+/// From `info` on, the message stands on its own. Repeating the fields it
+/// already carries would double the line without teaching anything new —
+/// they stay in the file and in Sentry, where they're used to filter.
 #[test]
-fn a_partir_d_info_seul_le_message_s_affiche() {
-    let sorti = console(|| {
-        tracing::info!(mods = 7, duree_ms = 1234, "instance installée");
+fn from_info_on_only_the_message_shows() {
+    let output = console(|| {
+        tracing::info!(mods = 7, duration_ms = 1234, "instance installed");
     });
 
     assert!(
-        sorti.contains("instance installée"),
-        "message absent : {sorti}"
+        output.contains("instance installed"),
+        "message missing: {output}"
     );
     assert!(
-        !sorti.contains("duree_ms"),
-        "les champs noient la ligne : {sorti}"
+        !output.contains("duration_ms"),
+        "the fields drown out the line: {output}"
     );
 }
 
-/// En `debug`, les champs *sont* l'information : le message n'est qu'une
-/// étiquette au-dessus d'eux.
+/// At `debug`, the fields *are* the information: the message is just a
+/// label above them.
 #[test]
-fn en_debug_les_champs_sont_l_information() {
-    let sorti = console(|| {
-        tracing::debug!(slug = "jei", version = "19.51.0", "mod retenu");
+fn at_debug_the_fields_are_the_information() {
+    let output = console(|| {
+        tracing::debug!(slug = "jei", version = "19.51.0", "mod retained");
     });
 
-    assert!(sorti.contains("jei"), "champs absents : {sorti}");
-    assert!(sorti.contains("19.51.0"), "champs absents : {sorti}");
+    assert!(output.contains("jei"), "fields missing: {output}");
+    assert!(output.contains("19.51.0"), "fields missing: {output}");
 }
 
-/// Le temps écoulé depuis le démarrage, pas l'heure absolue : savoir qu'une
-/// étape a pris 4,2 s renseigne, savoir qu'il était 01:18:38 non.
+/// Time elapsed since startup, not the absolute time: knowing a step took
+/// 4.2s is informative, knowing it was 01:18:38 isn't.
 #[test]
-fn chaque_ligne_porte_le_temps_ecoule_et_son_niveau() {
-    let sorti = console(|| {
-        tracing::warn!("clé refusée");
+fn each_line_carries_the_elapsed_time_and_its_level() {
+    let output = console(|| {
+        tracing::warn!("key rejected");
     });
 
-    let ligne = sorti.lines().next().expect("une ligne au moins");
-    assert!(ligne.contains('s'), "pas de durée : {ligne}");
-    assert!(ligne.contains("WARN"), "pas de niveau : {ligne}");
-    // Deux décimales suffisent à situer une étape ; la nanoseconde du format
-    // par défaut ne sert qu'à allonger la ligne.
+    let line = output.lines().next().expect("at least one line");
+    assert!(line.contains('s'), "no duration: {line}");
+    assert!(line.contains("WARN"), "no level: {line}");
+    // Two decimals are enough to place a step; the default format's
+    // nanosecond only serves to lengthen the line.
     assert!(
-        ligne.split('s').next().unwrap().contains('.'),
-        "durée sans décimale : {ligne}"
+        line.split('s').next().unwrap().contains('.'),
+        "duration without a decimal: {line}"
     );
 }
 
-/// L'horloge est capturée une fois à la construction. La recréer à chaque
-/// ligne afficherait zéro partout — ce fut le premier essai.
+/// The clock is captured once at construction. Recreating it on every line
+/// would show zero everywhere — that was the first attempt.
 #[test]
-fn l_horloge_ne_repart_pas_de_zero_a_chaque_ligne() {
+fn the_clock_does_not_restart_from_zero_on_every_line() {
     let format = ConsoleFormat::new();
     std::thread::sleep(std::time::Duration::from_millis(20));
 
-    let tampon = Tampon::neuf();
-    let souscripteur = tracing_subscriber::fmt()
+    let buffer = Buffer::new();
+    let subscriber = tracing_subscriber::fmt()
         .event_format(format)
-        .with_writer(tampon.clone())
+        .with_writer(buffer.clone())
         .finish();
-    tracing::subscriber::with_default(souscripteur, || tracing::info!("plus tard"));
+    tracing::subscriber::with_default(subscriber, || tracing::info!("later"));
 
-    let sorti = tampon.lu();
+    let output = buffer.read();
     assert!(
-        !sorti.trim_start().starts_with("0.00s"),
-        "l'horloge est repartie de zéro : {sorti}"
+        !output.trim_start().starts_with("0.00s"),
+        "the clock restarted from zero: {output}"
     );
 }
 
-/// Un message peut arriver au visiteur comme chaîne plutôt que par son
-/// `Debug` : c'est le cas dès qu'on le passe en champ nommé, ce que fait
-/// `tracing::error!(message = %erreur)` un peu partout dans le launcher. Les
-/// deux chemins doivent rendre la même ligne — sinon la console reste muette
-/// précisément là où l'on regarde, et sans guillemets d'un côté, avec de
-/// l'autre.
+/// A message can reach the visitor as a string rather than through its
+/// `Debug` impl: that's the case as soon as it's passed as a named field,
+/// which `tracing::error!(message = %error)` does all over the launcher.
+/// Both paths must render the same line — otherwise the console stays quiet
+/// precisely where one is looking, quoted on one side and not on the other.
 #[test]
-fn un_message_passe_en_champ_nomme_s_affiche_comme_les_autres() {
-    let sorti = console(|| {
-        tracing::info!(message = "le pack est à jour");
+fn a_message_passed_as_a_named_field_shows_like_the_others() {
+    let output = console(|| {
+        tracing::info!(message = "the pack is up to date");
     });
 
     assert!(
-        sorti.contains("le pack est à jour"),
-        "message absent : {sorti}"
+        output.contains("the pack is up to date"),
+        "message missing: {output}"
     );
-    // Rendu comme une chaîne, et non par son `Debug` : celui-ci l'entourerait
-    // de guillemets.
+    // Rendered as a string, not through its `Debug` impl: that would
+    // surround it with quotes.
     assert!(
-        !sorti.contains("\"le pack est à jour\""),
-        "message échappé : {sorti}"
+        !output.contains("\"the pack is up to date\""),
+        "message escaped: {output}"
     );
 }

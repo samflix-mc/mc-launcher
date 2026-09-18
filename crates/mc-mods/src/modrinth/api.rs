@@ -1,4 +1,4 @@
-//! Les formes que l'API rend, telles qu'elle les rend.
+//! The shapes the API renders, exactly as it renders them.
 
 use serde::Deserialize;
 

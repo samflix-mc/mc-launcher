@@ -1,118 +1,115 @@
-//! Ce que le launcher répond quand on lui demande où il en est, sans ouvrir
-//! de fenêtre.
+//! What the launcher answers when asked where it stands, without opening a
+//! window.
 //!
-//! `mc-pack diagnostic` existe déjà et sert au dépannage d'un joueur. Celui-ci
-//! répond à une autre question, et c'est la CI qui la pose : **le binaire
-//! qu'on vient de publier est-il celui qu'on croit ?** Un `.deb` construit
-//! sans `SAMFLIX_ENV` compile, s'installe, se lance — et va chercher le pack
-//! de développement. Rien ne le signale, puisque le défaut est le silence.
+//! `mc-pack diagnostic` already exists and helps troubleshoot for a player.
+//! This one answers a different question, and it's CI that asks it: **is
+//! the binary we just published the one we think it is?** A `.deb` built
+//! without `SAMFLIX_ENV` compiles, installs, runs — and goes fetch the
+//! development pack. Nothing signals it, since the default is silence.
 //!
-//! D'où un drapeau et non une sous-commande : le binaire est une application
-//! graphique, pas un outil en ligne de commande, et il ne doit pas gagner une
-//! grammaire d'arguments qu'un joueur pourrait rencontrer par accident.
+//! Hence a flag and not a subcommand: the binary is a graphical
+//! application, not a command-line tool, and it must not gain an argument
+//! grammar a player could stumble into by accident.
 //!
-//! ## Pourquoi la vérification du publié ne porte que sur Linux et macOS
+//! ## Why the published-build check only covers Linux and macOS
 //!
-//! `main.rs` pose `windows_subsystem = "windows"` en release : le processus
-//! n'a pas de console attachée, et `println!` écrit dans un descripteur qui ne
-//! mène nulle part. `AttachConsole(ATTACH_PARENT_PROCESS)` le rattacherait,
-//! mais le shell appelant ne l'attend pas et rend la main avant la première
-//! ligne — un `grep` de CI y serait instable selon qu'on l'appelle depuis
-//! cmd.exe ou PowerShell. Un contrôle qui échoue une fois sur trois se
-//! désactive au bout d'un mois, et emporte avec lui les deux fois sur trois
-//! où il disait vrai.
+//! `main.rs` sets `windows_subsystem = "windows"` in release: the process
+//! has no attached console, and `println!` writes to a descriptor that
+//! leads nowhere. `AttachConsole(ATTACH_PARENT_PROCESS)` would reattach it,
+//! but the calling shell doesn't wait for it and returns before the first
+//! line — a CI `grep` would be unstable there depending on whether it's
+//! called from cmd.exe or PowerShell. A check that fails one time in three
+//! gets disabled within a month, and takes with it the two times out of
+//! three it was telling the truth.
 //!
-//! Le drapeau fonctionne malgré tout sous Windows en compilation de
-//! développement, où `windows_subsystem` n'est pas posé.
+//! The flag works under Windows regardless, in development builds, where
+//! `windows_subsystem` isn't set.
 
 use std::fmt::Write as _;
 
-/// Le drapeau qui déclenche le diagnostic au lieu de la fenêtre.
-const DRAPEAU: &str = "--diagnostic";
+/// The flag that triggers the diagnostic instead of the window.
+const FLAG: &str = "--diagnostic";
 
-/// Le diagnostic est-il demandé ?
+/// Is the diagnostic requested?
 ///
-/// Prend les arguments plutôt que de les lire : c'est ce qui rend la décision
-/// vérifiable sans lancer de processus.
-pub fn demande<I, S>(arguments: I) -> bool
+/// Takes the arguments rather than reading them: that's what makes the
+/// decision verifiable without launching a process.
+pub fn requested<I, S>(arguments: I) -> bool
 where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    arguments.into_iter().any(|a| a.as_ref() == DRAPEAU)
+    arguments.into_iter().any(|a| a.as_ref() == FLAG)
 }
 
-/// Ce que le binaire sait de lui-même, en un texte.
+/// What the binary knows about itself, as text.
 ///
-/// Rend une chaîne au lieu d'imprimer : l'impression appartient à
-/// l'appelant, et une fonction qui rend son texte se compare dans un test.
-pub fn rapport(dmabuf_desactive: bool) -> String {
-    let mut texte = String::new();
+/// Returns a string instead of printing: printing belongs to the caller,
+/// and a function that returns its text can be compared in a test.
+pub fn report(dmabuf_disabled: bool) -> String {
+    let mut text = String::new();
 
-    // Le nom d'abord : c'est la seule ligne qui distingue deux binaires
-    // construits depuis le même commit avec deux `MC_LAUNCHER_NOM`.
-    let _ = writeln!(texte, "Launcher");
-    let _ = writeln!(texte, "  nom           : {}", crate::marque::nom());
+    // The name first: it's the only line that distinguishes two binaries
+    // built from the same commit with two different `MC_LAUNCHER_NAME`.
+    let _ = writeln!(text, "Launcher");
+    let _ = writeln!(text, "  name          : {}", crate::brand::name());
     let _ = writeln!(
-        texte,
+        text,
         "  version       : {}",
-        option_env!("CARGO_PKG_VERSION").unwrap_or("inconnue")
+        option_env!("CARGO_PKG_VERSION").unwrap_or("unknown")
     );
 
-    // La ligne que la CI oppose au tag. `origin()` dit d'où vient la valeur,
-    // ce qui distingue « posée à la compilation » de « retombée sur le
-    // défaut » — et c'est précisément cette distinction que le contrôle
-    // cherche.
+    // The line CI compares against the tag. `origin()` says where the value
+    // comes from, which distinguishes "set at build time" from "fell back
+    // to the default" — and that's precisely the distinction this check is
+    // looking for.
     let _ = writeln!(
-        texte,
-        "  environnement : {} ({})",
+        text,
+        "  environment   : {} ({})",
         mc_log::environment::current().as_str(),
         mc_log::environment::origin()
     );
 
-    let _ = writeln!(texte, "\nRendu");
+    let _ = writeln!(text, "\nRendering");
     let _ = writeln!(
-        texte,
+        text,
         "  DMA-BUF       : {}",
-        if dmabuf_desactive {
-            "désactivé (pilote NVIDIA détecté)"
+        if dmabuf_disabled {
+            "disabled (NVIDIA driver detected)"
         } else {
-            "laissé à WebKit"
+            "left to WebKit"
         }
     );
 
-    // Les quatre racines, et la mention de leur provenance.
+    // The four roots, and where they come from.
     //
-    // `--diagnostic` répond AVANT que la fenêtre ne soit construite : le
-    // résolveur de Tauri n'a donc pas encore parlé, et ce qu'on montre ici est
-    // ce que l'environnement dit. C'est écrit noir sur blanc plutôt que
-    // supposé : les deux peuvent diverger, et c'est précisément le genre
-    // d'écart qu'un joueur signale par « il ne retrouve pas mes mods ».
-    let _ = writeln!(texte, "\nEmplacements (de l'environnement)");
-    let emplacements = mc_chemins::courants();
-    for (nom, chemin) in emplacements.enumerer() {
-        let _ = writeln!(texte, "  {nom:<13} : {}", chemin.display());
+    // `--diagnostic` answers BEFORE the window is built: Tauri's resolver
+    // hasn't spoken yet, so what's shown here is what the environment says.
+    // It's written in black and white rather than assumed: the two can
+    // diverge, and that's precisely the kind of drift a player reports as
+    // "it can't find my mods".
+    let _ = writeln!(text, "\nLocations (from the environment)");
+    let locations = mc_paths::current();
+    for (name, path) in locations.list() {
+        let _ = writeln!(text, "  {name:<13} : {}", path.display());
     }
-    if !mc_chemins::poses() {
-        let _ = writeln!(
-            texte,
-            "  (l'application pose ceux de Tauri au démarrage de la fenêtre)"
-        );
+    if !mc_paths::placed() {
+        let _ = writeln!(text, "  (the application sets Tauri's at window startup)");
     }
 
-    let _ = writeln!(texte, "\nJournaux et incidents");
-    let _ = writeln!(texte, "  répertoire    : {}", mc_log::log_dir().display());
+    let _ = writeln!(text, "\nLogs and incidents");
+    let _ = writeln!(text, "  directory     : {}", mc_log::log_dir().display());
     let _ = writeln!(
-        texte,
-        "  télémétrie    : {}",
+        text,
+        "  telemetry     : {}",
         if mc_log::telemetry_active() {
-            "active — couper avec SAMFLIX_TELEMETRY=0"
+            "active — turn off with SAMFLIX_TELEMETRY=0"
         } else {
-            "coupée"
+            "off"
         }
     );
 
-    texte
+    text
 }
 
 #[cfg(test)]

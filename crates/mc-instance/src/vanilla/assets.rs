@@ -1,17 +1,17 @@
-//! Les milliers d'objets qu'une version référence.
+//! The thousands of objects a version references.
 
 use anyhow::{Context, Result};
 use mc_dl::{Check, Checksum, Downloader};
 use std::path::Path;
 
-use super::descripteur::{AssetIndex, AssetIndexRef, AssetObject};
+use super::descriptor::{AssetIndex, AssetIndexRef, AssetObject};
 use super::{PARALLEL, RESOURCES};
 
 #[tracing::instrument(name = "assets", skip_all, fields(index = %index.id))]
-/// Hors de portée des tests de mutation : cette fonction descend les milliers
-/// d'objets que Mojang publie, par une adresse écrite dans ce module. Ce
-/// qu'elle en compte se vérifie — voir [`compter_les_telechargements`] —, et
-/// le téléchargement lui-même est vérifié chez mc-dl.
+/// Out of scope for mutation testing: this function pulls down the thousands
+/// of objects Mojang publishes, at an address written into this module. What
+/// it counts is verifiable — see [`count_downloads`] — and the download
+/// itself is verified in mc-dl.
 #[mutants::skip]
 pub(super) async fn install_assets(
     index: &AssetIndexRef,
@@ -30,26 +30,26 @@ pub(super) async fn install_assets(
         Check::Full(&Checksum::Sha1(index.sha1.clone())),
     )
     .await
-    .context("téléchargement de l'index des assets")?;
+    .context("downloading the asset index")?;
 
     let parsed: AssetIndex = serde_json::from_slice(&tokio::fs::read(&index_path).await?)
-        .context("index des assets illisible")?;
+        .context("unreadable asset index")?;
     let objects = shared.join("assets").join("objects");
 
-    // L'index est lu avant de commencer : c'est le seul moment où l'on sait ce
-    // que pèse l'étape la plus longue de l'installation. Sans cette annonce,
-    // aucun temps restant n'est calculable — les octets arriveraient sans
-    // qu'on sache jamais combien il en manque.
-    let attendus: Vec<_> = parsed.objects.into_values().collect();
-    dl.signaler(mc_dl::Avancement::Lot {
-        fichiers: attendus.len(),
-        octets: poids(&attendus),
+    // The index is read before starting: it's the only moment where we know
+    // how much the longest step of the installation weighs. Without this
+    // announcement, no remaining time is computable — bytes would arrive
+    // without ever knowing how many are still missing.
+    let expected: Vec<_> = parsed.objects.into_values().collect();
+    dl.emit(mc_dl::Progress::Batch {
+        files: expected.len(),
+        bytes: weight(&expected),
     });
 
-    let results: Vec<Result<mc_dl::Fetched>> = stream::iter(attendus)
+    let results: Vec<Result<mc_dl::Fetched>> = stream::iter(expected)
         .map(|object| {
-            // Les objets sont adressés par leur empreinte : deux versions du
-            // jeu partagent tout ce qui n'a pas changé.
+            // Objects are addressed by their digest: two versions of the game
+            // share everything that hasn't changed.
             let prefix = &object.hash[..2];
             let dest = objects.join(prefix).join(&object.hash);
             let url = format!("{RESOURCES}/{prefix}/{}", object.hash);
@@ -72,42 +72,42 @@ pub(super) async fn install_assets(
         .await;
 
     let total = results.len();
-    let downloaded = compter_les_telechargements(results)?;
-    // L'étape la plus longue d'une première installation, et la plus muette
-    // d'une seconde : dire combien d'objets ont été passés explique pourquoi.
+    let downloaded = count_downloads(results)?;
+    // The longest step of a first installation, and the quietest of a second
+    // one: saying how many objects were skipped explains why.
     tracing::info!(
         total,
-        telecharges = downloaded,
-        deja_presents = total - downloaded,
-        "{downloaded} assets téléchargés sur {total} ({} déjà présents)",
+        downloaded,
+        already_present = total - downloaded,
+        "{downloaded} assets downloaded out of {total} ({} already present)",
         total - downloaded
     );
     Ok(downloaded)
 }
 
-/// Ce que pèse le lot, avant d'en avoir descendu le premier octet.
+/// What the batch weighs, before a single byte of it has been pulled down.
 ///
-/// Séparée de la boucle pour être vérifiable : une somme fausse ne se voit
-/// nulle part ailleurs qu'en regardant une barre de progression se tromper.
-fn poids(objets: &[AssetObject]) -> u64 {
-    objets.iter().map(|objet| objet.size).sum()
+/// Separated from the loop to be verifiable: a wrong sum shows up nowhere
+/// else than by watching a progress bar get it wrong.
+fn weight(objects: &[AssetObject]) -> u64 {
+    objects.iter().map(|object| object.size).sum()
 }
 
-/// Combien d'objets ont été réellement téléchargés, sur ceux qu'on a demandés.
+/// How many objects were actually downloaded, out of the ones requested.
 ///
-/// La première erreur rencontrée arrête tout : un asset manquant fait une
-/// texture absente, pas un jeu qui refuse de démarrer, et l'on préfère le
-/// savoir tout de suite. Le compte, lui, sépare une première installation —
-/// des milliers d'objets — d'une seconde, où tout est déjà là : c'est la seule
-/// explication qu'on ait de l'attente.
-fn compter_les_telechargements(resultats: Vec<Result<mc_dl::Fetched>>) -> Result<usize> {
-    let mut telecharges = 0;
-    for resultat in resultats {
-        if resultat? == mc_dl::Fetched::Downloaded {
-            telecharges += 1;
+/// The first error encountered stops everything: a missing asset makes a
+/// texture disappear, not a game that refuses to start, and we'd rather know
+/// right away. The count, meanwhile, separates a first installation —
+/// thousands of objects — from a second one, where everything is already
+/// there: it's the only explanation we have for the wait.
+fn count_downloads(results: Vec<Result<mc_dl::Fetched>>) -> Result<usize> {
+    let mut downloaded = 0;
+    for result in results {
+        if result? == mc_dl::Fetched::Downloaded {
+            downloaded += 1;
         }
     }
-    Ok(telecharges)
+    Ok(downloaded)
 }
 
 #[cfg(test)]

@@ -2541,14 +2541,14 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mc-auth",
- "mc-chemins",
  "mc-dl",
  "mc-instance",
  "mc-java",
  "mc-log",
- "mc-nouvelles",
+ "mc-news",
  "mc-pack",
- "mc-reglages",
+ "mc-paths",
+ "mc-settings",
  "serde",
  "serde_json",
  "tauri",
@@ -2564,9 +2564,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "keyring",
- "mc-chemins",
- "mc-essais",
  "mc-log",
+ "mc-paths",
+ "mc-testkit",
  "md-5",
  "minecraft-auth",
  "mutants",
@@ -2578,17 +2578,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "mc-chemins"
-version = "0.1.0"
-
-[[package]]
 name = "mc-dl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures-util",
  "hex",
- "mc-essais",
+ "mc-testkit",
  "md-5",
  "reqwest 0.12.28",
  "sha1",
@@ -2598,20 +2594,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "mc-essais"
-version = "0.1.0"
-dependencies = [
- "tokio",
-]
-
-[[package]]
 name = "mc-instance"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures-util",
- "mc-chemins",
  "mc-dl",
+ "mc-paths",
  "mutants",
  "serde",
  "serde_json",
@@ -2625,10 +2614,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "flate2",
- "mc-chemins",
  "mc-dl",
- "mc-essais",
  "mc-log",
+ "mc-paths",
+ "mc-testkit",
  "serde",
  "serde_json",
  "tar",
@@ -2641,8 +2630,8 @@ dependencies = [
 name = "mc-log"
 version = "0.1.0"
 dependencies = [
- "mc-chemins",
  "mc-dl",
+ "mc-paths",
  "sentry",
  "sentry-tracing",
  "time",
@@ -2657,9 +2646,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures-util",
- "mc-chemins",
  "mc-dl",
- "mc-essais",
+ "mc-paths",
+ "mc-testkit",
  "mutants",
  "reqwest 0.12.28",
  "serde",
@@ -2671,12 +2660,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "mc-nouvelles"
+name = "mc-news"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "mc-dl",
- "mc-essais",
+ "mc-testkit",
  "mutants",
  "serde",
  "serde_json",
@@ -2690,13 +2679,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mc-auth",
- "mc-chemins",
  "mc-dl",
- "mc-essais",
  "mc-instance",
  "mc-java",
  "mc-log",
  "mc-mods",
+ "mc-paths",
+ "mc-testkit",
  "mutants",
  "sentry",
  "serde",
@@ -2706,16 +2695,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "mc-reglages"
+name = "mc-paths"
+version = "0.1.0"
+
+[[package]]
+name = "mc-settings"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "mc-chemins",
  "mc-dl",
+ "mc-paths",
  "mutants",
  "serde",
  "serde_json",
  "tracing",
+]
+
+[[package]]
+name = "mc-testkit"
+version = "0.1.0"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]

@@ -1,0 +1,66 @@
+<div class="hm-playbar" data-test="playbar">
+  <!--
+    The line that says WHY the button is what it is. The design system wants
+    it above, at twelve pixels, with a drop shadow: it sits on the image,
+    not on a panel.
+  -->
+  <span class="hm-playbar__hint" [class.hm-playbar__hint--danger]="hint().danger" data-test="hint">
+    @if (hint().danger) {
+      <lucide-icon [img]="WifiOff" [size]="12" [strokeWidth]="2" aria-hidden="true" />
+    }
+    {{ hint().text }}
+  </span>
+
+  <!--
+    What's REALLY happening, during work: the current file, the file count,
+    the bytes, the rate and the time remaining.
+
+    Absent at rest, and that's deliberate: it doesn't reserve its spot. The
+    bottom bar is centered and carries nothing else — an empty line waiting
+    to be filled would shift the button sixteen pixels up for the whole
+    session.
+  -->
+  @if (detail(); as line) {
+    <span class="hm-playbar__detail" data-test="detail">{{ line }}</span>
+  }
+
+  <button
+    type="button"
+    class="hm-play"
+    [class.hm-play--busy]="look() === 'busy'"
+    [class.hm-play--disabled]="look() === 'inert'"
+    [attr.aria-busy]="look() === 'busy' ? 'true' : null"
+    [attr.aria-disabled]="look() === 'inert' ? 'true' : null"
+    [disabled]="look() !== 'ready'"
+    [attr.data-state]="button()"
+    (click)="act()"
+    data-test="button"
+  >
+    @if (look() === 'busy') {
+      <!--
+        The fill. `--p` carries the percentage; with no known value, the
+        indeterminate variant slides, which says "something is happening"
+        without pretending to know where we are.
+
+        This is the design system's bar, not a `<progress>`: under the
+        launcher's WebKitGTK, a native indeterminate bar would render as a
+        FROZEN block at fifty percent as soon as `appearance` is turned off.
+      -->
+      @if (fill(); as percent) {
+        <span class="hm-play__fill" [style.--p]="percent" data-test="fill"></span>
+      } @else {
+        <span class="hm-play__fill hm-play__fill--indeterminate" data-test="fill"></span>
+      }
+    }
+
+    @if (icon(); as mark) {
+      <lucide-icon [img]="mark" [size]="22" [strokeWidth]="2.25" aria-hidden="true" />
+    }
+
+    <span class="hm-play__label">{{ label() }}</span>
+
+    @if (meta(); as detail) {
+      <span class="hm-play__meta" data-test="meta">{{ detail }}</span>
+    }
+  </button>
+</div>

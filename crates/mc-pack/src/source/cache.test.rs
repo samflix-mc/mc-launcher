@@ -2,32 +2,32 @@ use super::{PathBuf, cache_dir_for, file_name_of, is_url, lock_url_for};
 use crate::source::Source;
 
 #[test]
-fn une_adresse_se_reconnait_a_son_protocole() {
+fn an_address_is_recognized_by_its_protocol() {
     assert!(is_url("https://mc-launcher.ggy.info/pack/samflix.json"));
-    assert!(is_url("HTTP://exemple.invalid/x.json"));
+    assert!(is_url("HTTP://example.invalid/x.json"));
     assert!(!is_url("packs/samflix.json"));
     assert!(!is_url("/var/tmp/samflix.json"));
 }
 
 #[test]
-fn le_verrou_distant_se_deduit_du_manifeste() {
+fn the_remote_lock_is_derived_from_the_manifest() {
     assert_eq!(
-        lock_url_for("https://exemple.invalid/pack/samflix.json"),
-        "https://exemple.invalid/pack/samflix.lock.json"
+        lock_url_for("https://example.invalid/pack/samflix.json"),
+        "https://example.invalid/pack/samflix.lock.json"
     );
 }
 
 #[test]
-fn le_nom_de_fichier_ignore_la_requete() {
+fn the_file_name_ignores_the_query_string() {
     assert_eq!(
-        file_name_of("https://exemple.invalid/pack/samflix.json?v=3"),
+        file_name_of("https://example.invalid/pack/samflix.json?v=3"),
         "samflix.json"
     );
-    assert_eq!(file_name_of("https://exemple.invalid/pack/"), "pack.json");
+    assert_eq!(file_name_of("https://example.invalid/pack/"), "pack.json");
 }
 
 #[test]
-fn deux_environnements_ne_partagent_pas_leur_cache() {
+fn two_environments_do_not_share_their_cache() {
     let layout = mc_instance::Layout::new(PathBuf::from("/data"));
     let prod = cache_dir_for("https://mc-launcher.ggy.info/pack/samflix.json", &layout);
     let dev = cache_dir_for(
@@ -39,7 +39,7 @@ fn deux_environnements_ne_partagent_pas_leur_cache() {
 }
 
 #[test]
-fn un_chemin_reste_un_chemin() {
+fn a_path_stays_a_path() {
     let layout = mc_instance::Layout::new(PathBuf::from("/data"));
     let source = Source::parse("packs/samflix.json", &layout);
     assert!(!source.is_remote());

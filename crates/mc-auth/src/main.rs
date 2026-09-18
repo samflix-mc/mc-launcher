@@ -1,75 +1,75 @@
-//! Gère la session Microsoft du launcher, et permet de la vérifier.
+//! Manages the launcher's Microsoft session, and lets it be checked.
 //!
-//!     mc-auth login              ouvre une session et l'enregistre
-//!     mc-auth whoami             affiche la session enregistrée
-//!     mc-auth logout             oublie la session
-//!     mc-auth --offline <PSEUDO> profil local, sans Microsoft
+//!     mc-auth login              opens a session and saves it
+//!     mc-auth whoami             shows the saved session
+//!     mc-auth logout             forgets the session
+//!     mc-auth --offline <NICKNAME> local profile, no Microsoft
 //!
-//! La connexion présente l'identité du launcher officiel : voir la doc du
-//! crate et le README pour ce que ce choix implique.
+//! Signing in presents the identity of the official launcher: see the
+//! crate's docs and the README for what that choice implies.
 
 use anyhow::{Result, bail};
 
-mod commandes;
+mod commands;
 
-/// Ce que la ligne de commande demande.
+/// What the command line asks for.
 #[derive(Debug, PartialEq, Eq)]
-enum Commande {
+enum Command {
     Login,
     Whoami,
     Logout,
-    HorsLigne(String),
+    Offline(String),
 }
 
-/// Lecture des arguments, séparée de ce qu'ils déclenchent.
+/// Reading the arguments, separate from what they trigger.
 ///
-/// Trois des quatre commandes contactent Microsoft ou touchent au fichier de
-/// session ; l'aiguillage, lui, se vérifie seul.
-fn analyser(args: &[String]) -> Result<Commande> {
+/// Three of the four commands contact Microsoft or touch the session file;
+/// the dispatch itself checks out on its own.
+fn parse(args: &[String]) -> Result<Command> {
     match args.first().map(String::as_str) {
-        Some("login") => Ok(Commande::Login),
-        Some("whoami") => Ok(Commande::Whoami),
-        Some("logout") => Ok(Commande::Logout),
+        Some("login") => Ok(Command::Login),
+        Some("whoami") => Ok(Command::Whoami),
+        Some("logout") => Ok(Command::Logout),
         Some("--offline") => match args.get(1) {
-            Some(pseudo) => Ok(Commande::HorsLigne(pseudo.clone())),
-            None => bail!("usage : mc-auth --offline <PSEUDO>"),
+            Some(nickname) => Ok(Command::Offline(nickname.clone())),
+            None => bail!("usage: mc-auth --offline <NICKNAME>"),
         },
-        _ => bail!("commande attendue"),
+        _ => bail!("a command is required"),
     }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Ce binaire manipule des jetons : la censure de mc-log s'applique à tout
-    // ce qui sort, journal de fichier compris.
+    // This binary handles tokens: mc-log's redaction applies to everything
+    // it outputs, including the file log.
     let _log = mc_log::init("mc-auth");
 
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let commande = match analyser(&args) {
-        Ok(commande) => commande,
-        Err(erreur) => {
+    let command = match parse(&args) {
+        Ok(command) => command,
+        Err(error) => {
             usage();
-            return Err(erreur);
+            return Err(error);
         }
     };
 
-    match commande {
-        Commande::Login => commandes::login().await,
-        Commande::Whoami => commandes::whoami().await,
-        Commande::Logout => commandes::logout(),
-        Commande::HorsLigne(pseudo) => {
-            commandes::hors_ligne(&pseudo);
+    match command {
+        Command::Login => commands::login().await,
+        Command::Whoami => commands::whoami().await,
+        Command::Logout => commands::logout(),
+        Command::Offline(nickname) => {
+            commands::offline(&nickname);
             Ok(())
         }
     }
 }
 
 fn usage() {
-    eprintln!("usage :");
-    eprintln!("  mc-auth login              ouvre une session et l'enregistre");
-    eprintln!("  mc-auth whoami             affiche la session enregistrée");
-    eprintln!("  mc-auth logout             oublie la session");
-    eprintln!("  mc-auth --offline <PSEUDO> profil local, sans Microsoft");
+    eprintln!("usage:");
+    eprintln!("  mc-auth login              opens a session and saves it");
+    eprintln!("  mc-auth whoami             shows the saved session");
+    eprintln!("  mc-auth logout             forgets the session");
+    eprintln!("  mc-auth --offline <NICKNAME> local profile, no Microsoft");
 }
 
 #[cfg(test)]

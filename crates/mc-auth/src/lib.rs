@@ -1,58 +1,57 @@
-//! Authentification Minecraft Java : en ligne, ou hors-ligne.
+//! Minecraft Java authentication: online, or offline.
 //!
-//! ## Pourquoi ce crate ne parle plus à une application Azure
+//! ## Why this crate no longer talks to an Azure application
 //!
-//! Le launcher a longtemps présenté sa propre inscription Azure. Le 16/09/2026,
-//! Mojang Enforcement l'a refusée pour la liste blanche de l'API Minecraft,
-//! sans motif et sans recours. La chaîne Microsoft → Xbox Live → XSTS
-//! fonctionnait pourtant : seul `api.minecraftservices.com` répondait 403,
-//! `{"errorMessage":"Invalid app registration"}`, sur la seule foi de
-//! l'identifiant d'application.
+//! The launcher long presented its own Azure registration. On 2026-09-16,
+//! Mojang Enforcement refused it for the Minecraft API allowlist, with no
+//! reason given and no appeal. The Microsoft → Xbox Live → XSTS chain still
+//! worked: only `api.minecraftservices.com` answered 403,
+//! `{"errorMessage":"Invalid app registration"}`, purely on the strength of
+//! the application ID.
 //!
-//! La voie retenue est celle de LiquidBounce, passé par le même refus :
-//! s'authentifier avec l'identité du **launcher officiel**
-//! (`00000000402b5328`, un *title ID* et non un UUID Azure), via le crate
-//! `minecraft-auth`. Le flux n'est pas le même — MSA historique, jeton
-//! d'appareil signé ECDSA P-256, SISU en un appel, `/launcher/login` — et c'est
-//! la bibliothèque qui le porte.
+//! The path taken is the one LiquidBounce took, having hit the same refusal:
+//! authenticate with the identity of the **official launcher**
+//! (`00000000402b5328`, a *title ID*, not an Azure UUID), through the
+//! `minecraft-auth` crate. The flow isn't the same — legacy MSA, an
+//! ECDSA P-256-signed device token, SISU in a single call, `/launcher/login`
+//! — and it's the library that carries it.
 //!
-//! ## Ce que ce choix coûte
+//! ## What this choice costs
 //!
-//! Ce n'est pas une approbation obtenue, c'est un filtrage contourné. Cela
-//! enfreint les conditions d'utilisation de Microsoft et de Mojang. Aucun
-//! bannissement lié à cette méthode n'est documenté à ce jour, mais le risque
-//! résiduel porterait sur **les joueurs**, pas seulement sur le mainteneur. Le
-//! README l'énonce, pour que le choix soit informé.
+//! This isn't an approval obtained, it's a filter bypassed. It breaches
+//! Microsoft's and Mojang's terms of service. No ban tied to this method is
+//! documented so far, but the residual risk would fall on **the players**,
+//! not just the maintainer. The README states it, so the choice is informed.
 //!
-//! ## Hors-ligne
+//! ## Offline
 //!
-//! [`offline_session`] reste, et n'a pas changé : elle sert au développement et
-//! aux serveurs `online-mode=false`, dont ceux du réseau. Elle ne dépend de
-//! rien de tout ce qui précède.
+//! [`offline_session`] stays, unchanged: it serves development and
+//! `online-mode=false` servers, including the network's own. It depends on
+//! none of the above.
 
 mod auth;
-mod hors_ligne;
-mod stockage;
+mod offline;
+mod storage;
 
 pub use auth::{Auth, DeviceCode};
-pub use hors_ligne::offline_session;
-pub use stockage::{charger, chemin, effacer, enregistrer};
+pub use offline::offline_session;
+pub use storage::{erase, load, path, save};
 
-/// Le joueur, tel que le jeu doit l'annoncer.
+/// The player, as the game must announce them.
 ///
-/// `id` est l'UUID en hexadécimal **sans tirets** : c'est la forme que le jeu
-/// attend sur sa ligne de commande, et celle que produit déjà
-/// [`offline_session`].
+/// `id` is the UUID in hexadecimal **without dashes**: it's the form the game
+/// expects on its command line, and the one [`offline_session`] already
+/// produces.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Profile {
     pub id: String,
     pub name: String,
 }
 
-/// Une session prête à lancer le jeu.
+/// A session ready to launch the game.
 ///
-/// Le jeton est vide en mode hors-ligne : c'est la seule différence visible
-/// d'ici, et le jeu s'en accommode tant que le serveur tourne en
+/// The token is empty in offline mode: that's the only visible difference
+/// from here, and the game copes with it as long as the server runs
 /// `online-mode=false`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Session {
@@ -61,8 +60,8 @@ pub struct Session {
 }
 
 impl Session {
-    /// La session ouvre-t-elle un serveur en ligne ?
-    pub fn est_en_ligne(&self) -> bool {
+    /// Does this session open an online server?
+    pub fn is_online(&self) -> bool {
         !self.minecraft_token.is_empty()
     }
 }

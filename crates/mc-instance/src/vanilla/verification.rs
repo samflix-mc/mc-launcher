@@ -1,24 +1,24 @@
-//! Recontrôler ce qui est déjà installé, et dire ce qu'il faut à la JVM.
+//! Recheck what's already installed, and say what the JVM needs.
 
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
-use super::descripteur::{AssetIndex, Library};
-use super::plateforme::{maven_path, mojang_arch, mojang_os};
-use super::regles::allowed;
+use super::descriptor::{AssetIndex, Library};
+use super::platform::{maven_path, mojang_arch, mojang_os};
+use super::rules::allowed;
 
-/// Recontrôle l'empreinte de tous les objets d'assets déjà installés.
+/// Rechecks the digest of every already-installed asset object.
 ///
-/// Complément de [`Check::Quick`] : l'installation ne compare que les tailles,
-/// cette fonction fait le passage exhaustif quand on veut la certitude.
+/// Complement to [`Check::Quick`]: the installer only compares sizes, this
+/// function does the exhaustive pass when certainty is wanted.
 pub fn verify_assets(shared: &Path, index_id: &str) -> Result<VerifyReport> {
     let index_path = shared
         .join("assets")
         .join("indexes")
         .join(format!("{index_id}.json"));
-    let parsed: AssetIndex = serde_json::from_slice(&std::fs::read(&index_path)?)
-        .context("index des assets illisible")?;
+    let parsed: AssetIndex =
+        serde_json::from_slice(&std::fs::read(&index_path)?).context("unreadable asset index")?;
 
     let objects = shared.join("assets").join("objects");
     let mut report = VerifyReport::default();
@@ -49,23 +49,23 @@ impl VerifyReport {
     }
 }
 
-/// Vue minimale d'un descripteur, limitée à ses bibliothèques.
+/// Minimal view of a descriptor, limited to its libraries.
 ///
-/// Le descripteur que produit NeoForge ne porte ni `assetIndex` ni
-/// `downloads` : il complète celui de la version qu'il désigne par
-/// `inheritsFrom`. Le lire avec la structure complète échouerait, alors que
-/// ses cinquante bibliothèques comptent autant que celles de Mojang.
+/// The descriptor NeoForge produces carries neither `assetIndex` nor
+/// `downloads`: it completes the version it designates via `inheritsFrom`.
+/// Reading it with the full structure would fail, even though its fifty
+/// libraries matter just as much as Mojang's.
 #[derive(Debug, Deserialize)]
 struct LibrariesOnly {
     libraries: Vec<Library>,
 }
 
-/// Bibliothèques retenues pour ce système, chemins relatifs au dépôt partagé.
+/// Libraries kept for this system, paths relative to the shared store.
 ///
-/// S'applique indifféremment au descripteur de Mojang et à celui de NeoForge.
+/// Applies alike to Mojang's descriptor and to NeoForge's.
 pub fn classpath(version_json: &Path, shared: &Path) -> Result<Vec<PathBuf>> {
     let version: LibrariesOnly = serde_json::from_slice(&std::fs::read(version_json)?)
-        .with_context(|| format!("{} illisible", version_json.display()))?;
+        .with_context(|| format!("{} unreadable", version_json.display()))?;
     let os = mojang_os();
     let arch = mojang_arch();
     let root = shared.join("libraries");
@@ -82,7 +82,7 @@ pub fn classpath(version_json: &Path, shared: &Path) -> Result<Vec<PathBuf>> {
             .and_then(|a| a.path.clone())
             .or_else(|| maven_path(&lib.name))
         else {
-            bail!("bibliothèque sans chemin exploitable : {}", lib.name);
+            bail!("library with no usable path: {}", lib.name);
         };
         out.push(root.join(path));
     }

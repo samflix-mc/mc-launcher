@@ -1,0 +1,14 @@
+[package]
+name = "mc-paths"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Where the launcher keeps its things: one single place that decides"
+
+# Aucune dépendance, pas même `anyhow`.
+#
+# C'est ce qui permet à mc-dl — dont tous les autres crates dépendent — de
+# dépendre de celui-ci sans créer de cycle. Et c'est ce qui rend sa couverture
+# entièrement atteignable : rien de ce qu'il fait ne demande un réseau, un
+# disque ou une horloge.
+[dependencies]

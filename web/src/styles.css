@@ -1,56 +1,56 @@
 /*
- * La feuille globale : les polices, le design system, et le socle du launcher.
+ * The global sheet: fonts, the design system, and the launcher's base.
  *
- * ## L'ordre des trois imports est un contrat
+ * ## The order of the three imports is a contract
  *
- * Les polices d'abord — une `@font-face` doit exister avant qu'une règle ne la
- * nomme, sans quoi le premier rendu se fait avec la police de repli et l'on
- * voit le texte sauter. Les jetons ensuite, les composants après : `helm.css`
- * ne contient pas une valeur qui ne vienne de `tokens.css`, et l'inverser
- * laisserait chaque `var()` non résolue.
+ * Fonts first — an `@font-face` must exist before a rule names it,
+ * otherwise the first render happens with the fallback font and text jumps
+ * visibly. Tokens next, components after: `helm.css` doesn't contain a
+ * single value that isn't sourced from `tokens.css`, and reversing the
+ * order would leave every `var()` unresolved.
  *
- * ## Ce que cette feuille a le droit de contenir, après les imports
+ * ## What this sheet is allowed to contain, after the imports
  *
- * Ce qui porte sur des éléments qu'AUCUN composant ne possède : `html`, `body`,
- * la racine. Tout le reste appartient au composant qui le dessine, dans son
- * `styleUrl`, et les classes du design system s'y emploient telles quelles —
- * l'encapsulation émulée d'Angular ne réécrit que les sélecteurs des styles
- * qu'un composant déclare, jamais ceux d'une feuille globale.
+ * Anything that applies to elements NO component owns: `html`, `body`, the
+ * root. Everything else belongs to the component that draws it, in its own
+ * `styleUrl`, and the design system's classes are used there as-is —
+ * Angular's emulated encapsulation only rewrites the selectors of styles a
+ * component declares, never those of a global sheet.
  *
- * ## Pourquoi il n'y a plus ni Tailwind ni daisyUI
+ * ## Why there's no more Tailwind or daisyUI
  *
- * Le design system est complet : il porte son propre socle (`box-sizing`, les
- * marges de `body`, la famille et la taille de base), ses jetons, et six cent
- * vingt lignes de composants. Faire cohabiter deux systèmes coûtait deux fois :
- * une fois en octets, et une fois en incohérences — un bouton daisyUI à côté
- * d'un `.hm-btn` ne se ressemblent pas, et c'est exactement ce qui donnait à
- * l'interface son air de brouillon.
+ * The design system is complete: it carries its own base (`box-sizing`,
+ * `body`'s margins, the base family and size), its tokens, and six hundred
+ * and twenty lines of components. Making two systems coexist cost twice
+ * over: once in bytes, and once in inconsistencies — a daisyUI button next
+ * to a `.hm-btn` don't look alike, and that's exactly what gave the
+ * interface its unfinished feel.
  *
- * Il y avait en plus un piège de cascade : `@import "tailwindcss"` range ses
- * utilitaires dans une couche, et du CSS SANS couche l'emporte sur toute
- * couche, quelle que soit la spécificité. Un utilitaire posé sur un élément que
- * `helm.css` décrit aurait donc été ignoré EN SILENCE.
+ * There was also a cascade trap: `@import "tailwindcss"` files its
+ * utilities into a layer, and CSS WITHOUT a layer beats any layer,
+ * regardless of specificity. A utility set on an element that `helm.css`
+ * describes would therefore have been ignored SILENTLY.
  *
- * ## Le CSP, et ce qui l'a fait desserrer
+ * ## The CSP, and what loosened it
  *
- * `style-src` porte `'unsafe-inline'`, ce qui autorise les `styleUrl` des
- * composants. Ce desserrage ne tient qu'à une condition : aucun balisage ne
- * vient d'ailleurs que du compilateur Angular. Elle est vérifiée par
- * `pnpm invariants`, pas par la bonne volonté. `script-src` reste strict.
+ * `style-src` carries `'unsafe-inline'`, which allows components'
+ * `styleUrl`s. This loosening holds on one condition only: no markup comes
+ * from anywhere but the Angular compiler. It's checked by `pnpm
+ * invariants`, not by good faith. `script-src` stays strict.
  */
 
-/* --- Les polices, servies par le paquet -------------------------------------
+/* --- Fonts, shipped with the bundle -----------------------------------------
 
-   Le design system les fait venir de Google Fonts. Nous ne le pouvons pas :
-   `default-src 'self'` refuserait la requête, et une fenêtre hors ligne — ce
-   qui arrive à un launcher — se retrouverait sans police quoi qu'il arrive.
+   The design system pulls them from Google Fonts. We can't: `default-src
+   'self'` would refuse the request, and an offline window — which happens
+   to a launcher — would end up with no font no matter what.
 
-   Les sous-ensembles sont `latin` et `latin-ext`, et pas davantage : le
-   launcher est en français, et le cyrillique ou le grec seraient deux cents
-   kilooctets qu'aucun écran n'affiche.
+   The subsets are `latin` and `latin-ext`, and no more: the launcher is in
+   English, and Cyrillic or Greek would be two hundred kilobytes no screen
+   displays.
 
-   Les graisses sont exactement celles que `helm.css` nomme. En ajouter une
-   qu'aucune règle ne demande ajoute un fichier au paquet et rien à l'écran. */
+   The weights are exactly those `helm.css` names. Adding one that no rule
+   asks for adds a file to the bundle and nothing to the screen. */
 
 @import '@fontsource/manrope/latin-400.css';
 @import '@fontsource/manrope/latin-500.css';
@@ -59,123 +59,123 @@
 @import '@fontsource/manrope/latin-ext-400.css';
 @import '@fontsource/manrope/latin-ext-600.css';
 
-/* Pixelify Sans : une seule graisse, la 500, et jamais sous vingt-deux pixels.
-   En dessous, la face pixel cesse d'être une lettre et devient une texture. */
+/* Pixelify Sans: a single weight, 500, and never below twenty-two pixels.
+   Below that, the pixel face stops being a letter and becomes a texture. */
 @import '@fontsource/pixelify-sans/latin-500.css';
 @import '@fontsource/pixelify-sans/latin-ext-500.css';
 
-/* JetBrains Mono : tout ce qui se met à jour — un pourcentage, un débit, un
-   compteur — et le code d'appareil. */
+/* JetBrains Mono: anything that updates — a percentage, a rate, a counter —
+   and the device code. */
 @import '@fontsource/jetbrains-mono/latin-400.css';
 @import '@fontsource/jetbrains-mono/latin-500.css';
 
-/* --- Le design system ------------------------------------------------------
+/* --- The design system ------------------------------------------------------
 
-   Deux copies, remplaçables d'un `cp` depuis `docs/helm-design-system.zip`.
-   Voir leurs en-têtes pour ce qui a été changé et pourquoi. */
+   Two copies, replaceable with a `cp` from `docs/helm-design-system.zip`.
+   See their headers for what was changed and why. */
 
 @import './design/tokens.css';
 @import './design/helm.css';
 
-/* --- Le socle, et rien d'autre ---------------------------------------------
+/* --- The base, and nothing else ---------------------------------------------
 
-   Tout ce qui suit porte sur des éléments qu'AUCUN composant ne possède. */
+   Everything below applies to elements NO component owns. */
 
 :root {
   color-scheme: dark;
 
-  /* Le voile entre l'image et l'interface, posé par le service de réglages SUR
-     CET ÉLÉMENT.
+  /* The scrim between the image and the interface, set by the settings
+     service ON THIS ELEMENT.
 
-     Un style de composant ne PEUT PAS déclarer ici : l'encapsulation émulée
-     d'Angular réécrirait `:root` en `:root[_ngcontent-…]`, qui ne désigne rien.
+     A component style CANNOT declare it here: Angular's emulated
+     encapsulation would rewrite `:root` into `:root[_ngcontent-…]`, which
+     designates nothing.
 
-     Ce n'est PLUS lui qui tient le contraste — voir `--glass-base` juste en
-     dessous, et `VOILE_PLANCHER` côté Rust. C'est une préférence, et elle peut
-     donc descendre à zéro sans rien casser. */
-  --voile: 0.3;
+     It's NO LONGER what holds the contrast — see `--glass-base` right
+     below, and `SCRIM_FLOOR` on the Rust side. It's a preference, and it
+     can therefore go down to zero without breaking anything. */
+  --scrim: 0.3;
 }
 
-/* --- La compensation du verre ----------------------------------------------
+/* --- Compensating the glass -------------------------------------------------
 
-   C'est la parade que le design system prescrit, et elle est ici automatique :
-   « sur une image claire, montez la base du verre à 60 % du fond sur la racine
-   de la fenêtre plutôt que d'assombrir le texte ».
+   This is the countermeasure the design system prescribes, and it's
+   automatic here: "on a bright image, raise the glass base to 60% of the
+   background on the window root rather than darkening the text".
 
-   Le raisonnement tient en une phrase : ce qu'il faut rendre lisible, ce sont
-   les PANNEAUX, pas l'image. Assombrir l'image pour sauver le texte assombrit
-   aussi le milieu de l'écran, que le design system laisse vide exprès pour
-   qu'elle s'y voie — c'est-à-dire qu'on paie la lisibilité à l'endroit précis
-   où il n'y a rien à lire.
+   The reasoning fits in one sentence: what needs to stay readable is the
+   PANELS, not the image. Darkening the image to save the text also darkens
+   the middle of the screen, which the design system leaves empty on
+   purpose so the image shows there — i.e. you'd be paying for readability
+   at the exact spot where there's nothing to read.
 
-   La base du verre s'épaissit donc à mesure que le voile s'amincit : 46 % du
-   fond — la valeur du design system — quand le voile est à 0,44 ou plus, et
-   jusqu'à 72 % quand il est nul. À 72 %, sur une image BLANCHE, `ink-3` — la
-   teinte la plus claire que le design system autorise pour du texte — tient
-   encore 4,5:1 sur un panneau.
+   The glass base thickens as the scrim thins: 46% of the background — the
+   design system's value — when the scrim is at 0.44 or above, up to 72%
+   when it's zero. At 72%, on a WHITE image, `ink-3` — the lightest hue the
+   design system allows for text — still holds 4.5:1 on a panel.
 
-   `clamp` aux deux bouts : sans lui, un voile à 1 rendrait un verre à 18 %,
-   c'est-à-dire des panneaux presque transparents posés sur une image déjà
-   noire — l'inverse exact de ce qu'on cherche. */
+   `clamp` at both ends: without it, a scrim of 1 would produce an 18%
+   glass, i.e. nearly transparent panels laid over an already black image —
+   the exact opposite of what's wanted. */
 :root {
-  /* Une COULEUR, pas un pourcentage : `--glass-base` est consommée comme un
-     fond (`background: var(--glass-face), var(--glass-base)`), et une valeur
-     de pourcentage y serait invalide — le panneau rendrait alors transparent,
-     sans une erreur. Le pourcentage n'est que l'opacité du mélange. */
-  --glass-epaisseur: clamp(46%, calc(46% + (0.44 - var(--voile)) * 59%), 72%);
-  --glass-base: color-mix(in srgb, var(--bg) var(--glass-epaisseur), transparent);
+  /* A COLOR, not a percentage: `--glass-base` is consumed as a background
+     (`background: var(--glass-face), var(--glass-base)`), and a percentage
+     value would be invalid there — the panel would then render
+     transparent, with no error. The percentage is only the mix's opacity. */
+  --glass-thickness: clamp(46%, calc(46% + (0.44 - var(--scrim)) * 59%), 72%);
+  --glass-base: color-mix(in srgb, var(--bg) var(--glass-thickness), transparent);
 }
 
 html,
 body {
   height: 100%;
-  /* Une fenêtre d'application ne défile pas : ce sont ses panneaux qui
-     défilent, chacun dans sa zone. */
+  /* An application window doesn't scroll: its panels do, each within its
+     own area. */
   overflow: hidden;
 }
 
 body {
-  /* Rien à sélectionner dans une fenêtre d'application, sauf ce qu'on recopie.
-     Les exceptions portent `.hm-selectionnable`, déclarée dans `helm.css`. */
+  /* Nothing to select in an application window, except what you copy. The
+     exceptions carry `.hm-selectionnable`, declared in `helm.css`. */
   user-select: none;
   -webkit-user-select: none;
   cursor: default;
 }
 
-/* L'hôte d'Angular occupe la fenêtre : sans cela il serait `inline`, et la
-   hauteur de la coque ne se calculerait sur rien. */
+/* Angular's host occupies the window: without this it would be `inline`,
+   and the shell's height would have nothing to compute against. */
 app-root {
   display: block;
   height: 100%;
 }
 
-/* --- Les images de fond ----------------------------------------------------
+/* --- Backdrop images ---------------------------------------------------------
 
-   Elles sont posées sur `.hm-stage__art`, à l'intérieur de la coque, et non sur
-   `body` : la scène du design system porte le dégradé de lisibilité qui fait
-   que la barre du bas se lit et que le milieu montre l'image. Un fond posé sur
-   `body` passerait sous ce dégradé et l'annulerait.
+   They're set on `.hm-stage__art`, inside the shell, and not on `body`: the
+   design system's scene carries the readability gradient that keeps the
+   bottom bar legible and shows the image in the middle. A backdrop set on
+   `body` would pass under that gradient and cancel it out.
 
-   L'attribut est posé sur `<html>` par le service de réglages, qui ne connaît
-   que des identifiants — jamais un chemin. */
+   The attribute is set on `<html>` by the settings service, which only
+   knows identifiers — never a path. */
 
-html[data-fond='spawn'] .hm-stage__art {
-  background-image: url('/fonds/spawn.webp');
+html[data-backdrop='spawn'] .hm-stage__art {
+  background-image: url('/backdrops/spawn.webp');
 }
 
-html[data-fond='nether'] .hm-stage__art {
-  background-image: url('/fonds/nether.webp');
+html[data-backdrop='nether'] .hm-stage__art {
+  background-image: url('/backdrops/nether.webp');
 }
 
-html[data-fond='fin'] .hm-stage__art {
-  background-image: url('/fonds/fin.webp');
+html[data-backdrop='end'] .hm-stage__art {
+  background-image: url('/backdrops/end.webp');
 }
 
-/* « uni » n'a pas d'image : le dégradé de repli du design system, pour qui
-   trouve les photographies bruyantes ou qui a un écran lent. Il est déjà écrit,
-   sur `.hm-stage__art--fallback` ; l'attribut le rappelle ici pour que la page
-   n'ait pas à choisir sa classe en fonction d'un réglage. */
-html[data-fond='uni'] .hm-stage__art {
+/* "plain" has no image: the design system's fallback gradient, for anyone
+   who finds the photos noisy or has a slow screen. It's already written,
+   on `.hm-stage__art--fallback`; the attribute recalls it here so the page
+   doesn't have to pick its class based on a setting. */
+html[data-backdrop='plain'] .hm-stage__art {
   background-image:
     radial-gradient(
       60% 55% at 78% 22%,
@@ -190,16 +190,16 @@ html[data-fond='uni'] .hm-stage__art {
     linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg) 100%);
 }
 
-/* Le voile, entre l'image et l'interface.
+/* The scrim, between the image and the interface.
 
-   Sur la scène et non sur un div à monter dans l'arbre : il ne peut alors pas
-   se retrouver au mauvais endroit de l'empilement. Il s'ajoute au dégradé que
-   `.hm-stage__art::after` porte déjà — celui-ci tient la lisibilité de la barre
-   du bas, celui-là est le réglage du joueur. */
+   On the scene and not on a div mounted in the tree: it can then never end
+   up in the wrong spot in the stacking order. It adds to the gradient
+   `.hm-stage__art::after` already carries — that one holds the bottom
+   bar's readability, this one is the player's setting. */
 .hm-stage::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: color-mix(in srgb, var(--bg) calc(var(--voile) * 100%), transparent);
+  background: color-mix(in srgb, var(--bg) calc(var(--scrim) * 100%), transparent);
   pointer-events: none;
 }

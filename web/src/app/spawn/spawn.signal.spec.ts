@@ -2,43 +2,43 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { Fenetre } from '../noyau/fenetre';
-import { Pont } from '../noyau/pont';
+import { WindowService } from '../core/window';
+import { Bridge } from '../core/bridge';
 import { Spawn } from './spawn';
 
 /**
- * **Qui a le droit de dire que la fenêtre principale est prête.**
+ * **Who has the right to say the main window is ready.**
  *
- * Rust attend ce signal pour échanger les fenêtres à la fin d'une connexion.
- * Il a été envoyé pendant des jours par la fenêtre de CONNEXION : elle
- * recevait un événement qui ne lui était pas destiné — voir
- * `transport.cible.spec.ts` — montait Spawn dans ses quatre cent quarante
- * pixels, et annonçait donc qu'une fenêtre était prête. La mauvaise.
+ * Rust waits for this signal to swap windows at the end of a sign-in. It
+ * used to be sent for days by the SIGN-IN window: it received an event that
+ * wasn't meant for it — see `transport.target.spec.ts` — mounted Spawn in
+ * its four-hundred-and-forty pixels, and thereby announced that a window was
+ * ready. The wrong one.
  *
- * Le ciblage est corrigé en amont. Cette garde-ci est la seconde ligne : même
- * si une fenêtre dédiée montait Spawn pour une raison qu'on n'a pas prévue,
- * elle ne parlerait pas au nom de la principale.
+ * The targeting is fixed upstream. This guard is the second line: even if a
+ * dedicated window mounted Spawn for a reason we didn't foresee, it
+ * wouldn't speak in the main one's name.
  */
-describe('Spawn, le signal de fenêtre prête', () => {
-  let principalePrete: ReturnType<typeof vi.fn>;
+describe('Spawn, the window-ready signal', () => {
+  let mainReady: ReturnType<typeof vi.fn>;
 
-  function monter(dansUneFenetreDediee: boolean) {
-    principalePrete = vi.fn(async () => {});
+  function mount(inADedicatedWindow: boolean) {
+    mainReady = vi.fn(async () => {});
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         {
-          provide: Pont,
+          provide: Bridge,
           useValue: {
-            disponible: false,
-            dansLaFenetre: false,
-            principalePrete,
-            journal: vi.fn(async () => {}),
+            available: false,
+            inWindow: false,
+            mainReady,
+            log: vi.fn(async () => {}),
           },
         },
         {
-          provide: Fenetre,
-          useValue: { dansUneFenetreDediee, estPrincipale: !dansUneFenetreDediee },
+          provide: WindowService,
+          useValue: { inADedicatedWindow, isMain: !inADedicatedWindow },
         },
       ],
     });
@@ -51,17 +51,17 @@ describe('Spawn, le signal de fenêtre prête', () => {
     TestBed.resetTestingModule();
   });
 
-  it('dans la fenêtre principale, il part', async () => {
-    const fixture = monter(false);
+  it('in the main window, it departs', async () => {
+    const fixture = mount(false);
     await fixture.whenStable();
 
-    expect(principalePrete).toHaveBeenCalled();
+    expect(mainReady).toHaveBeenCalled();
   });
 
-  it('dans une fenêtre dédiée, il ne part PAS', async () => {
-    const fixture = monter(true);
+  it('in a dedicated window, it does NOT depart', async () => {
+    const fixture = mount(true);
     await fixture.whenStable();
 
-    expect(principalePrete).not.toHaveBeenCalled();
+    expect(mainReady).not.toHaveBeenCalled();
   });
 });

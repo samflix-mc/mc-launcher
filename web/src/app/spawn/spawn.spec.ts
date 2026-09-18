@@ -2,55 +2,55 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { CompteRendu, EtatDuPack } from '../noyau/contrats';
-import { Nouvelles } from '../noyau/nouvelles';
-import { Pack } from '../noyau/pack';
+import type { Report, PackState } from '../core/contracts';
+import { News } from '../core/news';
+import { Pack } from '../core/pack';
 import { Spawn } from './spawn';
 
-function etat(dessus: Partial<EtatDuPack> = {}): EtatDuPack {
+function state(over: Partial<PackState> = {}): PackState {
   return {
-    action: 'jouer',
-    ecart: 'a-jour',
-    horsLigne: false,
-    installe: true,
-    nom: 'samflix',
+    action: 'play',
+    drift: 'up-to-date',
+    offline: false,
+    installed: true,
+    name: 'samflix',
     version: '1.4.2',
     java: 21,
     mods: 128,
     generation: 1,
-    ...dessus,
+    ...over,
   };
 }
 
-function compteRendu(dessus: Partial<CompteRendu> = {}): CompteRendu {
+function report(over: Partial<Report> = {}): Report {
   return {
-    verdict: 'La partie s’est terminée normalement.',
-    rattrapee: false,
-    introuvables: [],
-    ecarts: [],
-    horsLigne: false,
+    verdict: 'The session ended normally.',
+    caughtUp: false,
+    missing: [],
+    drifts: [],
+    offline: false,
     purge: [],
-    ...dessus,
+    ...over,
   };
 }
 
 /**
- * La page Spawn.
+ * The Spawn page.
  *
- * Ce qu'elle doit montrer tient en une phrase : l'état du pack, lisiblement, et
- * ce que la dernière installation a laissé — sans rien de ce que la barre du bas
- * porte déjà.
+ * What it must show fits in one sentence: the pack's state, legibly, and
+ * what the last install left behind — without any of what the bottom bar
+ * already carries.
  */
 describe('Spawn', () => {
   let pack: Pack;
 
-  function monter() {
+  function mount() {
     const fixture = TestBed.createComponent(Spawn);
     fixture.detectChanges();
     return fixture;
   }
 
-  function lire(fixture: ReturnType<typeof monter>, test: string): string | null {
+  function read(fixture: ReturnType<typeof mount>, test: string): string | null {
     const element = fixture.nativeElement.querySelector(`[data-test="${test}"]`);
     return element ? element.textContent.replace(/\s+/g, ' ').trim() : null;
   }
@@ -61,117 +61,118 @@ describe('Spawn', () => {
   });
 
   /**
-   * **La pastille dit l'état en trois mots, et jamais par la couleur seule.**
+   * **The badge says the state in three words, and never through color
+   * alone.**
    *
-   * Le design system l'interdit explicitement : `success` et `danger` ne se
-   * distinguent que par la teinte, et un libellé est ce qui fait la différence
-   * pour qui la perçoit mal.
+   * The design system explicitly forbids it: `success` and `danger` are
+   * only told apart by hue, and a label is what makes the difference for
+   * someone who perceives it poorly.
    */
-  it('à jour : la pastille le dit, avec la version', () => {
-    pack.etat.set(etat());
-    const fixture = monter();
+  it('up to date: the badge says so, with the version', () => {
+    pack.state.set(state());
+    const fixture = mount();
 
-    expect(lire(fixture, 'pastille')).toContain('À jour');
-    expect(lire(fixture, 'pastille')).toContain('1.4.2');
+    expect(read(fixture, 'badge')).toContain('Up to date');
+    expect(read(fixture, 'badge')).toContain('1.4.2');
   });
 
-  it('pas installé : la pastille avertit', () => {
-    pack.etat.set(etat({ ecart: 'absent', installe: false }));
-    const fixture = monter();
+  it('not installed: the badge warns', () => {
+    pack.state.set(state({ drift: 'absent', installed: false }));
+    const fixture = mount();
 
-    const pastille = fixture.nativeElement.querySelector('[data-test="pastille"]');
-    expect(pastille.textContent).toContain('Pas installé');
-    expect(pastille.dataset.etat).toBe('warning');
+    const badge = fixture.nativeElement.querySelector('[data-test="badge"]');
+    expect(badge.textContent).toContain('Not installed');
+    expect(badge.dataset.state).toBe('warning');
   });
 
   /**
-   * Hors ligne l'emporte sur l'écart : ce qu'on croit savoir du pack publié
-   * n'a pas été vérifié, et l'annoncer « à jour » serait une affirmation qu'on
-   * n'a pas les moyens de faire.
+   * Offline wins over drift: what's believed about the published pack
+   * hasn't been checked, and calling it "up to date" would be a claim we
+   * have no means to make.
    */
-  it('hors ligne l’emporte sur l’écart', () => {
-    pack.etat.set(etat({ horsLigne: true, ecart: 'a-jour' }));
-    const fixture = monter();
+  it('offline wins over drift', () => {
+    pack.state.set(state({ offline: true, drift: 'up-to-date' }));
+    const fixture = mount();
 
-    const pastille = fixture.nativeElement.querySelector('[data-test="pastille"]');
-    expect(pastille.textContent).toContain('Hors ligne');
-    expect(pastille.dataset.etat).toBe('offline');
+    const badge = fixture.nativeElement.querySelector('[data-test="badge"]');
+    expect(badge.textContent).toContain('Offline');
+    expect(badge.dataset.state).toBe('offline');
   });
 
-  it('avant la première réponse, la pastille dit qu’on regarde', () => {
-    const fixture = monter();
+  it('before the first response, the badge says it’s looking', () => {
+    const fixture = mount();
 
-    const pastille = fixture.nativeElement.querySelector('[data-test="pastille"]');
-    expect(pastille.dataset.etat).toBe('unknown');
-    expect(pastille.textContent).toContain('Vérification');
+    const badge = fixture.nativeElement.querySelector('[data-test="badge"]');
+    expect(badge.dataset.state).toBe('unknown');
+    expect(badge.textContent).toContain('Checking');
   });
 
-  it('les faits du pack s’affichent quand ils sont connus', () => {
-    pack.etat.set(etat());
-    const fixture = monter();
+  it('the pack’s facts show up once known', () => {
+    pack.state.set(state());
+    const fixture = mount();
 
-    expect(lire(fixture, 'mods')).toContain('128 mods');
-    expect(lire(fixture, 'java')).toContain('Java 21');
-    expect(lire(fixture, 'installe')).toContain('Installé');
+    expect(read(fixture, 'mods')).toContain('128 mods');
+    expect(read(fixture, 'java')).toContain('Java 21');
+    expect(read(fixture, 'installed')).toContain('Installed');
   });
 
   /**
-   * **La cinématique n'est plus ici**, et ce test l'y garde.
+   * **The cinematic isn't here anymore**, and this test keeps it that way.
    *
-   * Le bouton porte la progression, son pourcentage et son débit, et la phrase
-   * au-dessus de lui nomme l'étape : une liste des onze phases le redirait une
-   * troisième fois, au prix d'un panneau qui apparaît et disparaît à l'endroit
-   * même où l'on suit l'avancement.
+   * The button carries the progress, its percentage and its rate, and the
+   * phrase above it names the step: a list of the eleven phases would say
+   * it a third time, at the cost of a panel that appears and disappears
+   * right where progress is being followed.
    */
-  it('aucune liste d’étapes, même pendant le travail', () => {
-    pack.etat.set(etat());
-    pack.occupe.set(true);
-    pack.chemin.set([{ phase: 'mods', libelle: 'Mods', rang: 0 }]);
-    const fixture = monter();
+  it('no step list, even while busy', () => {
+    pack.state.set(state());
+    pack.busy.set(true);
+    pack.path.set([{ phase: 'mods', label: 'Mods', rank: 0 }]);
+    const fixture = mount();
 
-    expect(fixture.nativeElement.querySelector('[data-test="chemin"]')).toBeNull();
-    expect(fixture.nativeElement.querySelector('[data-test="panneau-etapes"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="path"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="steps-panel"]')).toBeNull();
   });
 
   /**
-   * Le compte rendu ne s'affiche QUE s'il a quelque chose à dire. Une partie
-   * sans incident laisse un verdict que personne n'a besoin de lire, et un
-   * panneau vide occuperait la place que l'image doit garder.
+   * The report only shows up IF it has something to say. A session without
+   * incident leaves a verdict no one needs to read, and an empty panel
+   * would take up the spot the image must keep.
    */
-  it('une partie sans incident ne laisse aucun panneau', () => {
-    pack.etat.set(etat());
-    pack.dernierCompteRendu.set(compteRendu());
-    const fixture = monter();
+  it('a session without incident leaves no panel', () => {
+    pack.state.set(state());
+    pack.lastReport.set(report());
+    const fixture = mount();
 
-    expect(fixture.nativeElement.querySelector('[data-test="panneau-partie"]')).toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-test="session-panel"]')).toBeNull();
   });
 
-  it('des mods introuvables se disent, avec leurs noms', () => {
-    pack.etat.set(etat());
-    pack.dernierCompteRendu.set(compteRendu({ introuvables: ['sodium', 'iris'] }));
-    const fixture = monter();
+  it('missing mods are said, with their names', () => {
+    pack.state.set(state());
+    pack.lastReport.set(report({ missing: ['sodium', 'iris'] }));
+    const fixture = mount();
 
-    expect(lire(fixture, 'introuvables')).toContain('2 mod(s) introuvable(s)');
-    expect(lire(fixture, 'introuvables')).toContain('sodium');
+    expect(read(fixture, 'missing')).toContain('2 mod(s) missing');
+    expect(read(fixture, 'missing')).toContain('sodium');
   });
 
-  it('une purge se dit, et rassure sur ce qui a été gardé', () => {
-    pack.etat.set(etat());
-    pack.dernierCompteRendu.set(compteRendu({ purge: ['mods', 'config'] }));
-    const fixture = monter();
+  it('a purge is said, and reassures about what was kept', () => {
+    pack.state.set(state());
+    pack.lastReport.set(report({ purge: ['mods', 'config'] }));
+    const fixture = mount();
 
-    expect(lire(fixture, 'purge')).toContain('mods, config');
-    expect(lire(fixture, 'purge')).toContain('mondes');
+    expect(read(fixture, 'purge')).toContain('mods, config');
+    expect(read(fixture, 'purge')).toContain('worlds');
   });
 
   /**
-   * Sans fil de nouvelles, la grille garderait un trou. Un panneau qui le dit
-   * tient la place et ne prétend rien.
+   * Without a news feed, the grid would keep a hole. A panel that says so
+   * holds the spot and claims nothing.
    */
-  it('sans nouvelle, la place est tenue par un panneau qui le dit', () => {
-    TestBed.inject(Nouvelles);
-    const fixture = monter();
+  it('without news, the spot is held by a panel that says so', () => {
+    TestBed.inject(News);
+    const fixture = mount();
 
-    expect(lire(fixture, 'sans-nouvelle')).toContain('Rien de publié');
+    expect(read(fixture, 'no-news')).toContain('Nothing published');
   });
 });

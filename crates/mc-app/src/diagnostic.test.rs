@@ -1,53 +1,53 @@
-use super::{demande, rapport};
+use super::{report, requested};
 
-/// Le drapeau se reconnaît où qu'il soit : le lanceur d'un runner passe
-/// parfois le chemin du binaire, parfois des arguments de session graphique
-/// avant les nôtres.
+/// The flag is recognized wherever it sits: a runner's launcher sometimes
+/// passes the binary's path, sometimes graphical session arguments before
+/// ours.
 #[test]
-fn le_drapeau_se_reconnait_a_n_importe_quelle_place() {
-    assert!(demande(["--diagnostic"]));
-    assert!(demande(["helm", "--diagnostic"]));
-    assert!(demande(["--diagnostic", "--autre"]));
+fn the_flag_is_recognized_at_any_position() {
+    assert!(requested(["--diagnostic"]));
+    assert!(requested(["helm", "--diagnostic"]));
+    assert!(requested(["--diagnostic", "--other"]));
 }
 
-/// Et rien d'autre ne le déclenche. Un joueur qui ouvre le launcher n'a aucun
-/// argument ; un mot qui y ressemble ne doit pas escamoter sa fenêtre.
+/// And nothing else triggers it. A player who opens the launcher has no
+/// arguments; a word that looks like it must not steal away their window.
 #[test]
-fn rien_d_autre_ne_declenche_le_diagnostic() {
-    assert!(!demande(Vec::<String>::new()));
-    assert!(!demande(["helm"]));
-    assert!(!demande(["--diagnostics"]));
-    assert!(!demande(["diagnostic"]));
-    assert!(!demande(["--diagnostic=1"]));
+fn nothing_else_triggers_the_diagnostic() {
+    assert!(!requested(Vec::<String>::new()));
+    assert!(!requested(["helm"]));
+    assert!(!requested(["--diagnostics"]));
+    assert!(!requested(["diagnostic"]));
+    assert!(!requested(["--diagnostic=1"]));
 }
 
-/// Le rapport porte les quatre lignes que la CI oppose à ce qu'elle a
-/// construit. Les chercher par leur libellé et non par leur rang : une ligne
-/// ajoutée en tête ne doit pas casser le contrôle.
+/// The report carries the four lines CI compares against what it built.
+/// Look for them by their label and not by their rank: a line added at the
+/// top must not break the check.
 #[test]
-fn le_rapport_nomme_ce_que_la_ci_verifie() {
-    let texte = rapport(false);
+fn the_report_names_what_ci_checks() {
+    let text = report(false);
 
-    for attendu in ["nom", "version", "environnement", "répertoire"] {
+    for expected in ["name", "version", "environment", "directory"] {
         assert!(
-            texte.contains(attendu),
-            "« {attendu} » absent du rapport :\n{texte}"
+            text.contains(expected),
+            "\"{expected}\" missing from the report:\n{text}"
         );
     }
-    // La version est celle du binaire, pas un littéral : c'est elle que le job
-    // « coherence » de release.yml compare au tag.
-    assert!(texte.contains(env!("CARGO_PKG_VERSION")), "{texte}");
+    // The version is the binary's, not a literal: it's what release.yml's
+    // "coherence" job compares against the tag.
+    assert!(text.contains(env!("CARGO_PKG_VERSION")), "{text}");
 }
 
-/// L'état du rendu se lit dans les deux sens. C'est la première ligne à
-/// demander à qui voit une fenêtre blanche sous NVIDIA, et une valeur figée
-/// n'apprendrait rien.
+/// The rendering state reads both ways. It's the first line to ask whoever
+/// sees a blank window under NVIDIA, and a fixed value wouldn't teach
+/// anything.
 #[test]
-fn le_rapport_dit_ce_qui_a_ete_decide_du_rendu() {
-    assert!(rapport(true).contains("désactivé"), "{}", rapport(true));
+fn the_report_says_what_was_decided_about_rendering() {
+    assert!(report(true).contains("disabled"), "{}", report(true));
     assert!(
-        rapport(false).contains("laissé à WebKit"),
+        report(false).contains("left to WebKit"),
         "{}",
-        rapport(false)
+        report(false)
     );
 }

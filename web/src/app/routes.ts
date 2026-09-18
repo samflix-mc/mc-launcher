@@ -1,110 +1,110 @@
 import { inject } from '@angular/core';
 import { Router, type CanActivateFn, type Routes } from '@angular/router';
 
-import { Session } from './noyau/session';
+import { Session } from './core/session';
 
 /**
- * Le joueur peut-il accéder aux pages du launcher ?
+ * Can the player access the launcher's pages?
  *
- * ## Le prédicat est UNIQUE, et c'est tout le sujet
+ * ## The predicate is UNIQUE, and that's the whole point
  *
- * Les deux gardes lisent `session.jouable()`, et rien d'autre. Deux prédicats
- * différents — « connecté » d'un côté, « jouable » de l'autre — feraient
- * rebondir sans fin un compte connecté SANS LICENCE : la garde des pages le
- * renverrait vers `/connexion`, celle de la connexion le trouverait connecté
- * et le renverrait vers les pages, et ainsi de suite jusqu'à ce que le routeur
- * abandonne.
+ * Both guards read `session.playable()`, and nothing else. Two different
+ * predicates — "signed in" on one side, "playable" on the other — would
+ * bounce a signed-in account WITHOUT A LICENSE back and forth forever: the
+ * pages guard would send it to `/signin`, the sign-in guard would find it
+ * signed in and send it back to the pages, and so on until the router gives
+ * up.
  *
- * Ce cas n'est pas théorique : c'est celui d'un compte Microsoft valide qui
- * n'a jamais acheté Minecraft. Il est traité comme un ÉTAT de la page
- * Connexion, avec son propre message, et non comme une redirection.
+ * This case isn't theoretical: it's a valid Microsoft account that has
+ * never bought Minecraft. It's handled as a STATE of the Sign-in page, with
+ * its own message, and not as a redirect.
  *
- * ## Pourquoi la garde attend
+ * ## Why the guard waits
  *
- * `ouvrir()` interroge Rust, ce qui prend le temps de deux allers-retours
- * réseau. Le routeur ATTEND une garde qui rend une promesse et ne valide
- * aucune URL tant qu'elle pend : il n'y a donc aucun saut à empêcher, et c'est
- * pour cela qu'aucun `withDisabledInitialNavigation()` n'est posé.
+ * `open()` queries Rust, which takes the time of two network round-trips.
+ * The router WAITS for a guard that returns a promise and validates no URL
+ * while it's pending: there's therefore no jump to prevent, which is why no
+ * `withDisabledInitialNavigation()` is set.
  */
-const jouable: CanActivateFn = async () => {
+const playable: CanActivateFn = async () => {
   const session = inject(Session);
   const router = inject(Router);
 
-  if (!session.connue()) {
-    await session.ouvrir();
+  if (!session.known()) {
+    await session.open();
   }
-  return session.jouable() ? true : router.createUrlTree(['/connexion']);
+  return session.playable() ? true : router.createUrlTree(['/signin']);
 };
 
-/** L'inverse, sur EXACTEMENT le même prédicat. */
-const pasEncoreJouable: CanActivateFn = async () => {
+/** The reverse, on EXACTLY the same predicate. */
+const notYetPlayable: CanActivateFn = async () => {
   const session = inject(Session);
   const router = inject(Router);
 
-  if (!session.connue()) {
-    await session.ouvrir();
+  if (!session.known()) {
+    await session.open();
   }
-  return session.jouable() ? router.createUrlTree(['/spawn']) : true;
+  return session.playable() ? router.createUrlTree(['/spawn']) : true;
 };
 
 /**
- * Les routes.
+ * The routes.
  *
- * ## La donnée `bas`
+ * ## The `bottom` data
  *
- * Elle dit ce que la barre du bas de la fenêtre porte : le bouton de jeu et le
- * badge joueur, le badge seul, ou rien — auquel cas la page occupe deux rangs
- * au lieu de trois. C'est une DONNÉE de route et non un test sur l'URL : une
- * chaîne comparée à `'/spawn'` se casse le jour où une route gagne un
- * paramètre, et le symptôme est une barre du bas vide que rien n'explique.
+ * It says what the window's bottom bar carries: the play button and the
+ * player badge, the badge alone, or nothing — in which case the page
+ * occupies two rows instead of three. It's route DATA and not a test on the
+ * URL: a string compared to `'/spawn'` breaks the day a route gains a
+ * parameter, and the symptom is an empty bottom bar that nothing explains.
  *
- * ## Tout est paresseux, sans exception
+ * ## Everything is lazy, without exception
  *
- * `loadComponent` sur chacune : le morceau d'une page n'est téléchargé qu'au
- * moment où on y va. Sur un launcher, cela se voit — la page de configuration
- * et celle des nouvelles ne sont ouvertes qu'une fois sur dix, et les charger
- * au démarrage retarderait l'écran que tout le monde regarde.
+ * `loadComponent` on each one: a page's chunk is only downloaded once you
+ * navigate to it. On a launcher, this shows — the settings page and the
+ * news page are only opened one time in ten, and loading them at startup
+ * would delay the screen everyone is looking at.
  *
- * ## `pathMatch: 'full'` sur la redirection vide
+ * ## `pathMatch: 'full'` on the empty redirect
  *
- * Sans lui, Angular refuse la route avec NG04014 : une redirection depuis un
- * chemin vide sans `pathMatch` est ambiguë, puisque le chemin vide est un
- * préfixe de tout.
+ * Without it, Angular refuses the route with NG04014: a redirect from an
+ * empty path without `pathMatch` is ambiguous, since the empty path is a
+ * prefix of everything.
  */
 export const ROUTES: Routes = [
   {
-    path: 'connexion',
-    canActivate: [pasEncoreJouable],
-    // La connexion est une modale par-dessus la scène : pas de coque du tout,
-    // donc pas de barre du bas. Voir `app.html`.
-    data: { bas: 'aucune' },
-    loadComponent: () => import('./connexion/connexion').then((m) => m.Connexion),
+    path: 'signin',
+    canActivate: [notYetPlayable],
+    // Sign-in is a modal over the scene: no shell at all, so no bottom
+    // bar. See `app.html`.
+    data: { bottom: 'none' },
+    loadComponent: () => import('./signin/signin').then((m) => m.SignIn),
   },
   {
     path: 'spawn',
-    canActivate: [jouable],
-    data: { bas: 'jouer' },
+    canActivate: [playable],
+    data: { bottom: 'play' },
     loadComponent: () => import('./spawn/spawn').then((m) => m.Spawn),
   },
   {
-    path: 'nouvelles',
-    canActivate: [jouable],
-    // Le badge joueur reste, le bouton de jeu non : le design system garde la
-    // barre du bas sur les Nouvelles, avec rien au centre.
-    data: { bas: 'joueur' },
-    loadComponent: () => import('./nouvelles/nouvelles').then((m) => m.PageNouvelles),
+    path: 'news',
+    canActivate: [playable],
+    // The player badge stays, the play button doesn't: the design system
+    // keeps the bottom bar on News, with nothing in the center.
+    data: { bottom: 'player' },
+    loadComponent: () => import('./news/news').then((m) => m.NewsPage),
   },
   {
-    path: 'configuration',
-    canActivate: [jouable],
-    // La Configuration LAISSE TOMBER la barre du bas, et le corps prend la
-    // hauteur : c'est une règle explicite du design system, et c'est ce qui
-    // donne à la liste de réglages de quoi défiler.
-    data: { bas: 'aucune' },
-    loadComponent: () => import('./configuration/configuration').then((m) => m.Configuration),
+    path: 'settings',
+    canActivate: [playable],
+    // Settings DROPS the bottom bar, and the body takes the height: it's
+    // an explicit design system rule, and it's what gives the settings
+    // list room to scroll.
+    data: { bottom: 'none' },
+    loadComponent: () => import('./settings/settings').then((m) => m.Settings),
   },
   { path: '', pathMatch: 'full', redirectTo: 'spawn' },
-  // Un chemin inconnu ne doit pas laisser une fenêtre vide : dans une
-  // application de bureau, il n'y a pas de barre d'adresse pour s'en sortir.
+  // An unknown path must not leave an empty window: in a desktop
+  // application, there's no address bar to escape from.
   { path: '**', redirectTo: 'spawn' },
 ];

@@ -1,98 +1,98 @@
-//! Le verrou : ce qui a réellement été installé, et pourquoi.
+//! The lockfile: what was actually installed, and why.
 //!
-//! Le manifeste dit ce qu'on veut, le verrou dit ce qu'on a eu. L'écart entre
-//! les deux est exactement ce que la résolution a décidé : la version choisie
-//! quand le manifeste n'en imposait aucune, et les dépendances ajoutées
-//! d'elles-mêmes.
+//! The manifest says what we want, the lockfile says what we got. The gap
+//! between the two is exactly what resolution decided: the version chosen
+//! when the manifest imposed none, and the dependencies added on their own.
 //!
-//! Il sert à deux choses, et chacune justifierait à elle seule de l'écrire :
+//! It serves two purposes, and either alone would justify writing it:
 //!
-//! - **rejouer une installation à l'identique**, des mois plus tard, alors que
-//!   toutes les versions ont bougé. C'est ce que fait `install --locked` ;
-//! - **rendre lisible ce qui a été ajouté sans être demandé**. Six mois après,
-//!   personne ne sait plus si un jar est là par choix ou parce qu'un autre
-//!   l'exigeait — la ligne `reason` répond.
+//! - **replaying an installation identically**, months later, when every
+//!   version has moved. That's what `install --locked` does;
+//! - **making legible what was added without being requested**. Six months
+//!   on, nobody remembers whether a jar is there by choice or because
+//!   something else required it — the `reason` line answers that.
 //!
-//! Il se versionne à côté du manifeste, et une modification qu'on n'explique
-//! pas dans une revue est un signal.
+//! It's versioned alongside the manifest, and a change that isn't explained
+//! in a review is a signal.
 
-mod entrees;
-mod horodatage;
-mod lecture;
-mod resume;
+mod entries;
+mod reading;
+mod summary;
+mod timestamp;
 
 use serde::{Deserialize, Serialize};
 
-pub use entrees::{LockedLoader, LockedMissing, LockedMod};
-pub(crate) use horodatage::now_utc;
+pub use entries::{LockedLoader, LockedMissing, LockedMod};
+pub(crate) use timestamp::now_utc;
 
-/// Le verrou, **de la même forme que le manifeste et plus riche**.
+/// The lockfile, **shaped like the manifest and richer**.
 ///
-/// C'est une contrainte volontaire : les deux fichiers vivent côte à côte,
-/// se lisent l'un après l'autre, et se comparent du regard. Qu'ils nomment la
-/// même chose autrement coûte à chaque lecture. Le nom du pack s'appelait
-/// `pack` ici et `name` là ; la source d'un mod, `origin` ici et `source` là.
-/// Les anciens noms restent acceptés en lecture — les verrous déjà publiés
-/// n'ont pas à être réécrits pour être lus — mais ne sont plus produits.
+/// This is a deliberate constraint: the two files live side by side, are
+/// read one after the other, and compare at a glance. Naming the same thing
+/// differently in each costs something on every read. The pack's name used
+/// to be called `pack` here and `name` there; a mod's source, `origin` here
+/// and `source` there. The old names remain accepted on read — lockfiles
+/// already published don't need to be rewritten to be read — but are no
+/// longer produced.
 ///
-/// Ce que le verrou ajoute au manifeste : la date de génération, les champs
-/// résolus de chaque mod (empreintes, taille, URL, raison de sa présence), et
-/// les dépendances que personne n'a su fournir.
+/// What the lockfile adds to the manifest: the generation date, each mod's
+/// resolved fields (digests, size, URL, reason for its presence), and the
+/// dependencies nobody could supply.
 ///
-/// Ce qu'il en reprend, jusqu'aux serveurs : un verrou seul suffit à installer
-/// **et** à savoir où se connecter. Un outil tiers — la CI de mc-content, un
-/// script de serveur — n'a plus besoin des deux fichiers.
+/// What it carries over, down to the servers: a lockfile alone is enough to
+/// install **and** to know where to connect. A third-party tool — mc-content's
+/// CI, a server script — no longer needs both files.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Lockfile {
     pub schema: u32,
-    /// Nom du pack. `pack` dans les verrous d'avant.
+    /// Pack name. `pack` in lockfiles from before.
     #[serde(alias = "pack")]
     pub name: String,
-    /// Version du pack, telle que le manifeste la déclare.
+    /// Pack version, as the manifest declares it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-    /// Date de génération, en UTC.
+    /// Generation date, in UTC.
     pub generated: String,
     pub minecraft: String,
     pub loader: LockedLoader,
     pub java: u32,
-    /// Le numéro de génération de l'installation.
+    /// The installation's generation number.
     ///
-    /// Le mécanisme par lequel celui qui publie le pack peut dire : « ne
-    /// rattrape pas cette mise à jour par différence, efface et recommence ».
+    /// The mechanism by which whoever publishes the pack can say: “don't
+    /// catch up on this update by diffing, wipe and start over”.
     ///
-    /// Le fonctionnement normal est différentiel — on compare les empreintes et
-    /// l'on ne retélécharge que ce qui a changé. C'est ce qu'il faut : un
-    /// modpack de trois cents mods pèse un demi-gigaoctet, et le retélécharger
-    /// à chaque mise à jour serait insupportable.
+    /// Normal operation is differential — digests are compared and only what
+    /// changed is redownloaded. That's what's needed: a three-hundred-mod
+    /// modpack weighs half a gigabyte, and redownloading it on every update
+    /// would be unbearable.
     ///
-    /// Mais certaines transitions ne se rattrapent pas ainsi. Un mod renommé
-    /// laisse son ancien jar en place, un dossier de configuration change de
-    /// forme, un shader laisse des résidus que rien ne référence plus. Le
-    /// différentiel ne voit que ce que le verrou décrit ; il est aveugle à ce
-    /// que le verrou ne décrit PLUS.
+    /// But some transitions can't be caught up that way. A renamed mod
+    /// leaves its old jar in place, a config folder changes shape, a shader
+    /// leaves residue that nothing references anymore. The differential
+    /// mechanism only sees what the lockfile describes; it's blind to what
+    /// the lockfile no longer describes.
     ///
-    /// Incrémenter ce nombre déclenche alors une purge avant l'installation.
-    /// Ce qui est effacé, c'est ce que le launcher a posé — mods, shaders,
-    /// resource packs. **Jamais l'instance de jeu** : ni les sauvegardes, ni
-    /// les options, ni les configurations que le joueur a modifiées. Perdre un
-    /// monde pour rattraper un renommage de mod serait un remède pire que le
-    /// mal.
+    /// Incrementing this number then triggers a purge before installation.
+    /// What gets erased is what the launcher placed — mods, shaders,
+    /// resource packs. **Never the game instance**: neither saves, nor
+    /// options, nor configurations the player modified. Losing a world to
+    /// catch up on a mod rename would be a remedy worse than the disease.
     ///
-    /// `#[serde(default)]` sans `skip_serializing_if` : les fichiers déjà
-    /// publiés se lisent en génération 0, et tout fichier écrit désormais porte
-    /// la sienne explicitement. Un champ absent à l'écriture obligerait à
-    /// distinguer « jamais posé » de « posé à zéro », alors que les deux
-    /// veulent dire la même chose.
+    /// `#[serde(default)]` without `skip_serializing_if`: already-published
+    /// files read as generation 0, and every file written from now on
+    /// carries its own explicitly. A field absent on write would force a
+    /// distinction between “never placed” and “placed at zero”, when both
+    /// mean the same thing.
     #[serde(default)]
     pub generation: u32,
-    /// Où se connecter, par environnement — repris du manifeste tel quel.
+    /// Where to connect, per environment — carried over from the manifest as
+    /// is.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub servers: std::collections::BTreeMap<String, crate::manifest::Server>,
     pub mods: Vec<LockedMod>,
-    /// Dépendances qu'aucune source n'a su fournir. Vide en temps normal ;
-    /// non vide, c'est le premier endroit à regarder quand le jeu refuse de
-    /// démarrer.
+    /// Dependencies no source could supply. Empty under normal conditions;
+    /// non-empty, it's the first place to look when the game refuses to
+    /// start.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unresolved: Vec<LockedMissing>,
 }

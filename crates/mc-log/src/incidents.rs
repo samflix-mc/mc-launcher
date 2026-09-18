@@ -1,44 +1,43 @@
-//! Sentry : les incidents seuls, paniques et erreurs.
+//! Sentry: incidents alone, panics and errors.
 //!
-//! Un rapport automatique évite d'avoir à demander à un joueur de reproduire un
-//! bug qu'il a déjà rencontré. Tout ce qui sort par là est censuré deux fois :
-//! par la couche qui émet, et par les filtres du client.
+//! An automatic report saves having to ask a player to reproduce a bug
+//! they've already hit. Everything that goes out this way is scrubbed
+//! twice: by the emitting layer, and by the client's filters.
 
 mod client;
-mod couche;
-mod essai;
-mod jeu;
+mod fixture;
+mod game;
+mod layer;
 mod scrub;
 
 pub(crate) use client::init_sentry;
-pub(crate) use couche::couche;
-pub use essai::send_test_event;
-pub use jeu::capture_game_crash;
+pub use fixture::send_test_event;
+pub use game::capture_game_crash;
+pub(crate) use layer::layer;
 
-/// Projet Sentry du launcher.
+/// Launcher's Sentry project.
 ///
-/// Un DSN n'est pas un secret : il ne permet que d'écrire des événements, et
-/// tout client de bureau embarque le sien. Il reste remplaçable par
-/// `SENTRY_DSN`, ce qui permet de router les incidents d'un déploiement
-/// particulier ailleurs.
+/// A DSN isn't a secret: it only allows writing events, and every desktop
+/// client embeds its own. It stays replaceable via `SENTRY_DSN`, which
+/// lets incidents from a given deployment be routed elsewhere.
 const DEFAULT_DSN: &str = "https://5c97a3f2d24e9faf2a5f099a8c5a3a80@o4504715328552960.ingest.us.sentry.io/4512093170434048";
 
-/// La remontée d'incidents est-elle active dans cette exécution ?
+/// Is incident reporting active in this run?
 pub fn telemetry_active() -> bool {
     dsn().is_some()
 }
 
-/// Attend que la file d'incidents parte, et dit si elle est partie.
+/// Waits for the incident queue to flush, and says whether it did.
 ///
-/// [`Guard`] en fait autant à la fermeture, mais avec le budget court que
-/// supportent les commandes ordinaires. Les deux appelants qui demandent plus
-/// ont la même raison : ils annoncent un identifiant au joueur, et « consigné »
-/// ne se dit pas comme « transmis ». Chercher dans le tableau de bord un
-/// identifiant qu'une panne de réseau y a empêché d'arriver coûte plus de temps
-/// que l'attente qu'on s'épargnait.
+/// [`Guard`] does the same on shutdown, but with the short budget that
+/// ordinary commands can afford. The two callers that ask for more share
+/// the same reason: they announce an identifier to the player, and
+/// "logged" doesn't mean "sent". Searching the dashboard for an
+/// identifier that a network outage kept from arriving costs more time
+/// than the wait it was saving.
 ///
-/// Rend `false` quand la télémétrie est coupée : rien n'est parti, faute d'avoir
-/// été émis.
+/// Returns `false` when telemetry is off: nothing was sent, since nothing
+/// was emitted.
 pub fn flush_incidents(budget: std::time::Duration) -> bool {
     sentry::Hub::current()
         .client()
@@ -46,10 +45,10 @@ pub fn flush_incidents(budget: std::time::Duration) -> bool {
         .unwrap_or(false)
 }
 
-/// La remontée d'incidents est-elle autorisée ?
+/// Is incident reporting allowed?
 ///
-/// Opt-out explicite : une télémétrie qu'on ne peut pas couper n'est pas une
-/// télémétrie, c'est une surveillance.
+/// Explicit opt-out: telemetry you can't turn off isn't telemetry, it's
+/// surveillance.
 fn telemetry_enabled() -> bool {
     match std::env::var("SAMFLIX_TELEMETRY") {
         Ok(v) => !matches!(v.trim(), "0" | "off" | "false" | "no" | "non"),

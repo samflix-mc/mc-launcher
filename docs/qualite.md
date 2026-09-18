@@ -105,14 +105,14 @@ commandes prennent un `AppHandle` et n'enveloppent que des appels dont chacun
 est éprouvé dans le crate qui le porte.
 
 ```
-crates/mc-app/src/lib.rs        crates/mc-app/src/commandes.rs
+crates/mc-app/src/lib.rs        crates/mc-app/src/commands.rs
 crates/mc-app/src/main.rs       crates/mc-app/src/commandes/**
-crates/mc-app/src/chemins.rs
+crates/mc-app/src/paths.rs
 ```
 
 **Le reste de `mc-app` demeure dans le périmètre, et c'est le point.**
-`csp.rs`, `recette.rs`, `marque.rs`, `navigation.rs`, `phase.rs`, `suivi.rs`,
-`diagnostic.rs` et `cinematique.rs` ont tous une moitié pure, et elle est
+`csp.rs`, `acceptance.rs`, `brand.rs`, `navigation.rs`, `phase.rs`, `tracker.rs`,
+`diagnostic.rs` et `cinematic.rs` ont tous une moitié pure, et elle est
 testée — certaines à cent pour cent. Exclure le crate entier aurait été plus
 simple, et aurait masqué cela.
 

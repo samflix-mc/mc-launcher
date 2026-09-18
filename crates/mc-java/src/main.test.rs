@@ -1,67 +1,66 @@
-use super::{Reglages, analyser};
+use super::{Settings, parse};
 use std::path::PathBuf;
 
-fn analyse(args: &[&str]) -> anyhow::Result<Reglages> {
-    analyser(args.iter().map(|a| (*a).to_string()))
+fn parse_args(args: &[&str]) -> anyhow::Result<Settings> {
+    parse(args.iter().map(|a| (*a).to_string()))
 }
 
 #[test]
-fn sans_argument_on_cherche_un_java_21() {
-    // Minecraft 1.21.1 l'exige ; en dessous le jeu s'arrête avant d'afficher
-    // une fenêtre.
-    assert_eq!(analyse(&[]).unwrap(), Reglages::default());
-    assert_eq!(analyse(&[]).unwrap().major, 21);
+fn with_no_argument_a_java_21_is_sought() {
+    // Minecraft 1.21.1 requires it; below that the game stops before showing
+    // a window.
+    assert_eq!(parse_args(&[]).unwrap(), Settings::default());
+    assert_eq!(parse_args(&[]).unwrap().major, 21);
 }
 
 #[test]
-fn les_trois_options_se_combinent() {
-    let reglages = analyse(&["--check", "--major", "17", "--dir", "/tmp/runtimes"]).unwrap();
+fn the_three_options_combine() {
+    let settings = parse_args(&["--check", "--major", "17", "--dir", "/tmp/runtimes"]).unwrap();
 
-    assert!(reglages.check_only);
-    assert_eq!(reglages.major, 17);
-    assert_eq!(reglages.dir, Some(PathBuf::from("/tmp/runtimes")));
+    assert!(settings.check_only);
+    assert_eq!(settings.major, 17);
+    assert_eq!(settings.dir, Some(PathBuf::from("/tmp/runtimes")));
 }
 
-/// Une valeur illisible est une faute de frappe, pas un bug : elle doit
-/// s'annoncer comme une erreur ordinaire, avec ce qui a été lu.
+/// An unreadable value is a typo, not a bug: it must be announced as an
+/// ordinary error, along with what was read.
 #[test]
-fn un_majeur_illisible_se_dit_sans_paniquer() {
-    let erreur = analyse(&["--major", "vingt-et-un"]).expect_err("pas un entier");
-    assert!(format!("{erreur:#}").contains("vingt-et-un"), "{erreur:#}");
-}
-
-#[test]
-fn une_option_qui_attend_une_valeur_la_reclame() {
-    assert!(analyse(&["--major"]).is_err());
-    assert!(analyse(&["--dir"]).is_err());
+fn an_unreadable_major_is_reported_without_panicking() {
+    let error = parse_args(&["--major", "twenty-one"]).expect_err("not an integer");
+    assert!(format!("{error:#}").contains("twenty-one"), "{error:#}");
 }
 
 #[test]
-fn une_option_inconnue_est_nommee() {
-    let erreur = analyse(&["--majeur"]).expect_err("option inconnue");
-    assert!(format!("{erreur:#}").contains("--majeur"), "{erreur:#}");
+fn an_option_that_expects_a_value_demands_it() {
+    assert!(parse_args(&["--major"]).is_err());
+    assert!(parse_args(&["--dir"]).is_err());
 }
 
-/// `--check` ne touche à rien : il dit si ce poste a déjà un Java utilisable,
-/// et rend l'échec quand il n'y en a pas — c'est ce qu'une CI appelle.
+#[test]
+fn an_unknown_option_is_named() {
+    let error = parse_args(&["--bogus"]).expect_err("unknown option");
+    assert!(format!("{error:#}").contains("--bogus"), "{error:#}");
+}
+
+/// `--check` touches nothing: it says whether this machine already has a
+/// usable Java, and returns failure when there isn't one — that's what a CI
+/// calls.
 #[tokio::test]
-async fn check_sans_runtime_rend_l_echec_sans_rien_installer() {
-    let racine = std::env::temp_dir().join(format!("mc-java-main-{}", std::process::id()));
-    std::fs::create_dir_all(&racine).unwrap();
+async fn check_without_a_runtime_returns_failure_without_installing_anything() {
+    let root = std::env::temp_dir().join(format!("mc-java-main-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
 
-    // Une version majeure qu'aucun système ne fournira, pour que le PATH du
-    // poste ne vienne pas troubler le résultat.
-    let code = super::executer(999, true, Some(racine.clone()))
-        .await
-        .unwrap();
+    // A major version no system will provide, so this machine's PATH doesn't
+    // muddy the result.
+    let code = super::execute(999, true, Some(root.clone())).await.unwrap();
 
     assert_eq!(
         format!("{code:?}"),
         format!("{:?}", std::process::ExitCode::FAILURE)
     );
     assert!(
-        !racine.join("temurin-999").exists(),
-        "rien ne doit être installé"
+        !root.join("temurin-999").exists(),
+        "nothing should be installed"
     );
-    std::fs::remove_dir_all(&racine).ok();
+    std::fs::remove_dir_all(&root).ok();
 }

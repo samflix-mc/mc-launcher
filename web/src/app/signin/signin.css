@@ -1,0 +1,33 @@
+:host {
+  display: block;
+  /* `min-width: 0`: the host is a grid item of the shell, and without it it
+     would take the width of its widest content rather than the window's. */
+  min-width: 0;
+}
+
+/* The dialog holds the window's width, which is four hundred forty pixels:
+   its default four hundred twenty would overflow the margins.
+
+   The rule lives HERE and not in the shell's style: emulated encapsulation
+   prefixes selectors with the attribute of the component that declares
+   them, and `.hm-dialog` belongs to this template. Written over there, it
+   would apply to nothing — without an error. */
+.hm-dialog {
+  width: 100%;
+}
+
+/* The note under the Microsoft button, centered as in the design system. */
+.hm-signin__note {
+  text-align: center;
+}
+
+/* The player name, in the "done" screen. The design system's `.hm-auth__done`
+   places a checkmark and a text area; the player's name is what's read first
+   there. */
+.hm-signin__pseudo {
+  font-weight: 600;
+}
+
+.hm-auth__done .hm-field__hint {
+  margin: 0;
+}

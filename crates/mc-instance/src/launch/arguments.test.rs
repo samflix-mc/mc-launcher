@@ -4,39 +4,39 @@ use super::substitute;
 fn vars() -> BTreeMap<String, String> {
     BTreeMap::from([
         ("auth_player_name".into(), "Sam".into()),
-        ("game_directory".into(), "/jeu".into()),
+        ("game_directory".into(), "/game".into()),
         ("classpath_separator".into(), ":".into()),
     ])
 }
 
 #[test]
-fn substitution_simple() {
+fn simple_substitution() {
     assert_eq!(substitute("${auth_player_name}", &vars()), "Sam");
     assert_eq!(
         substitute("--gameDir=${game_directory}", &vars()),
-        "--gameDir=/jeu"
+        "--gameDir=/game"
     );
 }
 
 #[test]
-fn plusieurs_variables_dans_un_argument() {
-    // Le module path de NeoForge en enchaîne une dizaine.
-    let rendu = substitute("a${classpath_separator}b${classpath_separator}c", &vars());
-    assert_eq!(rendu, "a:b:c");
+fn several_variables_in_one_argument() {
+    // NeoForge's path module chains together about ten of these.
+    let rendered = substitute("a${classpath_separator}b${classpath_separator}c", &vars());
+    assert_eq!(rendered, "a:b:c");
 }
 
 #[test]
-fn une_variable_inconnue_reste_visible() {
-    // La vider décalerait les arguments suivants sans rien signaler.
-    assert_eq!(substitute("${inconnue}", &vars()), "${inconnue}");
+fn an_unknown_variable_stays_visible() {
+    // Clearing it would shift the following arguments without any signal.
+    assert_eq!(substitute("${unknown}", &vars()), "${unknown}");
 }
 
 #[test]
-fn un_texte_sans_variable_est_intact() {
+fn text_without_a_variable_is_untouched() {
     assert_eq!(substitute("--add-modules", &vars()), "--add-modules");
 }
 
 #[test]
-fn une_accolade_non_fermee_ne_fait_pas_paniquer() {
-    assert_eq!(substitute("${tronque", &vars()), "${tronque");
+fn an_unclosed_brace_does_not_panic() {
+    assert_eq!(substitute("${truncated", &vars()), "${truncated");
 }

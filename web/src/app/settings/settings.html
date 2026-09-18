@@ -1,0 +1,465 @@
+<div class="hm-settings" data-test="settings">
+  <!-- --- The rail ---------------------------------------------------------
+       The links anchor to the group. No selection to keep: this is a page
+       that scrolls, not five pages. -->
+  <nav class="hm-settings__nav" aria-label="Settings groups">
+    <h1 class="hm-settings__title">Settings</h1>
+
+    @for (group of groups; track group.anchor) {
+      <!--
+        A BUTTON and not an anchor. Nothing needs to be in the URL to scroll
+        within a page, and an anchor would leave a trace that the "back"
+        button would read as a navigation.
+
+        This is also what cost the fragment: back when `withHashLocation()`
+        was in use, the hash belonged to the router, and `href="#settings-video"`
+        wrote a URL it tried to resolve as a route.
+      -->
+      <button
+        type="button"
+        class="hm-settings__link"
+        (click)="goTo(group.anchor)"
+        [attr.aria-current]="groupInView() === group.anchor ? 'true' : null"
+        [attr.data-test]="'rail-' + group.anchor"
+      >
+        <lucide-icon [img]="group.icon" [size]="20" [strokeWidth]="1.75" aria-hidden="true" />
+        {{ group.label }}
+      </button>
+    }
+
+    <p class="hm-settings__footer">
+      Tauri 2 · Angular 22<br />
+      Helm design system
+    </p>
+  </nav>
+
+  <div class="hm-settings__body hm-scroll">
+    <!-- === Appearance: the LAUNCHER's window ========================== -->
+    <section #section class="hm-glass hm-settings-group" data-group="appearance">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Appearance</h3>
+        <p class="hm-settings-group__desc">The launcher's window, not the game's.</p>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Backdrop image</div>
+          <p class="hm-setting__desc">What shows behind the panels.</p>
+        </div>
+        <div class="hm-setting__control">
+          <select
+            class="hm-select hm-select--auto"
+            [value]="view().appearance.backdrop"
+            (change)="changeBackdrop($any($event.target).value)"
+            aria-label="Backdrop image"
+            data-test="backdrop"
+          >
+            @for (choice of backdrops; track choice.value) {
+              <option [value]="choice.value">{{ choice.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div>
+          <div class="hm-setting__label">Darkening</div>
+          <!--
+            The slider goes down to zero, and it's harmless: it no longer
+            holds the contrast on its own. The scene gradient and glass
+            thickness handle it, and the glass thickens on its own as things
+            get brighter — see `--glass-epaisseur`.
+          -->
+          <p class="hm-setting__desc">
+            At zero, the image shows in full: the panels thicken on their own to stay readable.
+          </p>
+        </div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Scrim</span>
+              <span class="hm-slider__value" data-test="scrim-value">
+                {{ (view().appearance.scrim * 100).toFixed(0) }} %
+              </span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="0"
+              max="1"
+              step="0.01"
+              [value]="view().appearance.scrim"
+              [style.--p]="travel(view().appearance.scrim, 0, 1)"
+              (input)="changeScrim($any($event.target).value)"
+              (change)="save()"
+              aria-label="Backdrop darkening"
+              data-test="scrim"
+            />
+            <div class="hm-slider__ticks">
+              <span>sharp image</span>
+              <span>faded image</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- === Game window: the GAME's one ====================================== -->
+    <section #section class="hm-glass hm-settings-group" data-group="window">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Game window</h3>
+        <p class="hm-settings-group__desc">How Minecraft opens on launch.</p>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Mode</div>
+        </div>
+        <div class="hm-setting__control">
+          <select
+            class="hm-select hm-select--auto"
+            [value]="view().window.mode"
+            (change)="changeMode($any($event.target).value)"
+            aria-label="Game window mode"
+            data-test="mode"
+          >
+            @for (choice of modes; track choice.value) {
+              <option [value]="choice.value">{{ choice.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      @if (view().window.mode === 'windowed') {
+        <div class="hm-setting">
+          <div>
+            <div class="hm-setting__label">Size</div>
+            @if (screenSize(); as size) {
+              <p class="hm-setting__desc" data-test="work-area">
+                Work area of your screen: {{ size }} — desktop panels subtracted.
+              </p>
+            }
+          </div>
+          <div class="hm-setting__control">
+            <span class="hm-input-unit">
+              <input
+                class="hm-input hm-input--num"
+                type="number"
+                min="640"
+                max="7680"
+                [value]="view().window.width"
+                (change)="changeSize('width', $any($event.target).value)"
+                aria-label="Width"
+                data-test="width"
+              />
+              <span class="hm-input-unit__suffix">×</span>
+              <input
+                class="hm-input hm-input--num"
+                type="number"
+                min="480"
+                max="4320"
+                [value]="view().window.height"
+                (change)="changeSize('height', $any($event.target).value)"
+                aria-label="Height"
+                data-test="height"
+              />
+              <span class="hm-input-unit__suffix">px</span>
+            </span>
+          </div>
+        </div>
+      }
+    </section>
+
+    <!-- === Video: keys merged into options.txt ================= -->
+    <section #section class="hm-glass hm-settings-group" data-group="video">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Video</h3>
+        <p class="hm-settings-group__desc">
+          Merged into the instance's <span class="hm-mono">options.txt</span>, without touching your
+          keybinds or your volume.
+        </p>
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div><div class="hm-setting__label">Render distance</div></div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Chunks</span>
+              <span class="hm-slider__value" data-test="render-value">
+                {{ view().game.renderDistance }}
+              </span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="2"
+              max="32"
+              [value]="view().game.renderDistance"
+              [style.--p]="travel(view().game.renderDistance, 2, 32)"
+              (input)="changeGame('renderDistance', $any($event.target).value)"
+              (change)="save()"
+              aria-label="Render distance"
+              data-test="render"
+            />
+            <div class="hm-slider__ticks"><span>2</span><span>32</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div><div class="hm-setting__label">Simulation distance</div></div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Chunks</span>
+              <span class="hm-slider__value">{{ view().game.simulationDistance }}</span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="5"
+              max="32"
+              [value]="view().game.simulationDistance"
+              [style.--p]="travel(view().game.simulationDistance, 5, 32)"
+              (input)="changeGame('simulationDistance', $any($event.target).value)"
+              (change)="save()"
+              aria-label="Simulation distance"
+              data-test="simulation"
+            />
+            <div class="hm-slider__ticks"><span>5</span><span>32</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div><div class="hm-setting__label">Frames per second</div></div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Cap</span>
+              <span class="hm-slider__value">{{ view().game.maxFps }}</span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="10"
+              max="260"
+              step="10"
+              [value]="view().game.maxFps"
+              [style.--p]="travel(view().game.maxFps, 10, 260)"
+              (input)="changeGame('maxFps', $any($event.target).value)"
+              (change)="save()"
+              aria-label="Frames per second"
+              data-test="fps"
+            />
+            <div class="hm-slider__ticks"><span>10</span><span>260</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Vertical sync</div>
+          <p class="hm-setting__desc">Removes tearing, at the cost of a little latency.</p>
+        </div>
+        <div class="hm-setting__control">
+          <input
+            type="checkbox"
+            class="hm-switch"
+            role="switch"
+            [checked]="view().game.vsync"
+            (change)="switchGame('vsync', $any($event.target).checked)"
+            aria-label="Vertical sync"
+            data-test="vsync"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- === Java: nothing to configure ========================================= -->
+    <section #section class="hm-glass hm-settings-group" data-group="java">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Java</h3>
+        <p class="hm-settings-group__desc">
+          Decided by the pack, not by you — and that's intentional.
+        </p>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Required version</div>
+          <p class="hm-setting__desc">
+            The launcher installs, for itself, the exact Java it needs — never for the whole system,
+            and without touching what you already have.
+          </p>
+        </div>
+        <div class="hm-setting__control">
+          @if (packState()?.java; as major) {
+            <span class="hm-status hm-status--online" data-test="java">
+              <span class="hm-status__dot" aria-hidden="true"></span>
+              Java {{ major }}
+            </span>
+          } @else {
+            <span class="hm-status hm-status--unknown" data-test="java-unknown">
+              <span class="hm-status__dot" aria-hidden="true"></span>
+              Not known yet
+            </span>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- === Advanced ======================================================= -->
+    <section #section class="hm-glass hm-settings-group" data-group="advanced">
+      <div class="hm-settings-group__head">
+        <h3 class="hm-settings-group__title">Advanced</h3>
+        <p class="hm-settings-group__desc">
+          Memory, verification, and where the launcher keeps its files.
+        </p>
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div>
+          <div class="hm-setting__label">Memory allocated to the game</div>
+          <p class="hm-setting__desc">
+            Without a setting, the JVM takes a quarter of the machine's memory — which isn't enough
+            for a modpack, and produces a crash after twenty minutes.
+          </p>
+        </div>
+        <div class="hm-setting__control">
+          <div class="hm-slider">
+            <div class="hm-slider__row">
+              <span>Allocated</span>
+              <span class="hm-slider__value" data-test="memory-value">
+                {{ memoryGb() === null ? 'left to the JVM' : memoryGb() + ' GB' }}
+              </span>
+            </div>
+            <input
+              type="range"
+              class="hm-range"
+              min="1"
+              [max]="MEMORY_MAX_GB"
+              step="0.5"
+              [value]="memoryGb() ?? 4"
+              [style.--p]="travel(memoryGb() ?? 4, 1, MEMORY_MAX_GB)"
+              (input)="changeMemory($any($event.target).value)"
+              (change)="save()"
+              aria-label="Memory allocated to the game, in gigabytes"
+              data-test="memory"
+            />
+            <div class="hm-slider__ticks">
+              <span>1 GB</span>
+              <span>{{ MEMORY_MAX_GB }} GB</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Minimize the launcher on launch</div>
+          <p class="hm-setting__desc">The window hides while the game is running.</p>
+        </div>
+        <div class="hm-setting__control">
+          <input
+            type="checkbox"
+            class="hm-switch"
+            role="switch"
+            [checked]="view().launcher.minimizeOnLaunch"
+            (change)="changeMinimize($any($event.target).checked)"
+            aria-label="Minimize the launcher on launch"
+            data-test="minimize"
+          />
+        </div>
+      </div>
+
+      <div class="hm-setting">
+        <div>
+          <div class="hm-setting__label">Verify files</div>
+          <!--
+            Only one verification, and it's the real one. The "quick" one
+            only compared sizes: it said "everything is in place" about a
+            corrupted file of the right length — which is precisely the case
+            verification exists for.
+          -->
+          <p class="hm-setting__desc">
+            Reads and recomputes the digest of several hundred megabytes. Allow a few minutes.
+          </p>
+        </div>
+        <div class="hm-setting__control">
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm"
+            (click)="verify()"
+            [disabled]="verificationInProgress()"
+            [attr.aria-busy]="verificationInProgress() ? 'true' : null"
+            data-test="verify"
+          >
+            <lucide-icon [img]="ShieldCheck" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Verify
+          </button>
+        </div>
+
+        @if (verification(); as issues) {
+          @if (issues.length === 0) {
+            <p class="hm-setting__note hm-settings__ok" data-test="verification-ok">
+              Everything is in place.
+            </p>
+          } @else {
+            <p class="hm-setting__note" data-test="verification-issues">
+              {{ issues.length }} issue(s) — the next launch will catch them up by diff.
+            </p>
+          }
+        }
+      </div>
+
+      <div class="hm-setting hm-setting--stack">
+        <div>
+          <div class="hm-setting__label">Open a folder</div>
+          <p class="hm-setting__desc">
+            Where the launcher keeps what it installs and what it writes.
+          </p>
+        </div>
+        <div class="hm-setting__control hm-settings__folders">
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm hm-btn--ghost"
+            (click)="openFolder('instance')"
+            data-test="instance-folder"
+          >
+            <lucide-icon [img]="FolderOpen" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Instance
+          </button>
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm hm-btn--ghost"
+            (click)="openFolder('data')"
+            data-test="data-folder"
+          >
+            <lucide-icon [img]="FolderOpen" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Data
+          </button>
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm hm-btn--ghost"
+            (click)="openFolder('config')"
+            data-test="config-folder"
+          >
+            <lucide-icon [img]="FolderOpen" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Config
+          </button>
+          <button
+            type="button"
+            class="hm-btn hm-btn--sm hm-btn--ghost"
+            (click)="openFolder('logs')"
+            data-test="logs-folder"
+          >
+            <lucide-icon [img]="Terminal" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+            Logs
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

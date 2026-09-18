@@ -1,122 +1,122 @@
 <!--
-  Deux colonnes en haut, et le MILIEU LAISSÉ VIDE : c'est par là que l'image
-  passe, et c'est le seul endroit de l'écran où elle se voit vraiment. Ne rien y
-  mettre est une décision, pas un oubli.
+  Two columns up top, and the MIDDLE LEFT EMPTY: that's where the image
+  shows through, and it's the only place on screen where it truly shows.
+  Putting nothing there is a decision, not an oversight.
 -->
 <section class="hm-spawn" data-test="spawn">
-  <!-- --- La nouvelle mise en avant -------------------------------------- -->
-  <div class="hm-spawn__vedette">
-    @if (epinglee(); as billet) {
-      <app-carte-nouvelle [billet]="billet" variante="epinglee" />
+  <!-- --- The featured post ------------------------------------------------ -->
+  <div class="hm-spawn__featured">
+    @if (pinned(); as post) {
+      <app-news-card [post]="post" variant="pinned" />
     } @else {
       <!--
-        Pas de fil, ou pas encore. Une tuile vide serait un trou dans la
-        grille ; un panneau qui le dit tient la place et ne ment pas.
+        No feed, or not yet. An empty tile would be a hole in the grid; a
+        panel that says so holds the spot and doesn't lie.
       -->
-      <div class="hm-glass hm-glass--pad hm-spawn__vide" data-test="sans-nouvelle">
-        <p class="hm-glass__eyebrow">Nouvelles</p>
-        <p class="hm-muted">Rien de publié pour le moment.</p>
+      <div class="hm-glass hm-glass--pad hm-spawn__empty" data-test="no-news">
+        <p class="hm-glass__eyebrow">News</p>
+        <p class="hm-muted">Nothing published yet.</p>
       </div>
     }
   </div>
 
-  <!-- --- Les panneaux d'état --------------------------------------------- -->
+  <!-- --- The status panels -------------------------------------------------- -->
   <div class="hm-stack">
-    <!-- --- Le serveur : EMPLACEMENT RÉSERVÉ -------------------------------
-         Rien ne le sonde encore. Les valeurs sont des tirets et la pastille est
-         « unknown », ce que le design system réserve précisément à l'état
-         d'avant la première réponse — et qui pulse pour le dire.
+    <!-- --- The server: RESERVED SPOT ---------------------------------------
+         Nothing probes it yet. The values are dashes and the badge is
+         "unknown", which the design system reserves precisely for the state
+         before the first response — and which pulses to say so.
 
-         Afficher « en ligne · 42/120 » en dur serait pire que de ne rien
-         afficher : un joueur croirait le serveur joignable, et ne comprendrait
-         pas pourquoi le jeu le refuse. Voir `docs/interface.md`. -->
-    <div class="hm-glass hm-glass--pad" data-test="panneau-serveur">
-      <div class="hm-spawn__tete">
+         Hardcoding "online · 42/120" would be worse than showing nothing: a
+         player would believe the server reachable, and wouldn't understand
+         why the game refuses it. See `docs/interface.md`. -->
+    <div class="hm-glass hm-glass--pad" data-test="server-panel">
+      <div class="hm-spawn__head">
         <div>
-          <p class="hm-glass__eyebrow">Serveur</p>
-          <h3 class="hm-glass__title hm-spawn__titre" data-test="nom-serveur">
-            {{ serveur().nom }}
+          <p class="hm-glass__eyebrow">Server</p>
+          <h3 class="hm-glass__title hm-spawn__title" data-test="server-name">
+            {{ server().name }}
           </h3>
         </div>
 
-        <span class="hm-status hm-status--unknown" data-etat="unknown" data-test="pastille-serveur">
+        <span class="hm-status hm-status--unknown" data-state="unknown" data-test="server-badge">
           <span class="hm-status__dot" aria-hidden="true"></span>
-          {{ serveur().etat }}
+          {{ server().status }}
         </span>
       </div>
 
-      <div class="hm-spawn__faits">
-        <span class="hm-row hm-spawn__fait" data-test="adresse">
+      <div class="hm-spawn__facts">
+        <span class="hm-row hm-spawn__fact" data-test="address">
           <lucide-icon [img]="Globe" [size]="16" [strokeWidth]="2" aria-hidden="true" />
-          {{ serveur().adresse }}
+          {{ server().address }}
         </span>
-        <span class="hm-row hm-spawn__fait" data-test="joueurs">
+        <span class="hm-row hm-spawn__fact" data-test="players">
           <lucide-icon [img]="Users" [size]="16" [strokeWidth]="2" aria-hidden="true" />
-          {{ serveur().joueurs }}
+          {{ server().players }}
         </span>
       </div>
     </div>
 
-    <div class="hm-glass hm-glass--pad" data-test="panneau-pack">
-      <div class="hm-spawn__tete">
+    <div class="hm-glass hm-glass--pad" data-test="pack-panel">
+      <div class="hm-spawn__head">
         <div>
           <p class="hm-glass__eyebrow">Modpack</p>
-          <h3 class="hm-glass__title hm-spawn__titre" data-test="nom-pack">
-            {{ etat()?.nom ?? 'Pack inconnu' }}
+          <h3 class="hm-glass__title hm-spawn__title" data-test="pack-name">
+            {{ state()?.name ?? 'Unknown pack' }}
           </h3>
         </div>
 
         <span
-          [class]="'hm-status hm-status--' + pastille().variante"
-          [attr.data-etat]="pastille().variante"
-          data-test="pastille"
+          [class]="'hm-status hm-status--' + badge().variant"
+          [attr.data-state]="badge().variant"
+          data-test="badge"
         >
           <span class="hm-status__dot" aria-hidden="true"></span>
-          {{ pastille().libelle }}
-          @if (pastille().valeur; as version) {
+          {{ badge().label }}
+          @if (badge().value; as version) {
             <span class="hm-status__value">{{ version }}</span>
           }
         </span>
       </div>
 
-      <div class="hm-spawn__faits">
-        @if (etat(); as vu) {
-          @if (vu.mods > 0) {
-            <span class="hm-row hm-spawn__fait" data-test="mods">
+      <div class="hm-spawn__facts">
+        @if (state(); as current) {
+          @if (current.mods > 0) {
+            <span class="hm-row hm-spawn__fact" data-test="mods">
               <lucide-icon [img]="Package" [size]="16" [strokeWidth]="2" aria-hidden="true" />
-              {{ vu.mods }} mods
+              {{ current.mods }} mods
             </span>
           }
-          @if (vu.java) {
-            <span class="hm-row hm-spawn__fait" data-test="java">
+          @if (current.java) {
+            <span class="hm-row hm-spawn__fact" data-test="java">
               <lucide-icon [img]="Clock" [size]="16" [strokeWidth]="2" aria-hidden="true" />
-              Java {{ vu.java }}
+              Java {{ current.java }}
             </span>
           }
-          @if (vu.installe) {
-            <span class="hm-row hm-spawn__fait" data-test="installe">
+          @if (current.installed) {
+            <span class="hm-row hm-spawn__fact" data-test="installed">
               <lucide-icon [img]="Check" [size]="16" [strokeWidth]="2" aria-hidden="true" />
-              Installé sur ce poste
+              Installed on this machine
             </span>
           }
         }
       </div>
     </div>
 
-    <!-- --- Ce que le dernier geste a laissé ------------------------------- -->
-    @if (compteRendu()) {
-      <div class="hm-glass hm-glass--pad" data-test="panneau-partie">
-        <p class="hm-glass__eyebrow">Dernière installation</p>
+    <!-- --- What the last gesture left behind ------------------------------ -->
+    @if (hasReport()) {
+      <div class="hm-glass hm-glass--pad" data-test="session-panel">
+        <p class="hm-glass__eyebrow">Last install</p>
 
         @if (purge().length > 0) {
           <p class="hm-spawn__note" data-test="purge">
-            Réinstallation complète : {{ purge().join(', ') }} ont été remis à neuf. Vos mondes, vos
-            configurations et vos captures n'ont pas été touchés.
+            Full reinstall: {{ purge().join(', ') }} were rebuilt from scratch. Your worlds, your
+            configs and your screenshots weren't touched.
           </p>
         }
 
-        @if (introuvables().length > 0) {
-          <div class="hm-alert hm-alert--warning hm-spawn__alerte" data-test="introuvables">
+        @if (missing().length > 0) {
+          <div class="hm-alert hm-alert--warning hm-spawn__alert" data-test="missing">
             <lucide-icon
               class="hm-alert__icon"
               [img]="TriangleAlert"
@@ -124,13 +124,13 @@
               [strokeWidth]="1.75"
               aria-hidden="true"
             />
-            <p class="hm-alert__title">{{ introuvables().length }} mod(s) introuvable(s)</p>
-            <p class="hm-alert__text">{{ introuvables().join(', ') }}</p>
+            <p class="hm-alert__title">{{ missing().length }} mod(s) missing</p>
+            <p class="hm-alert__text">{{ missing().join(', ') }}</p>
           </div>
         }
 
-        @if (ecarts().length > 0) {
-          <div class="hm-alert hm-alert--warning hm-spawn__alerte" data-test="ecarts">
+        @if (drifts().length > 0) {
+          <div class="hm-alert hm-alert--warning hm-spawn__alert" data-test="drifts">
             <lucide-icon
               class="hm-alert__icon"
               [img]="TriangleAlert"
@@ -138,8 +138,8 @@
               [strokeWidth]="1.75"
               aria-hidden="true"
             />
-            <p class="hm-alert__title">L'installation s'écarte de ce qui était attendu</p>
-            <p class="hm-alert__text">{{ ecarts().join(', ') }}</p>
+            <p class="hm-alert__title">The install drifts from what was expected</p>
+            <p class="hm-alert__text">{{ drifts().join(', ') }}</p>
           </div>
         }
       </div>

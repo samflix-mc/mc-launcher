@@ -1,6 +1,6 @@
-// Sous Windows, une application graphique en release ne doit pas ouvrir de
-// console en plus de sa fenêtre. En debug, si : c'est là que passent les
-// journaux pendant le développement.
+// On Windows, a graphical application in release mode must not open a
+// console in addition to its window. In debug, it should: that's where the
+// logs go during development.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {

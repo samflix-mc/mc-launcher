@@ -1,19 +1,19 @@
-//! D'un fichier du site au candidat que le résolveur manipule.
+//! From a site file to the candidate the resolver works with.
 
 use crate::jar::Side;
 use crate::{Candidate, Channel, Origin};
 
 use super::api::WebFile;
 
-/// Chargeurs que CurseForge nomme dans `gameVersions`.
+/// Loaders that CurseForge names in `gameVersions`.
 pub(super) const LOADERS: &[&str] = &["neoforge", "forge", "fabric", "quilt"];
 
-/// Un fichier convient-il à cette version du jeu et à ce chargeur ?
+/// Does a file suit this game version and this loader?
 ///
-/// `gameVersions` mélange versions, chargeurs et côtés — p. ex.
-/// `["1.21", "Client", "1.21.1", "NeoForge", "Server"]`. Quand aucun chargeur
-/// n'y figure, le fichier est accepté : c'est le cas des mods anciens, publiés
-/// avant que CurseForge ne l'étiquette.
+/// `gameVersions` mixes versions, loaders and sides — e.g.
+/// `["1.21", "Client", "1.21.1", "NeoForge", "Server"]`. When no loader
+/// appears there, the file is accepted: that's the case for older mods,
+/// published before CurseForge started tagging it.
 pub(super) fn compatible(game_versions: &[String], mc: &str, loader: &str) -> bool {
     let lower: Vec<String> = game_versions
         .iter()
@@ -35,11 +35,11 @@ pub(super) fn channel_of(release_type: u32) -> Channel {
     }
 }
 
-/// URL de téléchargement du site, celle qu'emprunte son propre bouton.
+/// Download URL from the site, the one its own button uses.
 ///
-/// L'URL du CDN n'est pas reconstruite à partir de l'identifiant : c'est par
-/// cette reconstruction qu'on contournerait le refus d'un auteur d'être
-/// redistribué. Passer par la route du site laisse CurseForge décider.
+/// The CDN URL isn't reconstructed from the id: it's that reconstruction
+/// that would bypass an author's refusal to be redistributed. Going through
+/// the site's route lets CurseForge decide.
 pub(super) fn download_url(web: &str, project_id: u32, file_id: u64) -> String {
     format!("{web}/mods/{project_id}/files/{file_id}/download")
 }
@@ -62,8 +62,8 @@ pub(super) fn to_candidate(
         channel: channel_of(file.release_type),
         url: download_url(web, project_id, file.id),
         file_name: file.file_name,
-        // Aucune empreinte publiée par cette source : le SHA-1 sera calculé au
-        // téléchargement puis figé dans le verrou.
+        // No digest published by this source: the SHA-1 will be computed on
+        // download and then frozen into the lockfile.
         sha1: None,
         sha512: None,
         size: file.file_length,

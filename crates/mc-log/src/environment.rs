@@ -1,45 +1,45 @@
-//! D'où vient ce binaire, et donc où classer ses incidents.
+//! Where this binary comes from, and therefore where to file its incidents.
 //!
-//! Un environnement décrit un **déploiement**, pas un profil de compilation.
-//! La confusion des deux a une conséquence immédiate : un `cargo run --release`
-//! lancé sur un poste de développement n'a pas `debug_assertions`, et se
-//! retrouve classé en production. Les premiers incidents de test du projet y
-//! sont arrivés de cette façon, dans un environnement où rien n'avait jamais
-//! été déployé.
+//! An environment describes a **deployment**, not a build profile. Mixing
+//! the two up has an immediate consequence: a `cargo run --release` on a
+//! development machine doesn't have `debug_assertions`, and ends up filed
+//! as production. The project's first test incidents arrived this way, in
+//! an environment where nothing had ever been deployed.
 //!
-//! L'environnement est donc **déclaré**, jamais déduit :
+//! The environment is therefore **declared**, never inferred:
 //!
-//! 1. `SAMFLIX_ENV` au lancement — pour qu'un préprod puisse être rejoué en
-//!    local sans recompiler ;
-//! 2. `SAMFLIX_ENV` à la compilation — c'est la CI qui le pose, selon ce
-//!    qu'elle construit ;
-//! 3. à défaut, `local` — un binaire compilé à la main est local, qu'il soit en
-//!    debug ou en release.
+//! 1. `SAMFLIX_ENV` at launch — so a preprod build can be replayed locally
+//!    without recompiling;
+//! 2. `SAMFLIX_ENV` at compile time — set by the CI, based on what it's
+//!    building;
+//! 3. failing that, `local` — a binary compiled by hand is local, whether
+//!    it's debug or release.
 //!
-//! Le défaut compte plus qu'il n'y paraît : il vaut mieux qu'un incident de
-//! production passe pour local que l'inverse. Le premier se remarque parce
-//! qu'on cherche l'incident et qu'on ne le trouve pas ; le second pollue
-//! silencieusement le seul environnement qu'on surveille vraiment.
+//! The default matters more than it looks: it's better for a production
+//! incident to pass as local than the other way around. The first is
+//! noticed because someone is looking for the incident and can't find it;
+//! the second silently pollutes the one environment actually being
+//! watched.
 
-/// Environnement de déploiement, au sens de Sentry.
+/// Deployment environment, in Sentry's sense.
 mod resolution;
 
 pub use resolution::{current, origin};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Environment {
-    /// Compilé et lancé sur le poste de quelqu'un.
+    /// Compiled and launched on someone's machine.
     Local,
-    /// Construit par la CI sur une branche de travail.
+    /// Built by the CI on a working branch.
     Development,
-    /// Construit par la CI sur la branche principale, avant publication.
+    /// Built by the CI on the main branch, before publishing.
     Preproduction,
-    /// Binaire publié sur un tag.
+    /// Binary published on a tag.
     Production,
 }
 
 impl Environment {
-    /// Nom envoyé à Sentry.
+    /// Name sent to Sentry.
     pub fn as_str(self) -> &'static str {
         match self {
             Environment::Local => "local",
@@ -49,11 +49,11 @@ impl Environment {
         }
     }
 
-    /// Lit un nom d'environnement, alias courants compris.
+    /// Reads an environment name, common aliases included.
     ///
-    /// `dev`, `preprod` et `staging` sont ce qu'on tape et ce que les CI
-    /// emploient ; les refuser ferait silencieusement retomber sur le défaut,
-    /// c'est-à-dire exactement l'erreur qu'on cherche à éviter.
+    /// `dev`, `preprod` and `staging` are what one types and what the CIs
+    /// use; rejecting them would silently fall back to the default, which is
+    /// exactly the mistake this is meant to avoid.
     pub fn parse(text: &str) -> Option<Environment> {
         match text.trim().to_ascii_lowercase().as_str() {
             "local" | "dev-local" => Some(Environment::Local),
@@ -66,10 +66,10 @@ impl Environment {
         }
     }
 
-    /// Cet environnement correspond-il à un binaire distribué ?
+    /// Does this environment correspond to a distributed binary?
     ///
-    /// Sert à décider de ce qui est acceptable par défaut : on est plus
-    /// bavard sur un poste de développement que chez un joueur.
+    /// Used to decide what's acceptable by default: we're more talkative on
+    /// a development machine than for a player.
     pub fn is_deployed(self) -> bool {
         matches!(self, Environment::Preproduction | Environment::Production)
     }

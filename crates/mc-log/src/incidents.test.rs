@@ -1,82 +1,83 @@
 use super::{dsn, flush_incidents, telemetry_active, telemetry_enabled};
 
 #[test]
-fn la_telemetrie_se_coupe() {
-    let vars = crate::essais::variables();
+fn telemetry_can_be_turned_off() {
+    let vars = crate::fixtures::variables();
 
-    vars.poser("SAMFLIX_TELEMETRY", "0");
+    vars.set("SAMFLIX_TELEMETRY", "0");
     assert!(!telemetry_enabled());
     assert!(dsn().is_none());
     assert!(!telemetry_active());
 
-    vars.poser("SAMFLIX_TELEMETRY", "1");
+    vars.set("SAMFLIX_TELEMETRY", "1");
     assert!(telemetry_enabled());
 
-    // L'opt-out se déclare ; son absence ne coupe rien.
-    vars.retirer("SAMFLIX_TELEMETRY");
+    // The opt-out has to be declared; its absence turns nothing off.
+    vars.unset("SAMFLIX_TELEMETRY");
     assert!(telemetry_enabled());
 }
 
-/// Un opt-out qu'il faut deviner n'en est pas un : les quatre façons d'écrire
-/// « non » doivent toutes marcher, en français comme en anglais.
+/// An opt-out you have to guess isn't one: all four ways of writing "no"
+/// must all work, in French as in English.
 #[test]
-fn toutes_les_facons_d_ecrire_non_sont_entendues() {
-    let vars = crate::essais::variables();
-    for valeur in ["0", "off", "false", "no", "non", " non "] {
-        vars.poser("SAMFLIX_TELEMETRY", valeur);
-        assert!(!telemetry_enabled(), "« {valeur} » n'a pas coupé");
+fn every_way_of_writing_no_is_heard() {
+    let vars = crate::fixtures::variables();
+    for value in ["0", "off", "false", "no", "non", " non "] {
+        vars.set("SAMFLIX_TELEMETRY", value);
+        assert!(!telemetry_enabled(), "\"{value}\" did not turn it off");
     }
 }
 
 #[test]
-fn un_dsn_vide_desactive_la_remontee() {
-    let vars = crate::essais::variables();
-    // La télémétrie doit être active, sans quoi le DSN ne serait pas même
-    // consulté et le test passerait pour la mauvaise raison.
-    vars.retirer("SAMFLIX_TELEMETRY");
-    vars.poser("SENTRY_DSN", "   ");
+fn an_empty_dsn_disables_reporting() {
+    let vars = crate::fixtures::variables();
+    // Telemetry must be active, otherwise the DSN wouldn't even be
+    // consulted and the test would pass for the wrong reason.
+    vars.unset("SAMFLIX_TELEMETRY");
+    vars.set("SENTRY_DSN", "   ");
     assert!(dsn().is_none());
 }
 
-/// Un DSN posé remplace celui du projet : c'est ce qui permet de router les
-/// incidents d'un déploiement particulier ailleurs.
+/// A DSN that's set replaces the project's: that's what lets incidents
+/// from a given deployment be routed elsewhere.
 #[test]
-fn un_dsn_pose_remplace_celui_du_projet() {
-    let vars = crate::essais::variables();
-    vars.retirer("SAMFLIX_TELEMETRY");
-    vars.poser("SENTRY_DSN", " https://cle@exemple.invalid/7 ");
-    assert_eq!(dsn().as_deref(), Some("https://cle@exemple.invalid/7"));
+fn a_set_dsn_replaces_the_projects() {
+    let vars = crate::fixtures::variables();
+    vars.unset("SAMFLIX_TELEMETRY");
+    vars.set("SENTRY_DSN", " https://key@example.invalid/7 ");
+    assert_eq!(dsn().as_deref(), Some("https://key@example.invalid/7"));
 }
 
-/// Sans client, rien n'a été émis, donc rien ne part : `false` distingue cela
-/// d'une file vidée pour de bon.
+/// Without a client, nothing was emitted, so nothing gets sent: `false`
+/// distinguishes this from a queue that was flushed for real.
 #[test]
-fn sans_client_la_file_n_est_pas_dite_videe() {
+fn without_a_client_the_queue_is_not_said_to_be_flushed() {
     assert!(!flush_incidents(std::time::Duration::from_millis(1)));
 }
 
-/// Et avec un client, la file part et le dit. Les deux appelants qui attendent
-/// ce `true` annoncent un identifiant au joueur : « consigné » ne se dit pas
-/// comme « transmis », et chercher dans le tableau de bord un identifiant qui
-/// n'y est jamais arrivé coûte plus cher que l'attente qu'on s'épargnait.
+/// And with a client, the queue flushes and says so. The two callers who
+/// wait for this `true` announce an identifier to the player: "logged"
+/// doesn't mean "sent", and searching the dashboard for an identifier
+/// that never arrived costs more than the wait it was saving.
 #[test]
-fn avec_un_client_la_file_part_et_le_dit() {
+fn with_a_client_the_queue_flushes_and_says_so() {
     sentry::test::with_captured_events(|| {
         assert!(
             flush_incidents(std::time::Duration::from_secs(1)),
-            "un client est lié : la file part"
+            "a client is bound: the queue flushes"
         );
     });
 }
 
-/// Sans opt-out ni DSN de remplacement, c'est le projet du launcher qui reçoit
-/// — et la remontée est donc active. Répondre `false` couperait en silence la
-/// seule voie par laquelle un plantage chez un joueur nous parvient.
+/// Without an opt-out or a replacement DSN, it's the launcher's project
+/// that receives — so reporting is active. Answering `false` would
+/// silently cut off the only path by which a crash on a player's machine
+/// reaches us.
 #[test]
-fn sans_rien_declarer_la_remontee_est_active() {
-    let vars = crate::essais::variables();
-    vars.retirer("SAMFLIX_TELEMETRY");
-    vars.retirer("SENTRY_DSN");
+fn with_nothing_declared_reporting_is_active() {
+    let vars = crate::fixtures::variables();
+    vars.unset("SAMFLIX_TELEMETRY");
+    vars.unset("SENTRY_DSN");
 
     assert!(telemetry_enabled());
     assert!(telemetry_active());

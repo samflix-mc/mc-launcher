@@ -3,7 +3,7 @@ name = "mc-dl"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Téléchargement vérifié par empreinte, idempotent et réessayable"
+description = "Download verified by digest, idempotent and retryable"
 
 [dependencies]
 anyhow.workspace = true
@@ -17,5 +17,5 @@ md-5.workspace = true
 hex.workspace = true
 
 [dev-dependencies]
-mc-essais = { path = "../mc-essais" }
+mc-testkit = { path = "../mc-testkit" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

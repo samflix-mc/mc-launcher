@@ -1,31 +1,31 @@
-//! Les fichiers que Mojang publie : le client, ses bibliothèques, ses assets.
+//! The files Mojang publishes: the client, its libraries, its assets.
 
 use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::progression::Rapport;
+use crate::progress::Report;
 
-pub(super) async fn poser(
+pub(super) async fn place(
     minecraft: &str,
     shared: &Path,
     dl: &mc_dl::Downloader,
-    rapport: &dyn Rapport,
+    report: &dyn Report,
 ) -> Result<mc_instance::vanilla::Vanilla> {
-    rapport.note("Fichiers du jeu…");
+    report.note("Game files…");
     let game = mc_instance::vanilla::install(minecraft, shared, dl)
         .await
-        .with_context(|| format!("installation de Minecraft {minecraft}"))?;
+        .with_context(|| format!("installing Minecraft {minecraft}"))?;
     tracing::info!(
-        bibliotheques = game.libraries.len(),
-        assets_telecharges = game.assets_downloaded,
-        index_assets = %game.asset_index_id,
-        "Fichiers du jeu en place : {} bibliothèques, {} assets téléchargés",
+        libraries = game.libraries.len(),
+        assets_downloaded = game.assets_downloaded,
+        asset_index = %game.asset_index_id,
+        "Game files in place: {} libraries, {} assets downloaded",
         game.libraries.len(),
         game.assets_downloaded
     );
-    rapport.note(&format!(
-        "  {} bibliothèques, {} assets téléchargés",
+    report.note(&format!(
+        "  {} libraries, {} assets downloaded",
         game.libraries.len(),
         game.assets_downloaded
     ));

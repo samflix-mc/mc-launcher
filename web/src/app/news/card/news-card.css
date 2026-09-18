@@ -1,0 +1,30 @@
+:host {
+  display: block;
+  /* Spawn's pinned tile takes the height of the column next to it: the
+     design system sets it as `height: 100%`, which only holds if its host
+     itself fills the grid cell. */
+  height: 100%;
+}
+
+/* The illustration goes through a CUSTOM PROPERTY and not through
+   `[style.background-image]`.
+
+   Angular sanitizes the style values it binds, and a `url(data:…)` of
+   several hundred kilobytes is exactly the kind of value a sanitizer
+   rejects — without an error, replacing it with nothing. Custom properties
+   don't go through that: the value arrives intact, and it's the CSS that
+   consumes it. */
+.hm-news__media {
+  background-image: var(--illustration, none);
+}
+
+/* The button host: a `<button>` carries a border, a background and a
+   default font family, none of which `.hm-news` strips away — the design
+   system only draws anchors with it. */
+button.hm-news {
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+}
