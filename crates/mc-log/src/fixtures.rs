@@ -17,14 +17,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsString;
 
-/// Serializes tests that touch PROCESS-WIDE state.
-///
-/// Environment variables were the first such state, and they name this
-/// helper. The Sentry hub is another: `sentry::init` binds a client to the
-/// MAIN hub, and `Hub::current()` on any other thread inherits from it — so
-/// a test asserting "no client is bound" races any test that binds one,
-/// across files, and only when the machine is loaded enough for their
-/// windows to overlap. Both take this lock.
+/// Serializes tests that read or set an environment variable.
 ///
 /// An atomic lock and not a `Mutex`: holding a `MutexGuard` across an
 /// `await` is what clippy refuses, and this crate has async suites. It's
