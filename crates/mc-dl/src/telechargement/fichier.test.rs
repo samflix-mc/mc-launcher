@@ -199,3 +199,64 @@ async fn sans_rien_de_publie_la_presence_suffit() {
     assert_eq!(serveur.appels("/inconnu.jar"), 1);
     std::fs::remove_dir_all(&dir).ok();
 }
+
+/// **Ce que `lire_hors_du_fil` rend, et pas seulement qu'elle n'échoue pas.**
+///
+/// Trois mutants y survivaient : rendre un vecteur vide, `[0]`, `[1]`. Aucun
+/// test ne regardait le CONTENU, et les trois se lisaient très bien à
+/// l'exécution — `mc-nouvelles` s'en sert pour relire la copie du fil hors
+/// ligne, et un fil vide ou d'un octet se traite exactement comme un fil
+/// illisible : la page des nouvelles serait muette, sans une erreur.
+///
+/// Le contenu porte des accents et un octet nul : les premiers parce que le
+/// launcher lit du JSON en français, le second parce qu'une lecture qui
+/// passerait par une chaîne s'arrêterait là.
+#[tokio::test]
+async fn une_lecture_hors_du_fil_rend_les_octets_du_fichier() {
+    let dir = dossier("lecture-hors-fil");
+    std::fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("fil.json");
+    let attendu: Vec<u8> = b"{\"billets\":[]} \xc3\xa9pingl\xc3\xa9e\x00fin".to_vec();
+    std::fs::write(&source, &attendu).unwrap();
+
+    let lu = super::lire_hors_du_fil(&source).await.unwrap();
+
+    assert_eq!(lu, attendu);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Un fichier absent rend une ERREUR, et non un vecteur vide.
+///
+/// La distinction porte tout le hors-ligne de `mc-nouvelles` : « la copie
+/// n'existe pas » demande d'aller au réseau, « la copie est vide » serait un
+/// fil sans billets qu'on afficherait tel quel.
+#[tokio::test]
+async fn une_lecture_hors_du_fil_sur_un_absent_echoue() {
+    let dir = dossier("lecture-hors-fil-absent");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let erreur = super::lire_hors_du_fil(&dir.join("nulle-part.json")).await;
+
+    assert!(erreur.is_err(), "un fichier absent doit échouer");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Le pendant en écriture : ce qui a été écrit se relit à l'identique.
+///
+/// `ecrire_hors_du_fil` prend ses octets par valeur et les confie à une tâche
+/// détachée ; rien dans les suites ne vérifiait qu'ils arrivaient entiers de
+/// l'autre côté.
+#[tokio::test]
+async fn une_ecriture_hors_du_fil_pose_exactement_ce_qu_on_lui_donne() {
+    let dir = dossier("ecriture-hors-fil");
+    std::fs::create_dir_all(&dir).unwrap();
+    let dest = dir.join("copie.json");
+    let octets: Vec<u8> = b"\xc3\xa9crit hors du fil\x00".to_vec();
+
+    super::ecrire_hors_du_fil(&dest, octets.clone())
+        .await
+        .unwrap();
+
+    assert_eq!(std::fs::read(&dest).unwrap(), octets);
+    std::fs::remove_dir_all(&dir).ok();
+}
