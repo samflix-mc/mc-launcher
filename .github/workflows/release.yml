@@ -162,7 +162,9 @@ jobs:
       - uses: tauri-apps/tauri-action@v1.0.0
         env:
           # Ce que le launcher affiche de lui-même, figé à la compilation.
-          MC_LAUNCHER_NOM: samflix-mc
+          # C'est le nom du LAUNCHER et non celui du réseau : le premier est
+          # server-agnostic, le second s'affiche à côté du mot-symbole.
+          MC_LAUNCHER_NOM: Helm
         with:
           projectPath: crates/mc-app
           # SANS « tagName » ni « releaseId » : l'action se comporte alors en
@@ -233,7 +235,7 @@ jobs:
           set -euo pipefail
           tag="${{ inputs.tag || github.ref_name }}"
           cat > notes.md <<NOTES
-          ## samflix-mc $tag
+          ## Helm $tag
 
           ### Le launcher
 
@@ -281,7 +283,7 @@ jobs:
           rm -rf controle && mkdir controle
           gh release download "$tag" --dir controle --pattern '*amd64.deb'
           dpkg-deb -x controle/*.deb controle/extrait
-          binaire=$(find controle/extrait -type f -name 'samflix-launcher' | head -1)
+          binaire=$(find controle/extrait -type f -name 'helm' | head -1)
           sortie=$("$binaire" --diagnostic)
           echo "$sortie"
           echo "$sortie" | grep -q "environnement : production" \

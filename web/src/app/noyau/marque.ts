@@ -28,7 +28,7 @@ export class Marque {
    * d'attente ferait clignoter le nom du launcher à chaque ouverture. Le
    * défaut est donc le nom probable, remplacé sans qu'on le remarque.
    */
-  readonly vue = signal<MarqueVue>({ nom: 'samflix-mc', sceau: 'SA' });
+  readonly vue = signal<MarqueVue>({ nom: 'Helm', sceau: 'HE' });
 
   private demandee = false;
 

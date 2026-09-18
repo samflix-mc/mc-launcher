@@ -19,8 +19,8 @@ describe('Marque', () => {
    * défaut est donc le nom probable, remplacé sans qu'on le remarque.
    */
   it('affiche un nom plausible avant d’avoir demandé', () => {
-    expect(marque.vue().nom).toBe('samflix-mc');
-    expect(marque.vue().sceau).toBe('SA');
+    expect(marque.vue().nom).toBe('Helm');
+    expect(marque.vue().sceau).toBe('HE');
   });
 
   /**
@@ -39,6 +39,6 @@ describe('Marque', () => {
    */
   it('hors de Tauri, garde son défaut sans se plaindre', async () => {
     await expect(marque.charger()).resolves.toBeUndefined();
-    expect(marque.vue().nom).toBe('samflix-mc');
+    expect(marque.vue().nom).toBe('Helm');
   });
 });

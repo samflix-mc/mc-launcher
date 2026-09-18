@@ -1,7 +1,7 @@
 <h1 align="center">mc-launcher</h1>
 
 <p align="center">
-  Le launcher du réseau <strong>samflix-mc</strong> : il installe le pack,<br>
+  <strong>Helm</strong>, le launcher du réseau samflix-mc : il installe le pack,<br>
   vérifie l'installation, et lance le jeu avec les mêmes mods que les serveurs.<br>
   <em>Une fenêtre, et la ligne de commande qui la précède.</em>
 </p>

@@ -1,4 +1,4 @@
-//! L'interface du launcher samflix-mc.
+//! L'interface de Helm, le launcher du réseau samflix-mc.
 //!
 //! La fenêtre. Elle authentifie le joueur, installe le pack, le vérifie et
 //! lance le jeu — chacune de ces étapes étant déjà écrite et testée dans l'un
@@ -162,7 +162,7 @@ pub fn run() {
     // Le garde tient les couches de journalisation ouvertes : le lâcher ici
     // viderait le fichier de son contenu tamponné et couperait Sentry avant
     // même l'affichage de la fenêtre.
-    let _journal = mc_log::init("samflix-launcher");
+    let _journal = mc_log::init("helm");
 
     chemins::journaliser_la_divergence();
 

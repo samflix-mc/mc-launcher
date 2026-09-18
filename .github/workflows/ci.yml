@@ -182,7 +182,7 @@ jobs:
           # deux plutôt que d'en supposer un — un renommage silencieux ferait
           # échouer le contrôle sur un fichier introuvable, ce qui se lit comme
           # une panne de la CI et non comme ce qu'elle est.
-          binaire=./target/release/samflix-launcher
+          binaire=./target/release/helm
           [ -x "$binaire" ] || binaire=./target/release/mc-app
           [ -x "$binaire" ] || { echo "::error::aucun binaire produit sous target/release"; exit 1; }
           sortie=$("$binaire" --diagnostic)

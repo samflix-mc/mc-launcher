@@ -1,8 +1,13 @@
 //! Sous quel nom le launcher se présente.
 //!
-//! « samflix-mc » est le nom du réseau aujourd'hui, pas une constante du
-//! produit. L'écrire dans le gabarit HTML et dans `tauri.conf.json` obligeait
-//! à traverser les deux pour le changer, et à ne pas en oublier un.
+//! **« Helm », et c'est le nom du LAUNCHER — pas celui du réseau.** La
+//! distinction est celle que le design system pose : le launcher est
+//! server-agnostic, le réseau samflix-mc en est le premier locataire, et le
+//! nom du serveur s'affiche à côté du mot-symbole, pas à sa place.
+//!
+//! Le nom reste réglable : l'écrire dans le gabarit HTML et dans
+//! `tauri.conf.json` obligerait à traverser les deux pour le changer, et à ne
+//! pas en oublier un.
 //!
 //! Il est donc lu **à la compilation**, dans `MC_LAUNCHER_NOM` :
 //!
@@ -38,7 +43,7 @@ pub fn nom() -> &'static str {
     // réussir, et retomber sur le nom d'aujourd'hui.
     match option_env!("MC_LAUNCHER_NOM") {
         Some(nom) if !nom.is_empty() => nom,
-        _ => "samflix-mc",
+        _ => "Helm",
     }
 }
 

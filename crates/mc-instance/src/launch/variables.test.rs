@@ -78,7 +78,7 @@ fn les_chemins_distinguent_le_partage_de_l_instance() {
     assert_eq!(v["version_name"], "neoforge-21.1.250");
     // Le jar du socle, que NeoForge nomme dans son `ignoreList`.
     assert_eq!(v["primary_jar_name"], "1.21.1.jar");
-    assert_eq!(v["launcher_name"], "samflix-mc");
+    assert_eq!(v["launcher_name"], "Helm");
 }
 
 /// Les variables de Quick Play et de résolution n'existent que lorsqu'elles

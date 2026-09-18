@@ -6,7 +6,7 @@ use super::{demande, rapport};
 #[test]
 fn le_drapeau_se_reconnait_a_n_importe_quelle_place() {
     assert!(demande(["--diagnostic"]));
-    assert!(demande(["samflix-launcher", "--diagnostic"]));
+    assert!(demande(["helm", "--diagnostic"]));
     assert!(demande(["--diagnostic", "--autre"]));
 }
 
@@ -15,7 +15,7 @@ fn le_drapeau_se_reconnait_a_n_importe_quelle_place() {
 #[test]
 fn rien_d_autre_ne_declenche_le_diagnostic() {
     assert!(!demande(Vec::<String>::new()));
-    assert!(!demande(["samflix-launcher"]));
+    assert!(!demande(["helm"]));
     assert!(!demande(["--diagnostics"]));
     assert!(!demande(["diagnostic"]));
     assert!(!demande(["--diagnostic=1"]));

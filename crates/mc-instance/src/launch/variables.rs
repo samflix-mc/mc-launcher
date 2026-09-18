@@ -46,7 +46,7 @@ pub(super) fn variables(
     set("library_directory", libraries.display().to_string());
     set("classpath", classpath.to_string());
     set("classpath_separator", separator.to_string());
-    set("launcher_name", "samflix-mc".into());
+    set("launcher_name", "Helm".into());
     set("launcher_version", env!("CARGO_PKG_VERSION").to_string());
     // Le jar du socle, que NeoForge nomme dans son `ignoreList`.
     set("primary_jar_name", format!("{base_id}.jar"));
