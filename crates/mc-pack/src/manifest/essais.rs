@@ -15,6 +15,7 @@ pub(super) fn base() -> Manifest {
             version: "21.1.250".into(),
         },
         java: None,
+        generation: 0,
         mods: Vec::new(),
         servers: BTreeMap::new(),
     }

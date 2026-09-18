@@ -8,7 +8,7 @@ pub(super) fn is_url(arg: &str) -> bool {
 }
 
 /// `…/samflix.json` donne `…/samflix.lock.json`, comme sur le disque.
-pub(super) fn lock_url_for(url: &str) -> String {
+pub fn lock_url_for(url: &str) -> String {
     match url.strip_suffix(".json") {
         Some(base) => format!("{base}.lock.json"),
         None => format!("{url}.lock.json"),

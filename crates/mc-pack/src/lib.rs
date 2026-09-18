@@ -14,6 +14,8 @@
 //! 6. **le verrou** — écrit en dernier, il décrit ce qui a réellement été fait.
 
 mod coherence;
+pub mod comparaison;
+pub mod etat;
 mod installation;
 mod verification;
 
@@ -24,8 +26,10 @@ pub mod progression;
 pub mod source;
 
 pub use coherence::mods_client_absents;
+pub use comparaison::{Action, Ecart, EtatDuPack, comparer, presence, verrou_publie};
+pub use etat::{Avant, EtatLocal, Purge};
 pub use installation::install;
-pub use jeu::{Identite, Partie, jouer, preparer};
+pub use jeu::{Deroulement, Identite, Partie, jouer, mettre_a_jour_et_jouer, preparer};
 pub use progression::{Etape, Muet, Rapport};
 pub use verification::verify;
 
@@ -55,6 +59,14 @@ pub struct Outcome {
     /// deux coïncident un pour un — et toujours vide hors rejeu, où il n'y a
     /// rien à quoi se comparer.
     pub ecarts: Vec<String>,
+    /// Ce que la purge a effacé avant d'installer, s'il y a eu purge.
+    ///
+    /// Dans le COMPTE RENDU et non dans une note d'avancement : `Rapport::note`
+    /// est un emplacement unique, écrasé sans condition, et sept notes
+    /// ultérieures l'écrasent dans la seconde qui suit. Un fait durable ne
+    /// voyage pas dans un champ transitoire — c'est déjà pourquoi
+    /// `introuvables` et `ecarts` sont ici.
+    pub purge: crate::etat::Purge,
 }
 
 #[derive(Debug, Default)]

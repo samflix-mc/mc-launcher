@@ -20,6 +20,7 @@ pub(super) fn assembler(
     neoforge: String,
     from_cache: bool,
     ecarts: Vec<String>,
+    purge: crate::etat::Purge,
 ) -> Outcome {
     Outcome {
         instance: pose.instance,
@@ -37,5 +38,6 @@ pub(super) fn assembler(
         source: source.describe(),
         from_cache,
         ecarts,
+        purge,
     }
 }

@@ -30,6 +30,7 @@ fn resultat(atelier: &Atelier) -> mc_pack::Outcome {
         source: "packs/samflix.json".into(),
         from_cache: false,
         ecarts: Vec::new(),
+        purge: Default::default(),
     }
 }
 

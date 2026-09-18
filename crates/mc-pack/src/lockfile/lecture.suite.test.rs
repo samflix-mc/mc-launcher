@@ -203,3 +203,92 @@ fn le_verrou_reprend_ce_que_le_manifeste_declare() {
     );
     assert_eq!(verrou.minecraft, manifeste.minecraft);
 }
+
+/// Les verrous publiés avant que `generation` n'existe se lisent en
+/// génération 0. Refuser de les lire empêcherait de jouer jusqu'à ce que
+/// quelqu'un les republie — exactement la panne qu'un mécanisme de
+/// réinstallation forcée ne doit pas causer.
+#[test]
+fn un_verrou_d_avant_la_generation_se_lit_en_zero() {
+    let ancien = r#"{"schema":1,"name":"samflix","generated":"2026-09-17T00:00:00Z",
+      "minecraft":"1.21.1","loader":{"type":"neoforge","version":"21.1.250"},"java":21,
+      "mods":[]}"#;
+
+    let relu = Lockfile::parse(ancien.as_bytes()).expect("un verrou d'avant reste lisible");
+    assert_eq!(relu.generation, 0);
+}
+
+/// Et la génération s'écrit TOUJOURS, même à zéro : pas de
+/// `skip_serializing_if`. Sans cela, il faudrait distinguer « jamais posé » de
+/// « posé à zéro », alors que les deux veulent dire la même chose.
+#[test]
+fn la_generation_s_ecrit_meme_a_zero() {
+    let ecrit = serde_json::to_string(&lock(Vec::new())).expect("sérialisation");
+    assert!(ecrit.contains("\"generation\":0"), "{ecrit}");
+}
+
+/// L'empreinte porte sur ce que le verrou DIT, pas sur la façon dont il est
+/// écrit.
+///
+/// C'est la propriété qui empêche de retélécharger huit cents mégaoctets
+/// parce que l'hôte a changé son indentation : le même verrou minifié et le
+/// même verrou indenté donnent la même empreinte.
+#[test]
+fn l_empreinte_ignore_la_mise_en_forme() {
+    let indente = r#"{
+        "schema": 1,
+        "name": "samflix",
+        "generated": "2026-09-17T00:00:00Z",
+        "minecraft": "1.21.1",
+        "loader": { "type": "neoforge", "version": "21.1.250" },
+        "java": 21,
+        "mods": []
+    }"#;
+    let minifie = r#"{"schema":1,"name":"samflix","generated":"2026-09-17T00:00:00Z","minecraft":"1.21.1","loader":{"type":"neoforge","version":"21.1.250"},"java":21,"mods":[]}"#;
+
+    let a = Lockfile::parse(indente.as_bytes())
+        .unwrap()
+        .empreinte()
+        .unwrap();
+    let b = Lockfile::parse(minifie.as_bytes())
+        .unwrap()
+        .empreinte()
+        .unwrap();
+    assert_eq!(a, b);
+}
+
+/// Mais elle ne rate pas un vrai changement : une version de mod qui bouge
+/// doit donner une empreinte différente, sans quoi le launcher ne verrait
+/// jamais une mise à jour.
+#[test]
+fn l_empreinte_voit_un_vrai_changement() {
+    let avant = lock(vec![locked("jei", "abc", "19.51.0")]);
+    let apres = lock(vec![locked("jei", "def", "19.52.0")]);
+    assert_ne!(avant.empreinte().unwrap(), apres.empreinte().unwrap());
+}
+
+/// Et un changement de génération, à mods identiques, change l'empreinte lui
+/// aussi : c'est ce qui fait qu'un pack à purger se distingue d'un pack
+/// inchangé.
+#[test]
+fn l_empreinte_voit_un_changement_de_generation() {
+    let avant = lock(Vec::new());
+    let mut apres = lock(Vec::new());
+    apres.generation = 1;
+    assert_ne!(avant.empreinte().unwrap(), apres.empreinte().unwrap());
+}
+
+/// L'empreinte d'un verrou écrit puis relu est celle du verrou d'origine.
+/// C'est la condition pour que `save` et `empreinte` restent cohérents : elles
+/// passent par la même sérialisation, et non par deux qui se ressemblent.
+#[test]
+fn ecrire_puis_relire_conserve_l_empreinte() {
+    let atelier = Atelier::neuf("verrou-empreinte");
+    let chemin = atelier.racine.join("samflix.lock.json");
+
+    let ecrit = verrou(vec![entree("jei", "both", Some(b"jei"))]);
+    ecrit.save(&chemin).expect("écriture");
+
+    let relu = Lockfile::load(&chemin).expect("lecture");
+    assert_eq!(ecrit.empreinte().unwrap(), relu.empreinte().unwrap());
+}

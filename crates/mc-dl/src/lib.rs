@@ -23,7 +23,7 @@ pub mod progression;
 mod telechargement;
 
 pub use check::{Check, Fetched};
-pub use checksum::{Checksum, sha1_of_file, sha512_of_file};
+pub use checksum::{Checksum, sha1_of_file, sha512_of_bytes, sha512_of_file};
 pub use progression::{Avancement, Observateur};
 pub use telechargement::Downloader;
 pub use telechargement::fichier::write_atomic;

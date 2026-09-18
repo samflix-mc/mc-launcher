@@ -28,12 +28,14 @@
 
 mod cible;
 mod coherence;
+mod enchainement;
 mod execution;
 mod identite;
 pub mod incidents;
 mod instance;
 mod preparation;
 
+pub use enchainement::{Deroulement, doit_rattraper, mettre_a_jour_et_jouer};
 pub use execution::{jouer, journaux};
 pub use identite::Identite;
 pub use preparation::{Partie, preparer};

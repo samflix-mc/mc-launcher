@@ -80,6 +80,17 @@ pub fn sha512_of_file(path: &Path) -> Result<String> {
     Ok(hex::encode(Sha512::digest(std::fs::read(path)?)))
 }
 
+/// Empreinte SHA-512 d'octets qui ne sont pas un fichier.
+///
+/// Le cas qui l'a fait naître est la comparaison du verrou publié à celui
+/// qu'on a posé : le premier arrive par le réseau et n'a jamais touché le
+/// disque. L'écrire quelque part pour pouvoir le hacher reviendrait à
+/// installer avant d'avoir décidé s'il fallait installer.
+pub fn sha512_of_bytes(octets: &[u8]) -> String {
+    use sha2::{Digest, Sha512};
+    hex::encode(Sha512::digest(octets))
+}
+
 #[cfg(test)]
 #[path = "checksum.test.rs"]
 mod tests;

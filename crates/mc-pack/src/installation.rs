@@ -56,6 +56,40 @@ pub async fn install(
     let layout = &options.layout;
     let shared = layout.shared();
 
+    // --- 1 bis. La purge, s'il y a lieu ---------------------------------------
+    //
+    // Ici et pas ailleurs : le manifeste est lu — donc on connaît la génération
+    // demandée — et rien n'a encore été écrit dans l'instance.
+    //
+    // L'instance n'est PAS en portée à ce point : elle n'est construite qu'à
+    // l'étape 6. On la dérive donc avec EXACTEMENT la même expression, sous
+    // peine de purger un autre répertoire que celui qu'on remplira. Le nom est
+    // sûr : `manifest/controle.rs:37-44` refuse déjà un `name` qui sortirait de
+    // la racine, et c'est ce contrôle-là qui autorise un effacement récursif
+    // sur un chemin venu du réseau.
+    let instance = layout.instance(options.instance_name.as_deref().unwrap_or(&manifest.name));
+    let etat_pose = crate::etat::EtatLocal::lire(&crate::etat::chemin(&instance));
+
+    // La génération vient du MANIFESTE et jamais du verrou. Au point où l'on
+    // est, `previous_lock` est le verrou *publié* en rejeu, mais le verrou
+    // *précédent* sur un manifeste local qu'on rerésout : les deux ne
+    // répondent pas à la même question.
+    let purge = match crate::etat::decider(etat_pose.as_ref(), manifest.generation) {
+        crate::etat::Avant::Differentiel => crate::etat::Purge::default(),
+        crate::etat::Avant::Purger => {
+            // La note dit « en cours », le compte rendu dira ce qui a été fait :
+            // `note` est un emplacement unique que sept appels ultérieurs vont
+            // écraser dans la seconde.
+            rapport.note("Réinstallation complète demandée par le pack…");
+            tracing::info!(
+                generation_posee = etat_pose.as_ref().map(|e| e.generation),
+                generation_demandee = manifest.generation,
+                "purge avant installation"
+            );
+            crate::etat::purger(&instance.game_dir)
+        }
+    };
+
     // --- 2. Le chargeur ------------------------------------------------------
     rapport.etape(Etape::Chargeur);
     let neoforge_version =
@@ -158,6 +192,30 @@ pub async fn install(
         rapport.note(&format!("  ⚠ {ecart}"));
     }
 
+    // --- 8. Retenir ce qu'on vient de poser ----------------------------------
+    //
+    // Après tout le reste : un état écrit avant la fin décrirait une
+    // installation qui n'a pas abouti, et le prochain lancement croirait n'avoir
+    // rien à faire. Un échec d'écriture ne fait pas échouer l'installation —
+    // elle a réussi — mais il coûte une purge au prochain lancement, et c'est
+    // assez ennuyeux pour être journalisé.
+    match lock.empreinte() {
+        Ok(empreinte) => {
+            let etat = crate::etat::EtatLocal::neuf(
+                empreinte,
+                manifest.generation,
+                crate::lockfile::now_utc(),
+            );
+            if let Err(erreur) = etat.ecrire(&crate::etat::chemin(&instance)) {
+                tracing::warn!(
+                    erreur = %erreur,
+                    "état local non écrit : le prochain lancement repassera par une purge"
+                );
+            }
+        }
+        Err(erreur) => tracing::warn!(erreur = %erreur, "empreinte du verrou incalculable"),
+    }
+
     Ok(compte_rendu::assembler(
         source,
         pose,
@@ -169,6 +227,7 @@ pub async fn install(
         neoforge_version,
         from_cache,
         ecarts,
+        purge,
     ))
 }
 

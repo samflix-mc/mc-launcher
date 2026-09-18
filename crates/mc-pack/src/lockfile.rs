@@ -24,6 +24,7 @@ mod resume;
 use serde::{Deserialize, Serialize};
 
 pub use entrees::{LockedLoader, LockedMissing, LockedMod};
+pub(crate) use horodatage::now_utc;
 
 /// Le verrou, **de la même forme que le manifeste et plus riche**.
 ///
@@ -55,6 +56,36 @@ pub struct Lockfile {
     pub minecraft: String,
     pub loader: LockedLoader,
     pub java: u32,
+    /// Le numéro de génération de l'installation.
+    ///
+    /// Le mécanisme par lequel celui qui publie le pack peut dire : « ne
+    /// rattrape pas cette mise à jour par différence, efface et recommence ».
+    ///
+    /// Le fonctionnement normal est différentiel — on compare les empreintes et
+    /// l'on ne retélécharge que ce qui a changé. C'est ce qu'il faut : un
+    /// modpack de trois cents mods pèse un demi-gigaoctet, et le retélécharger
+    /// à chaque mise à jour serait insupportable.
+    ///
+    /// Mais certaines transitions ne se rattrapent pas ainsi. Un mod renommé
+    /// laisse son ancien jar en place, un dossier de configuration change de
+    /// forme, un shader laisse des résidus que rien ne référence plus. Le
+    /// différentiel ne voit que ce que le verrou décrit ; il est aveugle à ce
+    /// que le verrou ne décrit PLUS.
+    ///
+    /// Incrémenter ce nombre déclenche alors une purge avant l'installation.
+    /// Ce qui est effacé, c'est ce que le launcher a posé — mods, shaders,
+    /// resource packs. **Jamais l'instance de jeu** : ni les sauvegardes, ni
+    /// les options, ni les configurations que le joueur a modifiées. Perdre un
+    /// monde pour rattraper un renommage de mod serait un remède pire que le
+    /// mal.
+    ///
+    /// `#[serde(default)]` sans `skip_serializing_if` : les fichiers déjà
+    /// publiés se lisent en génération 0, et tout fichier écrit désormais porte
+    /// la sienne explicitement. Un champ absent à l'écriture obligerait à
+    /// distinguer « jamais posé » de « posé à zéro », alors que les deux
+    /// veulent dire la même chose.
+    #[serde(default)]
+    pub generation: u32,
     /// Où se connecter, par environnement — repris du manifeste tel quel.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub servers: std::collections::BTreeMap<String, crate::manifest::Server>,

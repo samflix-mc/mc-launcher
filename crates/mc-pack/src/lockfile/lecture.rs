@@ -29,6 +29,10 @@ impl Lockfile {
             minecraft: manifest.minecraft.clone(),
             loader,
             java,
+            // La génération vient du MANIFESTE, jamais du verrou précédent :
+            // c'est celui qui publie qui décide d'une purge, et le verrou d'à
+            // côté ne fait que porter sa décision jusqu'au poste du joueur.
+            generation: manifest.generation,
             servers: manifest.servers.clone(),
             mods: plan
                 .mods
@@ -80,9 +84,43 @@ impl Lockfile {
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
+        mc_dl::write_atomic(path, self.canonique()?.as_bytes())
+    }
+
+    /// La forme d'écriture, une fois pour toutes.
+    ///
+    /// Extraite de `save` parce que [`Self::empreinte`] doit produire
+    /// exactement la même chaîne : c'est la seule façon qu'un verrou relu du
+    /// disque et un verrou reçu du réseau donnent la même empreinte quand ils
+    /// décrivent la même installation.
+    fn canonique(&self) -> Result<String> {
         let mut json = serde_json::to_string_pretty(self)?;
+        // Un fichier qui se termine par une ligne vide se relit mieux dans une
+        // revue — et le verrou se versionne à côté du manifeste.
         json.push('\n');
-        mc_dl::write_atomic(path, json.as_bytes())
+        Ok(json)
+    }
+
+    /// Ce qu'on compare pour décider s'il faut réinstaller.
+    ///
+    /// ## Pourquoi sur la forme canonique et non sur les octets reçus
+    ///
+    /// Le verrou publié arrive par HTTP, et l'hôte ne promet aucune mise en
+    /// forme : deux espaces d'indentation aujourd'hui, quatre demain, ou une
+    /// minification le jour où quelqu'un branche un proxy. Hacher les octets
+    /// reçus ferait conclure « le pack a changé » sur un écart d'indentation,
+    /// et huit cents mégaoctets repartiraient à chaque partie.
+    ///
+    /// On resérialise donc des DEUX côtés avec la même fonction. Ce qui est
+    /// comparé est alors ce que le verrou DIT, et non comment il est écrit.
+    ///
+    /// Conséquence à connaître : un champ ajouté à la structure change
+    /// l'empreinte de tous les verrous, y compris ceux qui n'ont pas bougé.
+    /// C'est le comportement voulu — un champ neuf veut dire que le launcher
+    /// sait quelque chose de nouveau sur l'installation, et une vérification
+    /// de trop coûte moins cher qu'une vérification manquante.
+    pub fn empreinte(&self) -> Result<String> {
+        Ok(mc_dl::sha512_of_bytes(self.canonique()?.as_bytes()))
     }
 
     /// Chemin du verrou associé à un manifeste : `samflix.json` donne

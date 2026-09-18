@@ -112,6 +112,7 @@ pub(crate) fn verrou(mods: Vec<LockedMod>) -> Lockfile {
             version: "21.1.250".into(),
         },
         java: 21,
+        generation: 0,
         servers: Default::default(),
         mods,
         unresolved: Vec::new(),

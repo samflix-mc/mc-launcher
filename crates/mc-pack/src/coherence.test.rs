@@ -45,6 +45,7 @@ fn un_mod_du_verrou_absent_de_l_instance_se_voit() {
             version: "21.1.250".into(),
         },
         java: 21,
+        generation: 0,
         servers: Default::default(),
         mods: vec![
             verrouille("jei", "both"),

@@ -1,7 +1,7 @@
 //! La date que porte le verrou, sans dépendre d'une bibliothèque de plus.
 
 /// besoin de rien d'autre : ni fuseau, ni locale, ni secondes intercalaires.
-pub(super) fn now_utc() -> String {
+pub(crate) fn now_utc() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)

@@ -38,6 +38,11 @@ mod local;
 
 pub use distant::{URL_DEVELOPPEMENT, URL_PREPRODUCTION, URL_PRODUCTION, url_par_defaut};
 
+// Exposée pour la comparaison, qui doit dériver l'adresse du verrou de la même
+// façon que la récupération. Recopier ces trois lignes ailleurs referait
+// exactement le défaut que ce module existe pour éviter.
+pub use cache::lock_url_for;
+
 #[derive(Debug, Clone)]
 pub enum Source {
     /// Un chemin sur le disque. Le verrou se trouve à côté, et sera réécrit.
