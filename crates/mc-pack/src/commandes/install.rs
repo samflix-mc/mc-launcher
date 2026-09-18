@@ -21,6 +21,11 @@ struct Terminal;
 impl mc_pack::Rapport for Terminal {
     fn etape(&self, _etape: mc_pack::Etape) {}
 
+    /// Hors de portée des tests de mutation : elle n'écrit que sur la sortie
+    /// standard, que Rust ne sait pas relire depuis le processus qui l'émet.
+    /// Le TEXTE, lui, est calculé ailleurs — par `Suivi` et par les comptes
+    /// rendus d'installation — et éprouvé là où il se calcule.
+    #[mutants::skip]
     fn note(&self, texte: &str) {
         println!("{texte}");
     }

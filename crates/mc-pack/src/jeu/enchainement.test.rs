@@ -74,3 +74,61 @@ fn sans_installation_rien_n_est_introuvable() {
     assert!(deroulement.introuvables().is_empty());
     assert!(deroulement.ecarts().is_empty());
 }
+
+/// Ce qu'une installation a trouvé REMONTE jusqu'au compte rendu.
+///
+/// Le test voisin ne couvrait que l'absence d'installation — donc les deux
+/// listes vides — et les deux accesseurs pouvaient rendre `vec![]` en toute
+/// circonstance sans qu'un test bronche. Or ce sont eux qui alimentent le
+/// bandeau « mods introuvables » et le repli des écarts : les faire taire
+/// laisserait un joueur jouer avec un pack incomplet sans que rien ne le lui
+/// dise, ce qui est exactement la situation qu'un launcher de serveur moddé
+/// doit empêcher.
+#[test]
+fn ce_qu_une_installation_a_trouve_remonte() {
+    let mut lock = crate::essais::verrou(Vec::new());
+    lock.unresolved = vec![
+        crate::essais::manque("jei", "le manifeste"),
+        crate::essais::manque("jade", "jei"),
+    ];
+
+    let deroulement = Deroulement {
+        etat: etat(Ecart::AJour, false),
+        installation: Some(crate::Outcome {
+            instance: mc_instance::Instance {
+                name: "samflix".into(),
+                dir: "/nulle-part".into(),
+                game_dir: "/nulle-part/minecraft".into(),
+            },
+            server_dir: "/nulle-part/server".into(),
+            java: mc_java::Java {
+                path: "/nulle-part/java".into(),
+                version: mc_java::Version {
+                    major: 21,
+                    full: "21.0.5".into(),
+                },
+                origin: mc_java::Origin::Managed,
+            },
+            neoforge: "21.1.250".into(),
+            assets_downloaded: 0,
+            libraries: 0,
+            client_mods: 0,
+            server_mods: 0,
+            removed: Vec::new(),
+            lock,
+            lock_path: "/nulle-part/samflix.lock.json".into(),
+            previous_lock: None,
+            source: "essai".into(),
+            from_cache: false,
+            ecarts: vec!["jei : 4.28.0 au lieu de 4.27.0".into()],
+            purge: crate::etat::Purge::default(),
+        }),
+        partie: None,
+    };
+
+    assert_eq!(deroulement.introuvables(), vec!["jei", "jade"]);
+    assert_eq!(
+        deroulement.ecarts(),
+        vec!["jei : 4.28.0 au lieu de 4.27.0".to_string()]
+    );
+}

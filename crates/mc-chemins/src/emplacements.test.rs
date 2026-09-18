@@ -236,3 +236,49 @@ fn les_donnees_vivent_sous_un_seul_repertoire_nomme() {
     assert!(e.donnees.is_absolute() || e.donnees.starts_with("."));
     assert!(e.journaux.starts_with(&e.donnees), "{:?}", e.journaux);
 }
+
+/// `creer` crée LES QUATRE répertoires, et pas seulement trois.
+///
+/// Rien ne le vérifiait : la fonction pouvait ne rien faire du tout et rendre
+/// `Ok(())`. Le symptôme se paie tard — le journal n'a pas de répertoire où
+/// s'ouvrir, la session n'a pas où s'écrire — et se lit comme une panne de
+/// permissions plutôt que comme un répertoire jamais créé.
+///
+/// C'est aussi ce qui donne son sens à « appelée au démarrage plutôt qu'au
+/// premier écrit » : un disque plein doit se signaler avant quatre cents
+/// mégaoctets, pas après.
+#[test]
+fn creer_pose_les_quatre_repertoires() {
+    let racine = std::env::temp_dir().join(format!(
+        "mc-chemins-creer-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::remove_dir_all(&racine).ok();
+
+    let emplacements = depuis_bases(Bases {
+        donnees: racine.join("donnees"),
+        config: racine.join("config"),
+        temporaire: racine.join("tmp"),
+    });
+
+    for (nom, chemin) in emplacements.enumerer() {
+        assert!(!chemin.exists(), "{nom} existait avant l'appel");
+    }
+
+    emplacements.creer().expect("création");
+
+    for (nom, chemin) in emplacements.enumerer() {
+        assert!(
+            chemin.is_dir(),
+            "{nom} n'a pas été créé : {}",
+            chemin.display()
+        );
+    }
+
+    // Deux fois de suite : un démarrage ordinaire trouve tout en place, et
+    // `create_dir_all` ne doit pas s'en plaindre.
+    emplacements.creer().expect("seconde création");
+
+    std::fs::remove_dir_all(&racine).ok();
+}

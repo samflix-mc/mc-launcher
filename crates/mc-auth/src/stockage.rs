@@ -61,6 +61,18 @@ fn trousseau_permis() -> bool {
 }
 
 /// La session enregistrée, ou `None` si personne ne s'est connecté ici.
+/// Hors de portée des tests de mutation, et la raison est plus forte qu'une
+/// difficulté : inverser la garde `!trousseau_permis()` ferait parler la suite
+/// au trousseau RÉEL de la machine qui l'exécute — donc écrire, lire ou
+/// effacer dans le portefeuille de l'utilisateur. Un test ne doit pas pouvoir
+/// faire cela, et un mutant encore moins.
+///
+/// Ce qui se vérifie sans risque l'est : `trousseau_permis` est éprouvée pour
+/// elle-même sur les quatre formes qu'accepte la variable, et toute la moitié
+/// fichier — chemin, mode `0600`, aller-retour — a ses propres tests. Ce qui
+/// reste ici est l'aiguillage entre les deux, et il demanderait d'injecter le
+/// trousseau derrière un trait pour être muté sans effet de bord.
+#[mutants::skip]
 pub fn charger() -> Option<serde_json::Value> {
     if !trousseau_permis() {
         return fichier::charger_depuis(&chemin());
@@ -77,6 +89,18 @@ pub fn charger() -> Option<serde_json::Value> {
 }
 
 /// Écrit la session, au trousseau si la machine en a un.
+/// Hors de portée des tests de mutation, et la raison est plus forte qu'une
+/// difficulté : inverser la garde `!trousseau_permis()` ferait parler la suite
+/// au trousseau RÉEL de la machine qui l'exécute — donc écrire, lire ou
+/// effacer dans le portefeuille de l'utilisateur. Un test ne doit pas pouvoir
+/// faire cela, et un mutant encore moins.
+///
+/// Ce qui se vérifie sans risque l'est : `trousseau_permis` est éprouvée pour
+/// elle-même sur les quatre formes qu'accepte la variable, et toute la moitié
+/// fichier — chemin, mode `0600`, aller-retour — a ses propres tests. Ce qui
+/// reste ici est l'aiguillage entre les deux, et il demanderait d'injecter le
+/// trousseau derrière un trait pour être muté sans effet de bord.
+#[mutants::skip]
 pub fn enregistrer(etat: &serde_json::Value) -> Result<()> {
     if !trousseau_permis() {
         return fichier::enregistrer_dans(&chemin(), etat);
@@ -98,6 +122,18 @@ pub fn enregistrer(etat: &serde_json::Value) -> Result<()> {
 /// Les deux effacements sont tentés avant de rendre la main : échouer sur l'un
 /// laisserait l'autre en place, et un jeton qu'on croit supprimé est pire qu'un
 /// jeton qu'on sait présent.
+/// Hors de portée des tests de mutation, et la raison est plus forte qu'une
+/// difficulté : inverser la garde `!trousseau_permis()` ferait parler la suite
+/// au trousseau RÉEL de la machine qui l'exécute — donc écrire, lire ou
+/// effacer dans le portefeuille de l'utilisateur. Un test ne doit pas pouvoir
+/// faire cela, et un mutant encore moins.
+///
+/// Ce qui se vérifie sans risque l'est : `trousseau_permis` est éprouvée pour
+/// elle-même sur les quatre formes qu'accepte la variable, et toute la moitié
+/// fichier — chemin, mode `0600`, aller-retour — a ses propres tests. Ce qui
+/// reste ici est l'aiguillage entre les deux, et il demanderait d'injecter le
+/// trousseau derrière un trait pour être muté sans effet de bord.
+#[mutants::skip]
 pub fn effacer() -> Result<()> {
     if !trousseau_permis() {
         return fichier::effacer_de(&chemin());

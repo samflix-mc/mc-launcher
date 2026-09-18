@@ -52,3 +52,20 @@ fn le_repli_ne_memorise_pas() {
     }
     assert_eq!(avant, apres, "l'environnement n'a pas été restauré");
 }
+
+/// Le refus de repose se LIT.
+///
+/// `DejaPose` est une erreur que quelqu'un verra — dans un journal, sur une
+/// sortie d'erreur — au moment où il cherche pourquoi les chemins ne sont pas
+/// ceux qu'il croyait. Son `Display` pouvait rendre la chaîne vide sans qu'un
+/// test bronche : le message aurait disparu en laissant l'erreur, ce qui est
+/// la pire moitié des deux.
+#[test]
+fn le_refus_de_repose_dit_pourquoi() {
+    let message = super::DejaPose.to_string();
+
+    assert!(!message.is_empty());
+    assert!(message.contains("déjà"), "{message}");
+    // Et il dit ce qu'il faut en conclure, pas seulement ce qui s'est passé.
+    assert!(message.contains("remplacent"), "{message}");
+}
