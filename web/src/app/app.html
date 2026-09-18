@@ -19,7 +19,7 @@
     `styles.css`. Le voile du joueur s'ajoute par-dessus, sur `.hm-stage::after`.
   -->
   <div class="hm-stage" aria-hidden="true">
-    <div class="hm-stage__art"></div>
+    <div class="hm-stage__art" data-test="scene"></div>
   </div>
 
   <!--
@@ -61,7 +61,7 @@
       de la fenêtre côté Tauri fait le reste, sans quoi un double-clic sur la
       barre l'agrandirait quand même.
     -->
-    <div class="hm-pane" aria-hidden="true"></div>
+    <div class="hm-pane" aria-hidden="true" data-test="feuille"></div>
 
     <div class="hm-connexion">
       <h1 class="hm-wordmark hm-wordmark--sm" data-test="marque-connexion">

@@ -188,7 +188,10 @@ export class Configuration {
     // c'est-à-dire qu'il mentirait dès le premier coup de molette.
     effect((suppression) => {
       const sections = this.sections();
-      if (sections.length === 0) {
+      // `IntersectionObserver` manque à jsdom, où les suites tournent. Son
+      // absence ne doit rien casser : le rail marque alors le dernier groupe
+      // cliqué, ce qui est exactement son comportement d'avant l'observateur.
+      if (sections.length === 0 || typeof IntersectionObserver === 'undefined') {
         return;
       }
       const observateur = new IntersectionObserver(

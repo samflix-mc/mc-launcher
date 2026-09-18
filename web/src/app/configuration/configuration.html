@@ -187,7 +187,9 @@
           <div class="hm-slider">
             <div class="hm-slider__row">
               <span>Chunks</span>
-              <span class="hm-slider__value">{{ vue().jeu.renderDistance }}</span>
+              <span class="hm-slider__value" data-test="rendu-valeur">
+                {{ vue().jeu.renderDistance }}
+              </span>
             </div>
             <input
               type="range"
