@@ -108,7 +108,7 @@ async fn executer(major: u32, check_only: bool, dir: Option<PathBuf>) -> Result<
     }
 
     println!("Aucun Java {major} détecté, installation de Temurin {major}…");
-    let java = mc_java::install(major, &runtime_dir).await?;
+    let java = mc_java::install(major, &runtime_dir, None).await?;
     println!(
         "Java {} installé — {}",
         java.version.full,

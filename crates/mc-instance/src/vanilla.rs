@@ -21,7 +21,7 @@ pub(crate) use descripteur::{Features, Library, Rule};
 pub(crate) use regles::{allowed, allowed_with};
 
 pub use descripteur::Artifact;
-pub use installation::{Vanilla, install};
+pub use installation::{Vanilla, install, java_exige};
 pub use plateforme::{maven_path, mojang_arch, mojang_os};
 pub use verification::{VerifyReport, classpath, verify_assets};
 

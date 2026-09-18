@@ -40,11 +40,20 @@ async fn un_runtime_trop_vieux_n_est_pas_retenu() {
     assert!(detect(MAJEUR_INTROUVABLE, &arbre.racine).await.is_none());
 }
 
-/// Un runtime plus récent que demandé convient : c'est la borne basse qui
-/// compte.
+/// Un runtime plus récent que demandé ne convient PAS.
+///
+/// C'est le renversement de la règle, et il se justifie : le verrou porte la
+/// majeure avec laquelle NeoForge a été installé. Un Java plus récent change
+/// le comportement des mixins et le format des registres, et le serveur
+/// tranche par une éjection qui ne nomme pas sa cause. Accepter « au moins »
+/// laissait le poste du joueur choisir ce que le pack avait figé.
+///
+/// Ce test portait l'ancienne règle, et il la portait bien : il est retourné
+/// plutôt que supprimé, pour qu'on lise le renversement plutôt que de croire
+/// à un oubli.
 #[cfg(unix)]
 #[tokio::test]
-async fn un_runtime_plus_recent_convient() {
+async fn un_runtime_plus_recent_ne_convient_pas() {
     let _atelier = crate::essais::atelier();
     let arbre = Arbre::neuf("detect-recent");
     faux_java(
@@ -52,8 +61,26 @@ async fn un_runtime_plus_recent_convient() {
         "21.0.5+11",
     );
 
-    let java = detect(17, &arbre.racine).await.expect("21 ≥ 17");
-    assert_eq!(java.version.major, 21);
+    assert!(
+        detect(17, &arbre.racine).await.is_none(),
+        "un Java 21 a été retenu là où le pack exige exactement 17"
+    );
+}
+
+/// Et le Java demandé, lui, est bien retenu : le durcissement ne doit pas
+/// rendre la détection inopérante.
+#[cfg(unix)]
+#[tokio::test]
+async fn le_runtime_de_la_majeure_exacte_est_retenu() {
+    let _atelier = crate::essais::atelier();
+    let arbre = Arbre::neuf("detect-exact");
+    faux_java(
+        &arbre.racine.join("temurin-17").join("bin").join("java"),
+        "17.0.9+9",
+    );
+
+    let java = detect(17, &arbre.racine).await.expect("17 est bien là");
+    assert_eq!(java.version.major, 17);
 }
 
 /// Un exécutable peut être présent et cassé — lien symbolique mort, paquet à

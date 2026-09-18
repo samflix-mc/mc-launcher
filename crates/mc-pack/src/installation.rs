@@ -105,8 +105,8 @@ pub async fn install(
 
     // --- 4. Java -------------------------------------------------------------
     rapport.etape(Etape::Java);
-    let java_major = manifest.java_major(game.java_major);
-    let java = java::runtime(java_major, layout).await?;
+    let java_major = manifest.java_major(Some(game.java_major));
+    let java = java::runtime(java_major, layout, &rapport).await?;
     rapport.note(&format!(
         "Java {} — {}",
         java.version.full,

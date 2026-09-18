@@ -45,6 +45,16 @@ Minecraft 1.21.1 refuse de démarrer sous Java 21. Un joueur n'a aucune raison
 d'en avoir un, et celui qu'il a est souvent un 8 ou un 17 laissé par un vieux
 modpack.
 
+La majeure exigée est **écrite dans le verrou**, et vérifiée à chaque
+lancement. C'est une égalité et non un minimum : un Java plus récent que celui
+avec lequel NeoForge a été installé change le comportement des mixins et le
+format des registres, et le serveur tranche par une éjection qui ne nomme pas
+sa cause. Un poste qui a un Java 22 et un pack qui demande 21 recevra donc un
+Temurin 21 dédié, sans qu'on touche au 22 du système.
+
+Le launcher ne propose aucun choix de version de Java, et c'est délibéré : ce
+n'est pas un réglage, c'est une propriété du pack.
+
 ```bash
 cargo run -p mc-java --release            # détecte, installe au besoin
 cargo run -p mc-java --release -- --check # détecte seulement, code 1 si absent

@@ -8,9 +8,20 @@ use crate::manifest::essais::base;
 #[test]
 fn le_java_du_manifeste_prime_sur_celui_de_mojang() {
     let mut m = base();
-    assert_eq!(m.java_major(21), 21);
+    assert_eq!(m.java_major(Some(21)), 21);
     m.java = Some(22);
-    assert_eq!(m.java_major(21), 22);
+    assert_eq!(m.java_major(Some(21)), 22);
+}
+
+/// Les descripteurs d'avant la 1.17 n'ont pas de bloc `javaVersion`. Le
+/// manifeste du pack reste alors la seule source, et à défaut le 21 — le seul
+/// endroit du depot ou ce chiffre est ecrit en dur.
+#[test]
+fn sans_exigence_de_mojang_le_manifeste_ou_le_defaut() {
+    let mut m = base();
+    assert_eq!(m.java_major(None), 21);
+    m.java = Some(17);
+    assert_eq!(m.java_major(None), 17);
 }
 
 #[test]

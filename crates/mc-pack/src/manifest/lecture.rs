@@ -39,8 +39,17 @@ impl Manifest {
     }
 
     /// Version majeure de Java à garantir.
-    pub fn java_major(&self, mojang_says: u32) -> u32 {
-        self.java.unwrap_or(mojang_says)
+    ///
+    /// Trois sources, dans cet ordre, et la priorité est la règle : ce que le
+    /// MANIFESTE déclare l'emporte sur ce que Mojang exige, parce qu'un pack
+    /// peut avoir de bonnes raisons d'imposer une autre majeure que celle du
+    /// jeu nu — un mod qui ne compile qu'avec, un bogue de JVM à contourner.
+    ///
+    /// `Option` en entrée : les descripteurs d'avant la 1.17 n'ont pas de bloc
+    /// `javaVersion`. Le 21 final est le seul endroit du dépôt où ce chiffre
+    /// est écrit en dur, et il l'est ici plutôt que dans trois appelants.
+    pub fn java_major(&self, mojang_exige: Option<u32>) -> u32 {
+        self.java.or(mojang_exige).unwrap_or(21)
     }
 }
 

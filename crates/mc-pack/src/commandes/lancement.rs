@@ -33,7 +33,17 @@ pub async fn launch(
         None => Identite::Microsoft,
     };
 
-    let partie = jeu::preparer(source, options, identite, serveur, memoire).await?;
+    // Un rapport muet : la ligne de commande n'a pas de barre à nourrir, et
+    // l'installation d'un Java manquant s'y raconte déjà par le journal.
+    let partie = jeu::preparer(
+        source,
+        options,
+        identite,
+        serveur,
+        memoire,
+        std::sync::Arc::new(mc_pack::Muet),
+    )
+    .await?;
     annonce::annoncer(&partie);
 
     // Montrer sans lancer : c'est ce qu'on regarde quand le jeu refuse de

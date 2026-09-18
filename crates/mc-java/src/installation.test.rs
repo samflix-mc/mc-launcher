@@ -33,7 +33,7 @@ async fn un_temurin_est_telecharge_depaquete_et_verifie() {
         ),
     );
 
-    let java = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let java = install_depuis(&serveur.base(), 21, &arbre.racine, None)
         .await
         .expect("l'installation aboutit");
 
@@ -72,7 +72,7 @@ async fn a_defaut_de_jre_le_jdk_est_pris() {
         ),
     );
 
-    let java = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let java = install_depuis(&serveur.base(), 21, &arbre.racine, None)
         .await
         .expect("le JDK prend le relais");
     assert_eq!(java.version.major, 21);
@@ -98,7 +98,7 @@ async fn une_archive_dont_l_empreinte_est_fausse_n_est_pas_installee() {
         ),
     );
 
-    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine, None)
         .await
         .expect_err("l'empreinte ne correspond pas");
 
@@ -114,7 +114,7 @@ async fn un_java_que_personne_ne_publie_se_dit_clairement() {
     serveur.json(&chemin(99, "jre"), "[]");
     serveur.json(&chemin(99, "jdk"), "[]");
 
-    let erreur = install_depuis(&serveur.base(), 99, &arbre.racine)
+    let erreur = install_depuis(&serveur.base(), 99, &arbre.racine, None)
         .await
         .expect_err("rien de publié");
 
@@ -131,7 +131,7 @@ async fn une_reponse_illisible_nomme_le_type_d_image_demande() {
     let arbre = Arbre::neuf("install-illisible");
     serveur.json(&chemin(21, "jre"), "ceci n'est pas du JSON");
 
-    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine, None)
         .await
         .expect_err("réponse cassée");
 
@@ -176,7 +176,7 @@ async fn une_image_d_un_autre_type_que_celui_demande_est_ecartee() {
     );
     serveur.json(&chemin(21, "jre"), &deux_entrees);
 
-    let java = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let java = install_depuis(&serveur.base(), 21, &arbre.racine, None)
         .await
         .expect("l'entrée du bon type est retenue");
     assert_eq!(java.version.major, 21);
@@ -217,7 +217,7 @@ async fn un_temurin_qui_annonce_une_version_trop_basse_est_refuse() {
         ),
     );
 
-    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine)
+    let erreur = install_depuis(&serveur.base(), 21, &arbre.racine, None)
         .await
         .expect_err("un Java 17 ne répond pas d'une demande de Java 21");
     let texte = format!("{erreur:#}");

@@ -83,6 +83,40 @@ pub async fn install(mc: &str, shared: &Path, dl: &Downloader) -> Result<Vanilla
     })
 }
 
+/// Ce que MOJANG exige comme majeure de Java pour cette version du jeu.
+///
+/// ## Pourquoi cette fonction existe
+///
+/// `mc-pack lock` écrivait `unwrap_or(21)` : une constante, dans le fichier
+/// même qui prétend figer ce qui sera installé. L'installation, elle,
+/// interrogeait Mojang. Les deux pouvaient donc diverger — et le verrou, qui
+/// est censé être la vérité, portait le chiffre deviné.
+///
+/// Cette fonction est ce que l'installation lit, extrait pour que `lock`
+/// puisse lire la même chose. Elle ne télécharge que deux JSON — le manifeste
+/// des versions et le descripteur — là où une installation complète descend
+/// plusieurs centaines de mégaoctets.
+///
+/// ## Pourquoi `Option` et non `u32`
+///
+/// Les descripteurs anciens n'ont pas de bloc `javaVersion` : Mojang ne l'a
+/// ajouté qu'avec la 1.17. Rendre 21 à leur place serait réinventer le
+/// `unwrap_or` qu'on retire. C'est à l'appelant de décider, et il le fait
+/// déjà : `Manifest::java_major` donne la priorité à ce que le manifeste du
+/// pack déclare, et ne retombe sur celui-ci qu'à défaut.
+#[tracing::instrument(name = "java exigé", skip(dl))]
+pub async fn java_exige(mc: &str, dl: &Downloader) -> Result<Option<u32>> {
+    let manifest: Manifest = serde_json::from_slice(&dl.bytes(MANIFEST).await?)
+        .context("manifeste des versions illisible")?;
+    let entry = entree_de_version(manifest.versions, mc)
+        .with_context(|| format!("Minecraft {mc} ne figure pas au manifeste de Mojang"))?;
+
+    let version: VersionJson = serde_json::from_slice(&dl.bytes(&entry.url).await?)
+        .with_context(|| format!("descripteur de {mc} illisible"))?;
+
+    Ok(version.java_version.map(|j| j.major_version))
+}
+
 /// L'entrée du manifeste Mojang qui décrit exactement cette version du jeu.
 ///
 /// Le manifeste en énumère plusieurs centaines, des instantanés compris. Se

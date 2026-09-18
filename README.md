@@ -75,7 +75,7 @@ version du jeu : ils sont partagés entre instances. `shared/` a la forme d'un
 | [`mc-mods`](crates/mc-mods) | résolution des mods : Modrinth, CurseForge sans clé, dépendances lues dans les jars |
 | [`mc-instance`](crates/mc-instance) | Minecraft et NeoForge : installation, ligne de commande JVM, plantages |
 | [`mc-auth`](crates/mc-auth) | authentification Microsoft, et profil hors-ligne |
-| [`mc-java`](crates/mc-java) | détecte un Java 21, en installe un au besoin |
+| [`mc-java`](crates/mc-java) | détecte le Java que le verrou exige, en installe un au besoin |
 | [`mc-log`](crates/mc-log) | journaux console et fichier, incidents Sentry, censure des jetons |
 | [`mc-dl`](crates/mc-dl) | téléchargements : reprise, empreintes, écriture atomique |
 | [`mc-app`](crates/mc-app) | l'application Tauri : la fenêtre, et rien d'autre — voir [interface.md](docs/interface.md) |

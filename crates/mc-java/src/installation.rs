@@ -9,18 +9,42 @@ use crate::emplacements::{java_exe, managed_home};
 use crate::version::{Java, Origin, probe};
 
 /// combinaisons de plateformes, d'où le repli sur le JDK.
-#[tracing::instrument(name = "installation java", skip(runtime_dir))]
-pub async fn install(major: u32, runtime_dir: &Path) -> Result<Java> {
-    install_depuis(API, major, runtime_dir).await
+///
+/// ## L'observateur, et ce qu'il corrige
+///
+/// Ce module fabriquait son propre client, sans observateur. La conséquence se
+/// voyait dans la fenêtre : l'étape « Java » s'allumait, puis plus rien
+/// pendant cent quatre-vingts mégaoctets — ni débit, ni barre, ni temps
+/// restant. C'est le seul moment de l'étape qui dure, et c'était le seul que
+/// personne ne racontait.
+///
+/// `Option` malgré tout : la ligne de commande n'a pas de barre à nourrir, et
+/// lui imposer d'en fabriquer une ne servirait personne.
+#[tracing::instrument(name = "installation java", skip(runtime_dir, observateur))]
+pub async fn install(
+    major: u32,
+    runtime_dir: &Path,
+    observateur: Option<mc_dl::Observateur>,
+) -> Result<Java> {
+    install_depuis(API, major, runtime_dir, observateur).await
 }
 
 /// La même installation, contre une racine d'API donnée.
-pub(crate) async fn install_depuis(base: &str, major: u32, runtime_dir: &Path) -> Result<Java> {
+pub(crate) async fn install_depuis(
+    base: &str,
+    major: u32,
+    runtime_dir: &Path,
+    observateur: Option<mc_dl::Observateur>,
+) -> Result<Java> {
     let (os, arch) = platform()?;
     tokio::fs::create_dir_all(runtime_dir)
         .await
         .with_context(|| format!("création de {}", runtime_dir.display()))?;
     let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT)?;
+    let dl = match observateur {
+        Some(observateur) => dl.observe(observateur),
+        None => dl,
+    };
 
     let mut asset = None;
     for image in ["jre", "jdk"] {
@@ -73,7 +97,11 @@ pub(crate) async fn install_depuis(base: &str, major: u32, runtime_dir: &Path) -
     let version = probe(&exe)
         .await
         .with_context(|| format!("le Java installé dans {} ne démarre pas", home.display()))?;
-    if version.major < major {
+    // `!=` et non `<` : le pendant du `==` de `detection.rs`. Un Temurin plus
+    // récent que demandé n'est pas « assez bon », il est le mauvais — et
+    // l'accepter ici ferait que `ensure` le réinstalle sans fin, puisque
+    // `detect` le refuserait au lancement suivant.
+    if version.major != major {
         bail!(
             "Temurin {} installé, mais il annonce Java {} alors que {major} est exigé",
             asset.release_name,

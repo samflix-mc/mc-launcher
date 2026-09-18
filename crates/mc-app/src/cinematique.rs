@@ -117,10 +117,22 @@ pub async fn jouer(app: &AppHandle, suivi: &Arc<Suivi>) -> Result<mc_instance::l
     // La préparation lit des descripteurs et crée des répertoires : c'est du
     // disque, et le tenir sur l'exécuteur figerait les autres tâches — dont la
     // boucle qui rafraîchit la fenêtre.
-    let partie =
-        mc_pack::jeu::preparer(&source, &options, mc_pack::Identite::Microsoft, None, None)
-            .await
-            .context("préparation de la partie")?;
+    // Le même rapport que l'installation : si le Java du verrou manque, sa
+    // pose se raconte dans la fenêtre au lieu de la figer deux minutes.
+    let vers_la_fenetre: Arc<dyn mc_pack::Rapport> = Arc::new(VersLaFenetre {
+        suivi: Arc::clone(suivi),
+    });
+
+    let partie = mc_pack::jeu::preparer(
+        &source,
+        &options,
+        mc_pack::Identite::Microsoft,
+        None,
+        None,
+        vers_la_fenetre,
+    )
+    .await
+    .context("préparation de la partie")?;
 
     suivi.phase(Phase::Lancement);
     suivi.note(&format!("Le jeu démarre — {}", partie.instance.name));

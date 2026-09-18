@@ -107,7 +107,15 @@ pub async fn mettre_a_jour_et_jouer(
         None
     };
 
-    let partie = super::preparer(source, options, identite, serveur, memoire).await?;
+    let partie = super::preparer(
+        source,
+        options,
+        identite,
+        serveur,
+        memoire,
+        Arc::clone(&rapport),
+    )
+    .await?;
     let compte_rendu = super::jouer(&partie).await?;
 
     Ok(Deroulement {

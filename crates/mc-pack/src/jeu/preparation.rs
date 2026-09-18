@@ -27,6 +27,7 @@ pub async fn preparer(
     identite: super::Identite,
     serveur: Option<String>,
     memoire: Option<u32>,
+    rapport: std::sync::Arc<dyn crate::progression::Rapport>,
 ) -> Result<Partie> {
     let session = super::identite::choisir(identite).await?;
     let (manifest, lock, instance) = ouvrir(source, options)?;
@@ -34,9 +35,7 @@ pub async fn preparer(
 
     let version_id = mc_instance::neoforge::version_id(&lock.loader.version);
 
-    // Le Java du verrou, pas celui du système : c'est avec lui que NeoForge a
-    // été installé.
-    let java = mc_java::ensure(lock.java, &layout.runtime()).await?;
+    let java = java_du_verrou(&lock, layout, &rapport).await?;
 
     // À défaut de --serveur, celui que le pack déclare pour l'environnement de
     // ce binaire. Le manifeste est le même partout — c'est la même image de
@@ -65,6 +64,50 @@ pub async fn preparer(
         demande_explicite,
         environnement,
     })
+}
+
+/// Le Java du verrou, pas celui du système : c'est avec lui que NeoForge a été
+/// installé.
+///
+/// ## Pourquoi `detect` puis `install`, et non `ensure`
+///
+/// `ensure` ferait la même chose, mais sans dire lequel des deux cas s'est
+/// produit — et c'est justement ce qu'il faut savoir pour ne pas mentir à
+/// l'écran.
+///
+/// Au moment où l'on prépare une partie, la cinématique est déjà sur
+/// `Phase::Pret`. `Suivi::phase` écrase sans garde de monotonie : émettre
+/// l'étape « Java » inconditionnellement ferait RECULER l'affichage de la
+/// dernière étape à la quatrième, à chaque lancement, sur un pack pourtant
+/// complet. Le joueur verrait son launcher revenir en arrière sans raison.
+///
+/// On ne l'émet donc que dans le cas où quelque chose va réellement se passer
+/// — un runtime à poser, cent quatre-vingts mégaoctets à descendre — et c'est
+/// alors une reprise annoncée, qui a un sens.
+async fn java_du_verrou(
+    lock: &Lockfile,
+    layout: &mc_instance::Layout,
+    rapport: &std::sync::Arc<dyn crate::progression::Rapport>,
+) -> Result<mc_java::Java> {
+    if let Some(java) = mc_java::detect(lock.java, &layout.runtime()).await {
+        tracing::debug!(
+            version = %java.version.full,
+            "Java du verrou déjà présent, rien à annoncer"
+        );
+        return Ok(java);
+    }
+
+    rapport.etape(crate::progression::Etape::Java);
+    rapport.note(&format!(
+        "Java {} manquant : installation avant de lancer…",
+        lock.java
+    ));
+    mc_java::install(
+        lock.java,
+        &layout.runtime(),
+        Some(crate::installation::observateur(rapport)),
+    )
+    .await
 }
 
 /// Ce que la ligne de commande demande au jeu lui-même.

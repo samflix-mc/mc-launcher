@@ -33,7 +33,24 @@ pub async fn lock(source: &Source, options: &mc_pack::Options) -> Result<()> {
             kind: manifest.loader.kind.clone(),
             version: neoforge_version,
         },
-        manifest.java.unwrap_or(21),
+        // Et non « manifest.java.unwrap_or(21) ». Le verrou est ce qui fait
+        // foi pour l'installation ET pour la vérification de Java à chaque
+        // lancement : y écrire une constante revenait à figer un chiffre
+        // deviné là où l'installation, elle, interrogeait Mojang. Les deux
+        // pouvaient diverger, et c'est le verrou qui avait tort.
+        //
+        // Exactement la même expression qu'à l'étape 4 de l'installation, mot
+        // pour mot — y compris le passage par `Manifest::java_major`, qui
+        // porte la règle de priorité du manifeste. La remplacer par
+        // `java_exige` seul ferait perdre à `lock` la faculté d'imposer une
+        // majeure, que `manifest/lecture.demandes.test.rs` verrouille.
+        manifest.java_major(
+            mc_instance::vanilla::java_exige(
+                &manifest.minecraft,
+                &mc_dl::Downloader::new(mc_dl::USER_AGENT)?,
+            )
+            .await?,
+        ),
         &plan,
     );
     lock.save(&lock_path)?;
