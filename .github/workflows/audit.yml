@@ -53,8 +53,26 @@ jobs:
       # années. Un seuil qui arrête la CI sur ce qu'on ne peut pas réparer finit
       # contourné, et emporte avec lui les avis qui comptaient. Il reste lisible
       # dans le journal du job.
+      #
+      # UNE exception nommée, et elle a un motif et une date de péremption.
+      #
+      # RUSTSEC-2024-0429 — « unsoundness in Iterator and DoubleEndedIterator
+      # impls for glib::VariantStrIter ». `glib 0.18.5` arrive par `gtk 0.18.2`,
+      # qu'imposent `tao` et `muda`, eux-mêmes imposés par Tauri 2.11 : il n'y a
+      # aucune version de `glib` que ce dépôt puisse choisir. Le seul correctif
+      # est une montée de gtk-rs côté Tauri.
+      #
+      # Ce qu'on accepte en attendant est borné : le launcher ne dépend pas de
+      # `glib` et n'appelle nulle part `VariantStrIter` — c'est une API que la
+      # chaîne GTK n'expose pas sur le chemin d'une fenêtre. Ignorer l'avis
+      # n'est donc pas desserrer la règle « unsound arrête la CI » : c'est la
+      # garder, en nommant le seul cas où elle ne nous apprend rien.
+      #
+      # À RETIRER dès que Tauri passera à gtk-rs 0.19 ou au-delà — et la
+      # commande le dira d'elle-même : un `--ignore` sans correspondance fait
+      # apparaître « warning: ignoring advisory that was not found ».
       - name: Chercher les avis connus sur les dépendances du verrou
-        run: cargo audit --deny unsound --deny yanked
+        run: cargo audit --deny unsound --deny yanked --ignore RUSTSEC-2024-0429
 
   npm:
     name: Avis npm

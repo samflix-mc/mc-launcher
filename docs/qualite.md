@@ -62,11 +62,22 @@ l'être. Puis `ligne_de_commande` et `application` construisent en matrice, et
 ## Vulnérabilités — `audit.yml`
 
 `cargo audit` sur les versions du verrou, à chaque changement et tous les
-lundis. Le rendez-vous hebdomadaire est le plus utile des deux : un avis
+lundis, et `pnpm audit` sur l'arbre npm — le front est du code qu'un joueur
+exécute, dans une WebView à qui `invoke` donne accès au système de fichiers et
+au trousseau. Le rendez-vous hebdomadaire est le plus utile des deux : un avis
 RustSec paraît sur une dépendance qu'on n'a pas touchée depuis des mois, et
 sans lui il attendrait le prochain commit. Les vulnérabilités, le code
 `unsound` et les versions retirées de crates.io arrêtent la CI ; les crates non
 maintenues sont signalées sans bloquer.
+
+**Une exception, nommée, avec sa date de péremption.** RUSTSEC-2024-0429 porte
+sur `glib 0.18.5`, qui arrive par la chaîne GTK de Tauri : aucune version de
+`glib` ne peut être choisie depuis ce dépôt, et le seul correctif est une
+montée de gtk-rs côté Tauri. Ce qu'on accepte est borné — le launcher ne dépend
+pas de `glib` et n'appelle nulle part le `VariantStrIter` en cause. L'ignorer
+n'est pas desserrer la règle : c'est la garder, en nommant le seul cas où elle
+n'apprend rien. Elle se retirera d'elle-même le jour venu, `cargo audit`
+avertissant sur un `--ignore` sans correspondance.
 
 ## Qualité — `qualite.yml`
 
