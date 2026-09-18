@@ -62,10 +62,13 @@ pub(crate) const HAUTEUR: f64 = 520.0;
 /// Combien de temps l'écran « connecté » reste lisible, au minimum.
 ///
 /// Sans lui, la connexion réussit et la fenêtre disparaît dans la même image :
-/// ce qui se lit comme un plantage plutôt que comme une réussite. Une seconde
-/// et demie suffit à lire un pseudo et une coche, et ne se remarque pas comme
-/// une attente.
-const PLANCHER_CONNECTE: Duration = Duration::from_millis(1500);
+/// ce qui se lit comme un plantage plutôt que comme une réussite.
+///
+/// **Deux secondes**, et c'est un choix de rythme, pas une contrainte. La
+/// valeur a d'abord été posée à une seconde et demie ; à l'usage, c'était
+/// court pour lire un pseudo, une coche et comprendre que la connexion a
+/// abouti. Elle est seule sur sa ligne pour qu'on puisse la rejuger à l'œil.
+const PLANCHER_CONNECTE: Duration = Duration::from_secs(2);
 
 /// Au bout de combien de temps on bascule sans attendre la fenêtre principale.
 ///
@@ -162,20 +165,21 @@ pub async fn ouvrir_connexion(app: AppHandle) -> Result<(), Erreur> {
 
 /// La session est ouverte : la principale se prépare, puis prend la main.
 ///
-/// ## Trois temps, et chacun règle un défaut vu à l'écran
+/// ## L'ordre, et ce que chaque temps règle
 ///
-/// 1. On PRÉVIENT la fenêtre principale. Elle est encore cachée ; elle relit sa
-///    session, rafraîchit l'état du pack et navigue vers Spawn.
-/// 2. On TIENT l'écran « connecté » une seconde et demie au moins. Sans ce
-///    plancher, la connexion réussit et la fenêtre disparaît dans la même
-///    image, ce qui se lit comme un plantage.
-/// 3. On n'échange les fenêtres qu'une fois la principale PRÊTE. La montrer
-///    avant ferait voir sa page de connexion, puis un écran qui se remplit
-///    pendant deux secondes — ce que la recette a relevé.
+/// 1. La fenêtre de connexion affiche « connecté » — c'est elle qui mène la
+///    suite, et le joueur a sous les yeux la preuve que ça a marché.
+/// 2. On PRÉVIENT la fenêtre principale, encore cachée. Elle relit sa session,
+///    rafraîchit l'état du pack et navigue vers l'accueil.
+/// 3. L'ACCUEIL dit qu'il est dessiné — depuis son `afterNextRender`, donc
+///    après le rendu et non après la navigation. La différence n'est pas
+///    théorique : `navigate` rend la main quand la route est activée, ce qui
+///    précède le premier pixel.
+/// 4. On échange les fenêtres : la principale se montre, la connexion se ferme.
 ///
-/// Les deux attentes se recouvrent : la principale se prépare pendant que
-/// l'écran « connecté » se lit, et le total est donc le plus long des deux, pas
-/// leur somme.
+/// Le plancher de deux secondes court en parallèle du 2 et du 3 : la principale
+/// se prépare pendant que l'écran « connecté » se lit, et le total est donc le
+/// plus long des deux, pas leur somme.
 #[tauri::command]
 pub async fn connexion_reussie(app: AppHandle) -> Result<(), Erreur> {
     // Baissé d'abord : c'est lui qui désarme la garde de fermeture, et la

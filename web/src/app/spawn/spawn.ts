@@ -1,4 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  afterNextRender,
+  computed,
+  inject,
+} from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { Check, Clock, Globe, Package, TriangleAlert, Users } from '../noyau/icones';
@@ -6,6 +12,7 @@ import { CarteNouvelle } from '../nouvelles/carte/carte-nouvelle';
 import { Incidents } from '../noyau/incidents';
 import { Nouvelles } from '../noyau/nouvelles';
 import { Pack } from '../noyau/pack';
+import { Pont } from '../noyau/pont';
 
 /** Ce que la pastille d'état du pack dit, et de quelle couleur. */
 interface Pastille {
@@ -61,6 +68,7 @@ export class Spawn {
   private readonly pack = inject(Pack);
   private readonly incidents = inject(Incidents);
   private readonly nouvelles = inject(Nouvelles);
+  private readonly pont = inject(Pont);
 
   protected readonly etat = this.pack.etat;
   protected readonly partie = this.pack.derniereePartie;
@@ -138,6 +146,18 @@ export class Spawn {
   );
 
   constructor() {
+    // **C'est d'ICI que part le signal qui montre la fenêtre principale.**
+    //
+    // Depuis `afterNextRender`, et pas depuis la navigation : `navigate` rend
+    // la main quand la route est ACTIVÉE, ce qui précède le premier pixel de
+    // plusieurs images. Montrer la fenêtre à cet instant-là la ferait
+    // apparaître sur un écran encore vide — exactement le défaut qu'on cherche
+    // à supprimer.
+    //
+    // Rust n'attend ce signal que pendant une connexion ; au démarrage
+    // ordinaire, il ne l'écoute pas, et l'envoyer ne coûte rien.
+    afterNextRender(() => void this.pont.principalePrete().catch(() => {}));
+
     // Le pack est ouvert par la COQUE — la barre de titre et le bouton de jeu
     // en dépendent, et ils survivent à cette page. On se contente de redemander
     // l'état : le disque a pu changer pendant qu'on était ailleurs.

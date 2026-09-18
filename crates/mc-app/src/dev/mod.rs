@@ -152,12 +152,12 @@ pub async fn router(contexte: Arc<Contexte>, requete: Requete) -> Reponse {
         // Le plancher de l'écran « connecté », tenu ici aussi.
         //
         // Dans la fenêtre, c'est `fenetres::connexion_reussie` qui le tient —
-        // une seconde et demie au moins, le temps qu'on lise son pseudo. Sans
-        // le reproduire, cet écran passerait en une image dans un navigateur,
-        // et l'on ne pourrait pas le travailler : c'est exactement ce que ce
-        // serveur existe pour rendre observable.
+        // deux secondes au moins, le temps qu'on lise son pseudo et qu'on
+        // comprenne que ça a marché. Sans le reproduire, cet écran passerait en
+        // une image dans un navigateur, et l'on ne pourrait pas le travailler :
+        // c'est exactement ce que ce serveur existe pour rendre observable.
         "connexion_reussie" => {
-            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             Reponse::vide()
         }
 

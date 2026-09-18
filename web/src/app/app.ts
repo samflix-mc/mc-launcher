@@ -216,14 +216,14 @@ export class App {
       await this.router.navigate(['/spawn']);
     });
 
-    // Et seulement là, on le dit : Rust ATTEND ce signal pour échanger les
-    // fenêtres. C'est ce qui a supprimé les deux secondes pendant lesquelles on
-    // voyait encore la connexion, puis un écran qui se remplit.
+    // On ne dit PAS ici qu'on est prêt : c'est l'accueil qui le dira, depuis
+    // son `afterNextRender`. `navigate` rend la main quand la route est
+    // activée, ce qui précède le premier pixel — et Rust montrerait alors une
+    // fenêtre encore vide.
     //
-    // Hors du `pendant` : même si la préparation a échoué, il faut rendre la
-    // main, sans quoi la fenêtre de connexion resterait à l'écran jusqu'à son
-    // délai de garde, sur un « Connecté » qui ne mène nulle part.
-    await this.pont.principalePrete().catch(() => {});
+    // Si la navigation a échoué, personne ne le dira : le délai de garde de
+    // `connexion_reussie` bascule au bout de huit secondes plutôt que de
+    // laisser un « Connecté » qui ne mène nulle part.
   }
 
   /** La donnée `bas` de la route la plus profonde, ou « aucune » à défaut. */
