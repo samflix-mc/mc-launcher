@@ -101,6 +101,11 @@ pub trait Rapport: Send + Sync + 'static {
     ///
     /// Ignoré par défaut : un terminal n'en fait rien, et le débit y défile
     /// plus vite qu'il ne se lit.
+    /// Hors de portée des tests de mutation : cette méthode n'écrit que sur
+    /// la sortie standard, que Rust ne sait pas relire depuis le processus qui
+    /// l'émet. Ce qu'elle CALCULE — le débit, le temps restant, le pourcentage
+    /// — est produit par `Suivi`, qui est éprouvé pour lui-même.
+    #[mutants::skip]
     fn telechargement(&self, avancement: mc_dl::Avancement<'_>) {
         let _ = avancement;
     }

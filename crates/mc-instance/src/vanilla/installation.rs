@@ -105,6 +105,17 @@ pub async fn install(mc: &str, shared: &Path, dl: &Downloader) -> Result<Vanilla
 /// déjà : `Manifest::java_major` donne la priorité à ce que le manifeste du
 /// pack déclare, et ne retombe sur celui-ci qu'à défaut.
 #[tracing::instrument(name = "java exigé", skip(dl))]
+/// Hors de portée des tests de mutation : les deux JSON qu'elle lit viennent
+/// de `launchermeta.mojang.com`, par une adresse écrite dans ce module. On ne
+/// la détourne pas vers un serveur d'essai, et contrefaire le manifeste de
+/// Mojang reviendrait à vérifier notre imitation.
+///
+/// Ce qu'elle DÉCIDE, en revanche, est éprouvé ailleurs et c'est ce qui compte :
+/// `Manifest::java_major` donne la priorité au manifeste du pack et ne retombe
+/// sur cette valeur qu'à défaut — `manifest/lecture.demandes.test.rs` le
+/// verrouille — et l'égalité stricte de la majeure est éprouvée des deux côtés
+/// dans `mc-java`.
+#[mutants::skip]
 pub async fn java_exige(mc: &str, dl: &Downloader) -> Result<Option<u32>> {
     let manifest: Manifest = serde_json::from_slice(&dl.bytes(MANIFEST).await?)
         .context("manifeste des versions illisible")?;
