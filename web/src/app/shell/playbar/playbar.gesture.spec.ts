@@ -53,10 +53,24 @@ describe('Playbar, the gesture', () => {
       providers: [
         {
           provide: Bridge,
-          // `available: false` neutralizes the refresh that follows the
-          // gesture: this test is about the call, not about re-reading the
-          // disk.
-          useValue: { available: true, inWindow: false, install, play, stopGame },
+          // **`packState` is not optional here, even though this test never
+          // reads it.** Every gesture ends with `Pack.duringGesture`
+          // rereading the disk, so a fake without it throws
+          // `packState is not a function` inside the promise the click
+          // returned — which never settles, and the test dies on the 5s
+          // timeout instead of on a readable assertion.
+          //
+          // `available` stays `true`: dropping it to `false` would silence
+          // the refresh, but it also guards `stopGame`, and one of these
+          // four tests is precisely about `stopGame` being called.
+          useValue: {
+            available: true,
+            inWindow: false,
+            install,
+            play,
+            stopGame,
+            packState: vi.fn(async () => state()),
+          },
         },
       ],
     });

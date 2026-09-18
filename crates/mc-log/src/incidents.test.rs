@@ -52,6 +52,17 @@ fn a_set_dsn_replaces_the_projects() {
 /// distinguishes this from a queue that was flushed for real.
 #[test]
 fn without_a_client_the_queue_is_not_said_to_be_flushed() {
+    // **The guard, and it is not decoration.** `sentry::init` binds a client
+    // to the MAIN hub, and `Hub::current()` on a fresh thread inherits from
+    // it — so while `a_declared_dsn_opens_a_client` holds its guard, this
+    // test sees that client and the queue flushes for real. The two tests
+    // live in different files and pass alone; only `--workspace` on a
+    // loaded machine crosses them.
+    //
+    // `_lock` and not `_`: the latter drops the guard on the spot, which
+    // reads like a lock being taken and takes none.
+    let _lock = crate::fixtures::variables();
+
     assert!(!flush_incidents(std::time::Duration::from_millis(1)));
 }
 
@@ -61,6 +72,10 @@ fn without_a_client_the_queue_is_not_said_to_be_flushed() {
 /// that never arrived costs more than the wait it was saving.
 #[test]
 fn with_a_client_the_queue_flushes_and_says_so() {
+    // Same lock, mirror reason: this one BINDS a client, and would make
+    // the test above fail rather than fail itself.
+    let _lock = crate::fixtures::variables();
+
     sentry::test::with_captured_events(|| {
         assert!(
             flush_incidents(std::time::Duration::from_secs(1)),
