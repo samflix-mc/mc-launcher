@@ -1,6 +1,6 @@
 [package]
 name = "mc-auth"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Chaîne d'authentification Microsoft → Xbox Live → XSTS → Minecraft"

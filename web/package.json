@@ -8,7 +8,13 @@
     "start": "ng serve --port 1420",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "test:ci": "ng test --watch=false",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "invariants": "node scripts/invariants.mjs",
+    "verifier:prefixes": "node scripts/prefixes.mjs",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@angular/common": "^22.1.0",
@@ -26,9 +32,18 @@
     "@angular/build": "^22.1.8",
     "@angular/cli": "^22.1.8",
     "@angular/compiler-cli": "^22.1.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@tauri-apps/cli": "^2.11.4",
+    "daisyui": "^5.7.39",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vitest": "^4.0.8"
-  }
+  },
+  "browserslist": [
+    "safari 17.4",
+    "chrome 120",
+    "edge 120"
+  ]
 }

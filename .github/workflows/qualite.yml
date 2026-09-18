@@ -6,6 +6,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: qualite-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: read
@@ -48,7 +52,20 @@ jobs:
           # monde, et bloquerait la première PR venue.
           fetch-depth: 0
 
+      # llvm-cov porte sur --workspace, donc sur mc-app, donc sur tauri : sans
+      # WebKitGTK la mesure ne compile pas. C'est la contrepartie directe de
+      # « default-members » — écarter mc-app de la sélection par défaut oblige
+      # à le nommer partout où l'on veut le voir.
+      - uses: ./.github/actions/dependances-linux
+
+      # Une clé distincte de celle du workflow Contrôles, et c'est délibéré :
+      # llvm-cov compile avec une instrumentation qui change les artefacts. Un
+      # cache partagé ferait s'invalider mutuellement les deux workflows à
+      # chaque exécution, et chacun recompilerait tout à chaque fois en croyant
+      # profiter d'un cache.
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: llvm-cov
 
       - uses: taiki-e/install-action@v2
         with:

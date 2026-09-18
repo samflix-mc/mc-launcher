@@ -1,6 +1,6 @@
 [package]
 name = "mc-app"
-version = "0.1.0"
+version.workspace = true
 description = "L'application : la fenêtre du launcher samflix-mc"
 edition.workspace = true
 license.workspace = true

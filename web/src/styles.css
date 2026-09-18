@@ -1,22 +1,143 @@
 /*
- * Toute la mise en forme de la fenêtre, ici et nulle part ailleurs.
+ * La feuille globale : le socle Tailwind, le thème, et ce qui reste du legs.
  *
- * Pas de framework : l'écran tient en quatre zones, et une dépendance de mise
- * en forme coûterait plus à relire qu'elle ne fait gagner.
+ * ## Ce que cette feuille a le droit de contenir
  *
- * Pas de `styleUrl` sur le composant non plus, et c'est la partie qui se
- * devine mal. Angular injecte les styles d'un composant à l'exécution, en
- * créant des balises `<style>` depuis le JavaScript. En production, Tauri sert
- * la page avec un CSP porteur d'un nonce — et la règle du CSP veut qu'un nonce
- * annule `'unsafe-inline'`. Les balises écrites dans le HTML reçoivent le
- * nonce de Tauri et passent ; celles que le JavaScript crée ensuite n'en ont
- * pas, et sont rejetées. L'écran s'affichait donc sans aucun style, en
- * production seulement — jamais en `tauri dev`, où le serveur Angular sert la
- * page sans CSP.
+ * Trois choses, et rien d'autre : le socle de Tailwind, la déclaration du
+ * thème daisyUI, et les quelques règles qui portent sur des éléments qu'aucun
+ * composant ne possède — `html`, `body`, la racine. Tout le reste appartient
+ * au composant qui le dessine, dans son `styleUrl`.
  *
- * Une feuille globale est un vrai fichier, chargé par `<link>` : `style-src
- * 'self'` suffit, et rien n'est injecté après coup.
+ * Le motif n'est pas esthétique : une feuille globale de six cents lignes
+ * décrit une interface qu'un seul écran utilise, et se retrouve chargée en
+ * entier pour une page de réglages qui n'en emploie rien. Les styles de
+ * composant sont chargés avec le morceau paresseux qui les contient.
+ *
+ * ## Pourquoi `styleUrl` est désormais permis — la version juste
+ *
+ * L'en-tête précédent affirmait qu'Angular injecte ses styles par le
+ * JavaScript, que Tauri pose un nonce, et qu'un nonce annule
+ * `'unsafe-inline'`. La dernière proposition est vraie — c'est la règle du CSP
+ * niveau 3. Les deux premières le sont aussi. Mais l'enchaînement ne tenait
+ * pas : Tauri n'injecte un nonce sur `style-src` que s'il TROUVE une balise
+ * `<style>` dans le HTML embarqué (tauri-utils/src/html.rs:154-157), et
+ * `index.html` n'en a aucune. La garde de tauri/src/manager/mod.rs:140 laisse
+ * alors la directive intacte.
+ *
+ * Ce qui rejetait les styles de composant n'était donc pas un nonce : c'était
+ * `style-src 'self'` tout court. La directive porte maintenant
+ * `'unsafe-inline'`, et `dangerousDisableAssetCspModification` garde ce
+ * mot-clé du jour où l'amorce statique mettra une balise `<style>` dans
+ * `index.html` — ce qui réveillerait l'injection de nonce, en production
+ * seulement. Ne pas retirer ce réglage en constatant qu'il ne sert à rien
+ * aujourd'hui : c'est une ceinture contre une évolution prévue.
+ *
+ * La condition à laquelle le desserrage a été consenti est qu'aucun balisage
+ * ne vienne d'ailleurs que du compilateur Angular. Elle est vérifiée par
+ * `pnpm invariants`, pas par la bonne volonté.
+ *
+ * `script-src` reste strict, nonce compris : c'est lui qui protège l'origine
+ * privilégiée où `invoke` est joignable.
  */
+
+/* `source(none)` : Tailwind ne devine pas où chercher les classes, on le lui
+   dit. Sans cela il remonte jusqu'à la racine du dépôt en scrutant les
+   sources Rust et le répertoire target/, ce qui coûte des secondes à chaque
+   build et finit par émettre des utilitaires tirés d'un commentaire. */
+@import "tailwindcss" source(none);
+
+/* Les deux seuls endroits où des classes s'écrivent.
+
+   `./index.html` et non `../index.html` : les `@source` se résolvent depuis
+   CE fichier, et `web/index.html` n'existe pas. Mal pointé, le chemin ne
+   produit aucune erreur — il produit une amorce statique sans style, en
+   production seulement, puisque c'est le seul fichier où vivront les classes
+   de l'écran de démarrage. */
+@source "./index.html";
+@source "./app";
+
+/* `themes: false` : aucun des trente-cinq thèmes livrés n'est émis. Le seul
+   qui existe est celui d'en dessous. */
+@plugin "daisyui" {
+  themes: false;
+}
+
+/* Le thème, déclaré une fois et lisible depuis n'importe quel style de
+   composant : l'encapsulation émulée d'Angular ne réécrit que les
+   sélecteurs, jamais les valeurs de propriétés personnalisées.
+
+   `default: true` plutôt qu'un `data-theme` posé sur `<html>` : un seul
+   endroit à connaître, et rien à synchroniser entre le HTML et le CSS. */
+@plugin "daisyui/theme" {
+  name: "samflix";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+
+  /* Le vert de Minecraft, déjà celui du README et du bouton JOUER. */
+  --color-primary: oklch(58% 0.13 133);
+  --color-primary-content: oklch(98% 0.01 133);
+
+  --color-secondary: oklch(70% 0.14 133);
+  --color-secondary-content: oklch(20% 0.02 133);
+
+  --color-accent: oklch(70% 0.14 133);
+  --color-accent-content: oklch(20% 0.02 133);
+
+  --color-neutral: oklch(28% 0.01 260);
+  --color-neutral-content: oklch(95% 0.005 260);
+
+  /* Les trois fonds, du plus proche au plus lointain. Volontairement peu
+     saturés : ce qui donne la couleur de l'écran est l'image de fond, pas le
+     thème, et un fond teinté sous une photographie fait de la boue. */
+  --color-base-100: oklch(21% 0.012 260);
+  --color-base-200: oklch(17% 0.012 260);
+  --color-base-300: oklch(13% 0.012 260);
+  --color-base-content: oklch(95% 0.005 260);
+
+  --color-info: oklch(70% 0.11 230);
+  --color-info-content: oklch(15% 0.02 230);
+  --color-success: oklch(70% 0.14 150);
+  --color-success-content: oklch(15% 0.02 150);
+  --color-warning: oklch(78% 0.13 80);
+  --color-warning-content: oklch(20% 0.02 80);
+  --color-error: oklch(65% 0.16 25);
+  --color-error-content: oklch(98% 0.01 25);
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+/* Ce que le thème daisyUI ne nomme pas et que la fenêtre emploie partout.
+
+   `@theme` et non `@theme inline` : les utilitaires produits portent alors la
+   valeur et non un `var()`, ce qui rend une classe utilisable dans un style
+   de composant sans que la variable ait à y être résolue. Si le CSS compilé
+   montrait des `var(--…)` non résolus, c'est ici qu'il faudrait passer en
+   `inline`. */
+@theme {
+  /* Les épaisseurs de flou du verre dépoli. Trois valeurs et pas une
+     échelle : une épaisseur par couche d'interface — le menu, la barre de
+     titre, une carte posée dessus. */
+  --blur-verre: 18px;
+  --blur-verre-fin: 10px;
+  --blur-verre-epais: 28px;
+
+  /* La bande de huit pixels qu'aucune cible de clic ne franchit, sous peine
+     que le gestionnaire de fenêtres GTK prenne le clic pour un
+     redimensionnement. Écrite comme une variable parce que trois composants
+     s'y conforment et qu'un nombre recopié trois fois diverge. */
+  --spacing-bord-fenetre: 8px;
+}
+
 
 :root {
   color-scheme: dark;

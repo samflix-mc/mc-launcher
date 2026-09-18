@@ -118,7 +118,9 @@ export class App implements OnDestroy {
       return null;
     }
     const etape = this.chemin().find((candidate) => candidate.phase === vu.phase);
-    return etape ? { numero: etape.rang + 1, total: this.etapesUtiles(), libelle: etape.libelle } : null;
+    return etape
+      ? { numero: etape.rang + 1, total: this.etapesUtiles(), libelle: etape.libelle }
+      : null;
   });
 
   private desabonnements: UnlistenFn[] = [];

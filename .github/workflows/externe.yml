@@ -1,0 +1,67 @@
+name: Services externes
+
+# Ce que la CI ne peut pas vérifier en relisant le dépôt : les tiers dont le
+# launcher dépend et qui peuvent tomber, changer, ou refuser notre identité
+# sans qu'une ligne de code ait bougé.
+#
+# ## Pourquoi ce n'est plus dans les contrôles
+#
+# Le test de fumée Microsoft coûtait SOIXANTE SECONDES PLEINES à chaque
+# poussée — mesuré, 16:26:56 → 16:27:56, soit près d'un tiers du job. Ce n'est
+# pas une lenteur du réseau : « mc-auth login » demande un code d'appareil,
+# puis *interroge* Microsoft jusqu'à ce que quelqu'un le valide. Personne ne le
+# validera jamais ici, et le délai est donc atteint EN ENTIER, à chaque fois.
+#
+# Le contrôle reste juste et utile : le code reçu prouve que la chaîne HTTP
+# fonctionne de bout en bout, sans exiger de compte ni de secret. Mais sa
+# réponse ne change pas d'une poussée à l'autre — elle change quand Microsoft
+# change quelque chose. Un rendez-vous quotidien est la bonne granularité ; à
+# chaque commit, c'était payer soixante secondes pour réapprendre ce qu'on
+# savait dix minutes plus tôt.
+#
+# Contrepartie assumée : une panne de l'identité Microsoft se découvre jusqu'à
+# vingt-quatre heures plus tard au lieu du prochain commit. C'est acceptable
+# parce que rien de ce que la CI produit ne dépend de cette réponse — aucune
+# compilation, aucune publication — et parce que le launcher, lui, la
+# découvrirait de toute façon chez le joueur.
+
+on:
+  schedule:
+    # Le matin, avant qu'on ne touche à quoi que ce soit : la journée commence
+    # sur un état connu. Décalé de quelques minutes d'une heure ronde, où tous
+    # les cron de GitHub s'entassent et se font mettre en file.
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: externe
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  microsoft:
+    name: L'identité Microsoft répond
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+
+      # -p mc-auth et non le workspace entier : ce job n'éprouve qu'une chaîne
+      # HTTP, et compiler l'application graphique pour y arriver demanderait
+      # WebKitGTK sur un runner qui n'a rien d'autre à faire.
+      - run: cargo build --release --locked -p mc-auth
+
+      - name: Demander un code d'appareil
+        run: |
+          set -uo pipefail
+          # Le délai coupe l'ATTENTE, et non la requête : celle-ci répond en
+          # moins de deux secondes, ou il y a mieux à signaler qu'un code.
+          # Vingt secondes et non soixante : passé ce point on n'apprend plus
+          # rien, on regarde une boucle d'interrogation tourner.
+          sortie=$(timeout 20 ./target/release/mc-auth login 2>&1 || true)
+          echo "$sortie"
+          echo "$sortie" | grep -q "microsoft.com/link?otc=" \
+            || { echo "::error title=Microsoft::réponse inattendue du service d'identité"; exit 1; }

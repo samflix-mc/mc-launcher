@@ -24,6 +24,16 @@ on:
         type: boolean
         default: false
 
+# Le workflow le plus long du dépôt, et celui dont une exécution périmée coûte
+# le plus cher : sans cette déclaration, trois poussées rapprochées sur une PR
+# lancent trois campagnes de mutation complètes en parallèle. Ce n'est pas ce
+# qui a causé l'incident des 55 minutes — celui-là se jouait dans une seule
+# exécution, et PARTS_MAX l'a fermé — c'est ce qui en aurait causé la
+# répétition.
+concurrency:
+  group: mutation-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

@@ -23,6 +23,7 @@
 
 mod cinematique;
 mod commandes;
+mod diagnostic;
 mod marque;
 mod phase;
 mod suivi;
@@ -34,6 +35,18 @@ pub fn run() {
     // En premier, avant le moindre fil : l'appel écrit l'environnement du
     // processus, et ce n'est sûr que tant qu'il est seul à y toucher.
     let dmabuf_desactive = webkit::regler_le_rendu();
+
+    // Avant la fenêtre, et avant le journal : `--diagnostic` répond puis sort.
+    // C'est ce que la CI lance sur le binaire qu'elle vient de construire pour
+    // savoir s'il porte l'environnement qu'on croit — un binaire de production
+    // qui se croit « development » irait chercher le pack de dev et ferait
+    // entrer les joueurs sur le serveur de dev, sans qu'une ligne du dépôt ait
+    // changé. Ouvrir une fenêtre pour répondre à cette question demanderait un
+    // serveur d'affichage sur un runner qui n'en a pas.
+    if diagnostic::demande(std::env::args()) {
+        print!("{}", diagnostic::rapport(dmabuf_desactive));
+        return;
+    }
 
     // Le garde tient les couches de journalisation ouvertes : le lâcher ici
     // viderait le fichier de son contenu tamponné et couperait Sentry avant

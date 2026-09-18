@@ -1,0 +1,17 @@
+# Ce que Prettier ne doit pas reformater.
+
+# Produits de build : régénérés à chaque fois, jamais relus.
+dist/
+.angular/
+node_modules/
+
+# Le verrou de pnpm. Prettier le reformate volontiers et pnpm le réécrit
+# aussitôt : `format:check` et `install --frozen-lockfile` se contrediraient
+# à chaque exécution de la CI.
+pnpm-lock.yaml
+
+# La feuille globale porte des directives Tailwind — `@plugin`, `@source`,
+# `@theme` — que le parseur CSS de Prettier ne connaît pas. Il ne les casse
+# pas, mais il réindente leur corps d'une façon qui rend le diff illisible à
+# chaque ajout de variable de thème.
+src/styles.css

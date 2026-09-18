@@ -1,6 +1,6 @@
 [package]
 name = "mc-essais"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 # Outillage de test : jamais publié, jamais embarqué dans un binaire.

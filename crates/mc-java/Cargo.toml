@@ -1,6 +1,6 @@
 [package]
 name = "mc-java"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Détection d'un runtime Java existant, sinon installation d'un Temurin dédié"

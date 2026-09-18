@@ -1,6 +1,6 @@
 [package]
 name = "mc-mods"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Résolution et téléchargement des mods : Modrinth d'abord, CurseForge en repli"

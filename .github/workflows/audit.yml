@@ -16,6 +16,10 @@ on:
     - cron: "17 6 * * 1"
   workflow_dispatch:
 
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -51,3 +55,30 @@ jobs:
       # dans le journal du job.
       - name: Chercher les avis connus sur les dépendances du verrou
         run: cargo audit --deny unsound --deny yanked
+
+  npm:
+    name: Avis npm
+    # Le front est du code qu'un joueur exécute, au même titre que le Rust : il
+    # tourne dans une WebView à qui « invoke » donne accès au système de
+    # fichiers et au trousseau. L'arbre npm d'Angular est large, et il ne
+    # figurait dans aucun audit — la moitié JavaScript du launcher n'était
+    # surveillée nulle part.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/front
+
+      # --audit-level high, et le seuil demande à être justifié plutôt que
+      # subi. L'arbre d'un outillage front porte en permanence des avis
+      # « moderate » sur des paquets qui ne servent qu'à la compilation et ne
+      # partent jamais dans le binaire — une expression régulière lente dans un
+      # outil de build n'est pas une faille du launcher. Un seuil qui arrête la
+      # CI sur ce qu'on ne peut pas réparer finit contourné, et emporte avec
+      # lui les avis qui comptaient.
+      #
+      # Les avis sous le seuil restent lisibles dans le journal du job : c'est
+      # « --audit-level » qui décide de l'échec, pas de l'affichage.
+      - name: Chercher les avis connus sur les dépendances du front
+        working-directory: web
+        run: pnpm audit --audit-level high

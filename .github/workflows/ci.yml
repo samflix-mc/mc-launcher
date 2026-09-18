@@ -5,6 +5,31 @@ on:
     branches: [main, dev]
   pull_request:
   workflow_dispatch:
+    inputs:
+      empaqueter:
+        description: >
+          Construire aussi les paquets Linux (.deb, .rpm, .AppImage) au lieu du
+          seul binaire. À lancer à la main avant une release : la jambe AppImage
+          copie /usr/bin/xdg-open, télécharge quatre outils et exige une icône
+          carrée, et sans cette entrée sa toute première exécution serait une
+          publication.
+        type: boolean
+        default: false
+
+# Sans cette déclaration, trois poussées rapprochées sur une PR font tourner
+# trois exécutions complètes en parallèle, dont deux qu'on ne lira jamais.
+# Ce n'était pas la cause de l'incident des 55 minutes de mutation.yml — celui-là
+# se jouait dans une seule exécution — c'est la cause de sa répétition.
+concurrency:
+  group: controles-${{ github.ref }}
+  cancel-in-progress: true
+
+# Déclarées ici parce que ce workflow ne fait que lire. Le jeton par défaut d'un
+# dépôt peut être en écriture : un workflow qui n'en a pas besoin ne doit pas
+# l'avoir, ne serait-ce que pour que la revue d'une action tierce ajoutée un jour
+# porte sur ce qu'elle peut réellement faire.
+permissions:
+  contents: read
 
 # L'environnement suit ce que la CI construit : la branche principale prépare
 # une publication, tout le reste est du travail en cours. Le tag de production
@@ -13,30 +38,169 @@ env:
   SAMFLIX_ENV: ${{ github.ref == 'refs/heads/main' && 'preproduction' || 'development' }}
 
 jobs:
-  check:
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 20
+  rust:
+    name: Rust
+    # ubuntu-24.04 et non -arm, et c'est un vrai correctif et non une
+    # préférence : ce workflow est le seul à garder chaque poussée sur main, et
+    # sur un runner aarch64 il n'exerçait JAMAIS la branche x64 de
+    # mc-java/src/adoptium.rs. On livre très majoritairement du x86-64 ; l'ARM
+    # devient une jambe de la matrice de release, où elle a un sens.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
+
+      # Avant cargo : clippy et les tests portent sur --workspace, donc sur
+      # mc-app, donc sur tauri, qui ne se compile pas sans WebKitGTK.
+      - uses: ./.github/actions/dependances-linux
+
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test --workspace --locked
-      - run: cargo build --release --locked
-      - name: Vérifier que le binaire démarre
+
+      # --all et non le défaut : sans lui, cargo fmt ne regarde que les paquets
+      # sélectionnés par défaut — c'est-à-dire, depuis « default-members », tout
+      # sauf mc-app. Le crate le plus récent serait le seul non formaté.
+      - run: cargo fmt --all --check
+
+      # Le seul contrôle du dépôt dont le symptôme est l'absence de symptôme.
+      # Cargo refuse un paquet listé dans default-members qui ne serait pas
+      # membre, et ne dit RIEN d'un membre absent de la liste : un crate neuf
+      # oublié sortirait en silence de cargo build, de clippy sans --workspace,
+      # et du périmètre de mutation. On veut que les deux listes ne diffèrent
+      # que de mc-app, et de rien d'autre.
+      - name: Les deux listes de paquets ne diffèrent que de mc-app
         run: |
-          # « login » demande un code d'appareil à Microsoft, l'affiche, puis
-          # attend une validation qui ne viendra pas ici : le code reçu prouve
-          # que la chaîne HTTP fonctionne de bout en bout, sans exiger de compte
-          # ni de secret dans la CI. C'est ce que vérifiait l'ancien
-          # AADSTS700038, du temps où le binaire prenait un identifiant
-          # d'application en argument ; l'identité est désormais celle du
-          # launcher officiel, et il n'y a plus d'argument à salir pour
-          # provoquer un refus.
-          #
-          # Le délai coupe l'attente, et non la requête : celle-ci répond en
-          # moins de deux secondes, ou la CI a mieux à signaler qu'un code.
-          out=$(timeout 60 ./target/release/mc-auth login 2>&1 || true)
-          echo "$out"
-          echo "$out" | grep -q "microsoft.com/link?otc=" \
-            || { echo "::error::réponse inattendue de Microsoft"; exit 1; }
+          cargo metadata --no-deps --format-version 1 > /tmp/metadata.json
+          python3 - <<'PY'
+          import json
+          m = json.load(open('/tmp/metadata.json'))
+          noms = {p['id']: p['name'] for p in m['packages']}
+          membres = {noms[i] for i in m['workspace_members']}
+          defaut = {noms[i] for i in m['workspace_default_members']}
+          ecart = membres - defaut
+          if ecart != {'mc-app'}:
+              print('::error title=default-members::écart inattendu entre members et '
+                    f'default-members : {sorted(ecart)} au lieu de [mc-app]. '
+                    "Un crate neuf a-t-il été ajouté à l'un sans l'autre ?")
+              raise SystemExit(1)
+          print(f'members ∖ default-members == {sorted(ecart)}')
+          PY
+
+      # --workspace explicite : c'est la contrepartie de default-members. Sans
+      # lui, clippy ne regarderait plus mc-app du tout — et l'écarter de la
+      # mutation ne doit pas revenir à l'écarter de la relecture.
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - run: cargo test --workspace --locked
+
+  front:
+    name: Front
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/front
+
+      - name: Mise en forme
+        working-directory: web
+        run: pnpm format:check
+
+      # Les conditions auxquelles des décisions ont été prises, et que rien
+      # d'autre ne tient : voir web/scripts/invariants.mjs.
+      - name: Invariants
+        working-directory: web
+        run: pnpm invariants
+
+      - name: Tests
+        working-directory: web
+        run: pnpm test:ci
+
+      - name: Construire
+        working-directory: web
+        run: pnpm build
+
+      # Après le build, parce que le contrôle porte sur le CSS produit et non
+      # sur la source. C'est lui qui arrête une « browserslist » modernisée par
+      # inadvertance, dont le seul symptôme serait un verre dépoli qui rend
+      # plat dans la fenêtre, des semaines plus tard.
+      - name: Le préfixe -webkit- survit à la compilation
+        working-directory: web
+        run: pnpm verifier:prefixes
+
+  application:
+    name: Application Tauri
+    # Après les deux : ce job ne vaut que si le Rust compile et si le front se
+    # construit, et il est le plus lent des trois. Le faire courir en parallèle
+    # ferait payer dix minutes pour apprendre ce qu'une erreur de syntaxe avait
+    # déjà dit.
+    needs: [rust, front]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/dependances-linux
+      - uses: ./.github/actions/front
+      - uses: Swatinem/rust-cache@v2
+
+      # LE job qui justifie toute cette section.
+      #
+      # « cargo build --release » ne suffirait pas, et c'est le piège que ce
+      # dépôt a failli se poser : sans « frontendDist », un cargo build nu
+      # compile SANS UN MOT, embarque zéro asset et produit un binaire qui
+      # pointe sur http://localhost:1420. Seule la CLI pose la feature
+      # « custom-protocol » qui arme le contrôle d'existence, et
+      # crates/mc-app/Cargo.toml n'a aucune section [features] pour la poser
+      # elle-même. Le danger n'est pas que la CI casse : c'est qu'elle
+      # RÉUSSISSE un jour et publie un binaire qui s'ouvre sur une fenêtre
+      # blanche.
+      #
+      # TAURI_APP_PATH en chemin ABSOLU : la variable est canonicalisée et
+      # retombe EN SILENCE sur l'heuristique de découverte si elle ne l'est
+      # pas. Depuis web/, la CLI ne trouverait pas tauri.conf.json toute seule
+      # — elle ne descend que de trois niveaux depuis le répertoire courant.
+      #
+      # --no-bundle par défaut : le binaire et ses assets embarqués sont ce
+      # qu'on veut éprouver à chaque PR. L'empaquetage est vingt minutes de
+      # plus, et il a son entrée workflow_dispatch.
+      - name: Construire l'application
+        working-directory: web
+        env:
+          TAURI_APP_PATH: ${{ github.workspace }}/crates/mc-app
+        run: |
+          pnpm exec tauri build \
+            ${{ inputs.empaqueter && ' ' || '--no-bundle' }}
+
+      # Le binaire produit sait-il ce qu'il est ? Un .deb construit sans
+      # SAMFLIX_ENV s'installe et se lance, et va chercher le pack de
+      # développement sans qu'une ligne du dépôt ait changé. « --diagnostic »
+      # répond sans ouvrir de fenêtre, ce qu'un runner sans serveur
+      # d'affichage ne pourrait pas faire.
+      - name: Le binaire dit ce qu'il porte
+        run: |
+          set -euo pipefail
+          # Le nom du binaire n'est pas celui du crate : la CLI le renomme
+          # d'après « mainBinaryName » après la compilation. On cherche les
+          # deux plutôt que d'en supposer un — un renommage silencieux ferait
+          # échouer le contrôle sur un fichier introuvable, ce qui se lit comme
+          # une panne de la CI et non comme ce qu'elle est.
+          binaire=./target/release/samflix-launcher
+          [ -x "$binaire" ] || binaire=./target/release/mc-app
+          [ -x "$binaire" ] || { echo "::error::aucun binaire produit sous target/release"; exit 1; }
+          sortie=$("$binaire" --diagnostic)
+          echo "$sortie"
+          echo "$sortie" | grep -q "environnement : ${SAMFLIX_ENV}" \
+            || { echo "::error title=Environnement::le binaire n'annonce pas ${SAMFLIX_ENV}"; exit 1; }
+
+      # Conservés seulement quand on a demandé l'empaquetage : sinon il n'y a
+      # rien à conserver, et une étape qui ne trouve jamais de fichier finit
+      # par être lue comme « ça ne marche pas ».
+      - name: Conserver les paquets
+        if: inputs.empaqueter
+        uses: actions/upload-artifact@v7
+        with:
+          name: paquets-linux
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/rpm/*.rpm
+            target/release/bundle/appimage/*.AppImage
+          retention-days: 7
+          if-no-files-found: error

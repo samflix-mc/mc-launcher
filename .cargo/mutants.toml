@@ -12,6 +12,19 @@ exclude_globs = [
     # crate, c'est que les suites qui s'en servent tombent quand il ment ;
     # c'est déjà ce qu'elles font.
     "crates/mc-essais/**",
+
+    # mc-app n'ajoute aucune logique de launcher : c'est une fenêtre, sept
+    # commandes qui enveloppent des appels, et une cinématique dont chaque
+    # étape est déjà mutée dans le crate qui la porte. Muter l'enveloppe
+    # demanderait à un test de vérifier une délégation, ce que seul un test de
+    # bout en bout — avec un serveur d'affichage — pourrait faire.
+    #
+    # Ce n'est PAS cette ligne qui l'écarte : le mécanisme est
+    # « default-members » dans le Cargo.toml racine, puisque mutation.yml
+    # invoque cargo mutants sans « --workspace ». Elle est ici pour qu'on lise
+    # l'intention à l'endroit où l'on cherche les exclusions, et elle devient
+    # le filet si quelqu'un ajoute un jour « --workspace » au workflow.
+    "crates/mc-app/**",
 ]
 
 # Les suites vivent dans des fichiers « <module>.test.rs » compilés sous
