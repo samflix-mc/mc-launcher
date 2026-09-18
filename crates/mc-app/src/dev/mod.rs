@@ -149,6 +149,16 @@ pub async fn router(contexte: Arc<Contexte>, requete: Requete) -> Reponse {
         // ouvrirait en incident, sur un geste qui n'a simplement pas lieu ici.
         "ouvrir_connexion" | "principale_prete" => Reponse::vide(),
 
+        // Le front journalise ici aussi, sous l'étiquette « navigateur » : il
+        // n'y a pas de fenêtre à interroger, et la séquence reste lisible dans
+        // le même flux que le reste.
+        "journal" => {
+            let niveau = texte(&requete.corps, "niveau").unwrap_or_else(|| "info".to_string());
+            let message = texte(&requete.corps, "message").unwrap_or_default();
+            tracing::info!(target: "front", fenetre = "navigateur", niveau = %niveau, "{message}");
+            Reponse::vide()
+        }
+
         // Le plancher de l'écran « connecté », tenu ici aussi.
         //
         // Dans la fenêtre, c'est `fenetres::connexion_reussie` qui le tient —
@@ -274,6 +284,7 @@ fn accueil(etat: Etat) -> Reponse {
             "ouvrir_connexion",
             "connexion_reussie",
             "principale_prete",
+            "journal",
         ]
         .into_iter()
         .map(str::to_string)
@@ -334,6 +345,15 @@ pub fn argument(corps: &str, nom: &str) -> Option<serde_json::Value> {
         .ok()?
         .get(nom)
         .cloned()
+}
+
+/// Le même, quand l'argument attendu est une chaîne.
+///
+/// Un argument absent ou d'un autre type rend `None` plutôt que d'échouer : ce
+/// serveur sert à travailler l'interface, et une ligne de journal mal formée ne
+/// doit pas interrompre le geste qu'on était en train d'observer.
+pub fn texte(corps: &str, nom: &str) -> Option<String> {
+    argument(corps, nom)?.as_str().map(str::to_owned)
 }
 
 #[cfg(test)]

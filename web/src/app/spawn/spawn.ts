@@ -9,7 +9,9 @@ import { LucideAngularModule } from 'lucide-angular';
 
 import { Check, Clock, Globe, Package, TriangleAlert, Users } from '../noyau/icones';
 import { CarteNouvelle } from '../nouvelles/carte/carte-nouvelle';
+import { Fenetre } from '../noyau/fenetre';
 import { Incidents } from '../noyau/incidents';
+import { Journal } from '../noyau/journal';
 import { Nouvelles } from '../noyau/nouvelles';
 import { Pack } from '../noyau/pack';
 import { Pont } from '../noyau/pont';
@@ -69,6 +71,8 @@ export class Spawn {
   private readonly incidents = inject(Incidents);
   private readonly nouvelles = inject(Nouvelles);
   private readonly pont = inject(Pont);
+  private readonly fenetre = inject(Fenetre);
+  private readonly trace = inject(Journal);
 
   protected readonly etat = this.pack.etat;
   protected readonly partie = this.pack.derniereePartie;
@@ -156,7 +160,22 @@ export class Spawn {
     //
     // Rust n'attend ce signal que pendant une connexion ; au démarrage
     // ordinaire, il ne l'écoute pas, et l'envoyer ne coûte rien.
-    afterNextRender(() => void this.pont.principalePrete().catch(() => {}));
+    //
+    // **Mais seule la fenêtre principale a le droit de le dire.** Une fenêtre
+    // dédiée qui monterait cette page — ce qui ne devrait plus arriver, mais
+    // arrivait — annoncerait à Rust que la PRINCIPALE est prête alors qu'elle
+    // n'a rien rendu du tout : Rust basculerait aussitôt, et l'on retomberait
+    // sur l'écran qui se remplit sous les yeux.
+    afterNextRender(() => {
+      if (this.fenetre.dansUneFenetreDediee) {
+        this.trace.souci(
+          'Spawn monté dans une fenêtre DÉDIÉE : « principale_prete » n’est pas envoyé',
+        );
+        return;
+      }
+      this.trace.etape('Spawn dessiné : « principale_prete » envoyé');
+      void this.pont.principalePrete().catch(() => {});
+    });
 
     // Le pack est ouvert par la COQUE — la barre de titre et le bouton de jeu
     // en dépendent, et ils survivent à cette page. On se contente de redemander

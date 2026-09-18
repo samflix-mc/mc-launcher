@@ -4,6 +4,7 @@ import { LucideAngularModule } from 'lucide-angular';
 
 import { Check, Copy, ExternalLink, TriangleAlert } from '../noyau/icones';
 import { Incidents } from '../noyau/incidents';
+import { Journal } from '../noyau/journal';
 import { Notifications } from '../noyau/notifications';
 import { Fenetre } from '../noyau/fenetre';
 import { Pont } from '../noyau/pont';
@@ -56,6 +57,7 @@ export class Connexion {
   private readonly pont = inject(Pont);
   private readonly fenetre = inject(Fenetre);
   private readonly router = inject(Router);
+  private readonly trace = inject(Journal);
 
   protected readonly compte = this.session.compte;
   protected readonly code = this.session.code;
@@ -99,8 +101,13 @@ export class Connexion {
   });
 
   protected async connecter(): Promise<void> {
+    this.trace.etape('connexion demandée : appel de « connexion » chez Rust');
     await this.incidents.pendant(async () => {
       await this.session.connecter();
+      this.trace.etape(
+        `Microsoft a répondu — jouable=${this.session.jouable()}, ` +
+          `sansLicence=${this.session.sansLicence()}`,
+      );
       if (!this.session.jouable()) {
         // Compte Microsoft valide, mais sans licence : on reste ici, et l'écran
         // le dit. C'est le quatrième état de la page.
@@ -112,17 +119,22 @@ export class Connexion {
       // réussit et la fenêtre disparaît dans la même image, ce qui se lit comme
       // un plantage plutôt que comme une réussite.
       this.abouti.set(true);
+      this.trace.etape('étape « Connecté » affichée');
 
       // Dans la fenêtre de connexion, on ne NAVIGUE pas : on rend la main à la
       // fenêtre principale, qui se montre, relit sa session et va à Spawn. Ici,
       // il n'y a rien après — la fenêtre se ferme.
       await this.pont.connexionReussie();
+      this.trace.etape('« connexion_reussie » a rendu la main');
 
       // Hors de Tauri — un navigateur devant le serveur de développement — il
       // n'y a qu'un onglet : la commande ci-dessus n'a rien fait, et c'est le
       // routeur qui emmène.
       if (!this.fenetre.dansUneFenetreDediee) {
+        this.trace.etape('hors fenêtre dédiée : le routeur emmène vers Spawn');
         await this.router.navigate(['/spawn']);
+      } else {
+        this.trace.detail('fenêtre dédiée : aucune navigation, Rust ferme la fenêtre');
       }
     });
   }

@@ -99,7 +99,14 @@ fn reserver() -> bool {
 
 /// Montre la fenêtre principale et ferme l'écran de démarrage.
 fn accomplir(app: &AppHandle, pourquoi: &str) {
-    tracing::info!(pourquoi, "écran de démarrage refermé");
+    let mut vivantes: Vec<String> = app.webview_windows().keys().cloned().collect();
+    vivantes.sort();
+    tracing::info!(
+        pourquoi,
+        fenetres = ?vivantes,
+        connexion_en_cours = crate::fenetres::connexion_en_cours(),
+        "écran de démarrage refermé"
+    );
 
     // **La fenêtre principale ne se montre PAS s'il n'y a pas de session.**
     //
@@ -169,8 +176,17 @@ fn fermer_le_demarrage(app: &AppHandle) {
 /// le plancher, on tient l'écran de démarrage le temps qui reste. Le front,
 /// lui, n'attend rien d'utile de cette promesse — il l'ignore.
 #[tauri::command]
-pub async fn front_pret(app: AppHandle) {
+pub async fn front_pret(app: AppHandle, fenetre: tauri::Window) {
+    // L'étiquette dit QUI a signalé son rendu. Les deux fenêtres chargent la
+    // même application Angular : sans elle, deux lignes identiques dans le
+    // journal ne se distinguent que par leur horodatage.
+    tracing::info!(fenetre = fenetre.label(), "front_pret reçu");
+
     if !reserver() {
+        tracing::debug!(
+            fenetre = fenetre.label(),
+            "le passage a déjà eu lieu : signal ignoré"
+        );
         return;
     }
 

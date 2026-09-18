@@ -31,6 +31,7 @@ mod commandes;
 mod csp;
 mod demarrage;
 mod fenetres;
+mod journal;
 // Le launcher sans sa fenêtre, servi sur HTTP. Derrière une feature qui n'est
 // pas activée par défaut : `cargo tauri build` ne le compile pas.
 #[cfg(feature = "dev-serveur")]
@@ -135,6 +136,9 @@ pub fn run() {
             fenetres::ouvrir_connexion,
             fenetres::connexion_reussie,
             fenetres::principale_prete,
+            // Le front écrit dans le MÊME journal que Rust : les défauts de
+            // séquence entre deux fenêtres ne se lisent que dans un seul flux.
+            journal::journal,
             // Le geste unique, et ce qu'il faut pour le dessiner.
             commandes::pack::etat_du_pack,
             commandes::pack::jouer,

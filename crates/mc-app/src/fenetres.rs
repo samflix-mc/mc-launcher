@@ -116,6 +116,10 @@ pub fn connexion_en_cours() -> bool {
 /// aboutirait.
 #[tauri::command]
 pub async fn ouvrir_connexion(app: AppHandle) -> Result<(), Erreur> {
+    tracing::info!(
+        fenetres = ?etiquettes(&app),
+        "ouvrir_connexion : la session manque"
+    );
     EN_COURS.store(true, Ordering::Release);
 
     if let Some(principale) = app.get_webview_window("main")
@@ -182,23 +186,46 @@ pub async fn ouvrir_connexion(app: AppHandle) -> Result<(), Erreur> {
 /// plus long des deux, pas leur somme.
 #[tauri::command]
 pub async fn connexion_reussie(app: AppHandle) -> Result<(), Erreur> {
+    let depart = Instant::now();
+    tracing::info!(
+        fenetres = ?etiquettes(&app),
+        plancher_ms = PLANCHER_CONNECTE.as_millis(),
+        "connexion_reussie : début de la bascule"
+    );
+
     // Baissé d'abord : c'est lui qui désarme la garde de fermeture, et la
     // fermeture arrive plus bas.
     EN_COURS.store(false, Ordering::Release);
     PRINCIPALE_PRETE.store(false, Ordering::Release);
 
-    if let Err(erreur) = app.emit_to("main", EVENEMENT_SESSION, ()) {
-        tracing::warn!(erreur = %erreur, "la fenêtre principale n'a pas reçu le signal de session");
+    match app.emit_to("main", EVENEMENT_SESSION, ()) {
+        Ok(()) => tracing::info!(
+            evenement = EVENEMENT_SESSION,
+            cible = "main",
+            "signal de session émis"
+        ),
+        Err(erreur) => {
+            tracing::warn!(erreur = %erreur, "la fenêtre principale n'a pas reçu le signal de session");
+        }
     }
 
-    let depart = Instant::now();
     tokio::time::sleep(PLANCHER_CONNECTE).await;
+    tracing::debug!(
+        ecoule_ms = depart.elapsed().as_millis(),
+        principale_prete = PRINCIPALE_PRETE.load(Ordering::Acquire),
+        "plancher « connecté » écoulé"
+    );
 
     while !PRINCIPALE_PRETE.load(Ordering::Acquire) && depart.elapsed() < DELAI_DE_GARDE {
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 
-    if !PRINCIPALE_PRETE.load(Ordering::Acquire) {
+    if PRINCIPALE_PRETE.load(Ordering::Acquire) {
+        tracing::info!(
+            attente_ms = depart.elapsed().as_millis(),
+            "la fenêtre principale s'est annoncée prête"
+        );
+    } else {
         tracing::warn!(
             attente_ms = depart.elapsed().as_millis(),
             "la fenêtre principale n'a pas annoncé qu'elle était prête : on bascule quand même"
@@ -206,6 +233,10 @@ pub async fn connexion_reussie(app: AppHandle) -> Result<(), Erreur> {
     }
 
     basculer(&app);
+    tracing::info!(
+        total_ms = depart.elapsed().as_millis(),
+        "connexion_reussie : bascule faite"
+    );
     Ok(())
 }
 
@@ -215,7 +246,21 @@ pub async fn connexion_reussie(app: AppHandle) -> Result<(), Erreur> {
 /// plutôt qu'un événement : c'est une réponse à une question posée, et Rust doit
 /// pouvoir l'attendre.
 #[tauri::command]
-pub async fn principale_prete() {
+pub async fn principale_prete(fenetre: tauri::Window) {
+    // **L'étiquette est journalisée, et c'est le point du dispositif qui a
+    // manqué.** Cette commande a été appelée par la fenêtre de CONNEXION
+    // pendant plusieurs jours : elle recevait un signal qui ne lui était pas
+    // destiné, naviguait vers Spawn, et annonçait donc qu'une fenêtre était
+    // prête — la mauvaise. Rien dans le journal ne permettait de le voir.
+    let etiquette = fenetre.label();
+    if etiquette != "main" {
+        tracing::warn!(
+            fenetre = etiquette,
+            "« principale_prete » vient d'une AUTRE fenêtre que la principale : ignoré"
+        );
+        return;
+    }
+    tracing::info!(fenetre = etiquette, "la fenêtre principale se dit prête");
     PRINCIPALE_PRETE.store(true, Ordering::Release);
 }
 
@@ -226,6 +271,8 @@ pub async fn principale_prete() {
 /// traitent comme une application qui se termine, en retirant son entrée de la
 /// barre des tâches.
 fn basculer(app: &AppHandle) {
+    tracing::info!(fenetres = ?etiquettes(app), "bascule : on montre « main », on ferme « connexion »");
+
     if let Some(principale) = app.get_webview_window("main") {
         if let Err(erreur) = principale.show() {
             tracing::error!(erreur = %erreur, "la fenêtre principale n'a pas pu s'afficher");
@@ -242,6 +289,18 @@ fn basculer(app: &AppHandle) {
     {
         tracing::warn!(erreur = %erreur, "fenêtre de connexion non refermée");
     }
+}
+
+/// Les étiquettes des fenêtres vivantes, pour le journal.
+///
+/// Trois lignes qui n'existent que pour le diagnostic, et qui valent leur
+/// place : tous les défauts de ce module sont des défauts de « laquelle » —
+/// laquelle est ouverte, laquelle a parlé, laquelle s'est montrée — et une
+/// trace qui ne nomme pas les fenêtres ne permet de trancher aucun des deux.
+fn etiquettes(app: &AppHandle) -> Vec<String> {
+    let mut vivantes: Vec<String> = app.webview_windows().keys().cloned().collect();
+    vivantes.sort();
+    vivantes
 }
 
 /// Une erreur de Tauri, dans la forme que le pont sait rendre.

@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 /**
  * Comment on parle à Rust.
@@ -115,7 +116,27 @@ export async function ecouter<T>(
   recevoir: (charge: T) => void,
 ): Promise<UnlistenFn> {
   if (DANS_TAURI) {
-    return listen<T>(evenement, (recu) => recevoir(recu.payload));
+    // **La cible est NOTRE fenêtre, et ce n'est pas un détail.**
+    //
+    // `listen()` sans options s'enregistre avec `{ kind: 'Any' }`, et côté
+    // Rust `match_any_or_filter` laisse passer vers un écouteur `Any` TOUT
+    // événement, y compris ceux qu'on a émis vers une fenêtre nommée :
+    //
+    // ```rust
+    // *target == EventTarget::Any || filter.map(|f| f(target)).unwrap_or(true)
+    // ```
+    // (`tauri-2.11.5/src/event/listener.rs`)
+    //
+    // Autrement dit, `emit_to("main", …)` arrivait AUSSI dans la fenêtre de
+    // connexion. C'est ce qui la faisait naviguer vers Spawn et le dessiner
+    // dans quatre cent quarante pixels, deux secondes avant que la vraie
+    // fenêtre principale ne se montre.
+    //
+    // En ciblant notre étiquette, on reçoit les émissions qui nous nomment et
+    // les émissions GLOBALES — `emit()` part sans filtre — et rien d'autre.
+    return listen<T>(evenement, (recu) => recevoir(recu.payload), {
+      target: getCurrentWindow().label,
+    });
   }
 
   fluxPartage();

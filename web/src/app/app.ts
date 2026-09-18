@@ -17,6 +17,7 @@ import { Notifications as PanneauNotifications } from './coque/notifications/not
 import { Playbar } from './coque/playbar/playbar';
 import { Fenetre } from './noyau/fenetre';
 import { Incidents } from './noyau/incidents';
+import { Journal } from './noyau/journal';
 import { Marque } from './noyau/marque';
 import { Pack } from './noyau/pack';
 import { Pont } from './noyau/pont';
@@ -96,6 +97,7 @@ export class App {
   private readonly fenetre = inject(Fenetre);
   private readonly pack = inject(Pack);
   private readonly router = inject(Router);
+  private readonly trace = inject(Journal);
 
   /** Faux hors de la fenêtre Tauri ET hors du serveur de développement. */
   protected readonly disponible = this.pont.disponible;
@@ -130,6 +132,11 @@ export class App {
   protected readonly troisRangs = computed(() => this.bas() !== 'aucune');
 
   constructor() {
+    this.trace.etape(
+      `coque montée — étiquette « ${this.fenetre.etiquette ?? 'hors-tauri'} », ` +
+        `principale=${this.fenetre.estPrincipale}, dédiée=${this.fenetre.dansUneFenetreDediee}`,
+    );
+
     this.router.events.subscribe((evenement) => {
       if (!(evenement instanceof NavigationEnd)) {
         return;
@@ -138,6 +145,13 @@ export class App {
 
       const connexion = evenement.urlAfterRedirects.startsWith(ROUTE_CONNEXION);
       this.surConnexion.set(connexion);
+
+      // LA ligne à lire quand une fenêtre affiche une page qui n'est pas la
+      // sienne : elle dit qui a navigué, vers quoi, et depuis quelle URL.
+      this.trace.etape(
+        `navigation terminée — « ${evenement.url} » → « ${evenement.urlAfterRedirects} », ` +
+          `surConnexion=${connexion}, bas=${this.bas()}`,
+      );
 
       // La fenêtre PRINCIPALE ne montre jamais la connexion : elle la
       // délègue à une fenêtre dédiée, et s'efface derrière. Elle reste sur
@@ -154,7 +168,26 @@ export class App {
     // Quand la session s'ouvre dans l'autre fenêtre, celle-ci doit l'apprendre :
     // son service de session porte un compte nul depuis son chargement, et rien
     // ne le lui dirait.
-    void this.pont.surSessionOuverte(() => void this.reprendreLaMain()).catch(() => {});
+    //
+    // **Seule une fenêtre qui n'est pas dédiée s'y abonne**, et c'est une
+    // ceinture par-dessus la bretelle de `transport.ts`. Rust émet vers
+    // « main » nommément ; l'écouteur JS s'enregistrait pourtant sur `Any`,
+    // que Tauri sert SANS filtre — si bien que la fenêtre de connexion
+    // recevait le signal, naviguait vers Spawn, et le dessinait dans quatre
+    // cent quarante pixels juste avant de disparaître.
+    //
+    // Le ciblage est corrigé à la source ; cette garde-ci dit en plus ce que
+    // la règle VEUT, à l'endroit où on la lit.
+    if (this.fenetre.dansUneFenetreDediee) {
+      this.trace.detail('fenêtre dédiée : elle n’écoute pas « session-ouverte »');
+    } else {
+      void this.pont
+        .surSessionOuverte(() => {
+          this.trace.etape('« session-ouverte » reçu');
+          void this.reprendreLaMain();
+        })
+        .catch(() => {});
+    }
 
     // Le signal qui referme l'écran de démarrage et montre la fenêtre.
     //
@@ -163,7 +196,10 @@ export class App {
     // données pour montrer la fenêtre garderait le joueur devant un écran de
     // démarrage sans le moindre bouton.
     afterNextRender(() => {
-      setTimeout(() => void this.pont.frontPret().catch(() => {}), AVANT_DE_MONTRER);
+      setTimeout(() => {
+        this.trace.etape('premier rendu : « front_pret » envoyé');
+        void this.pont.frontPret().catch(() => {});
+      }, AVANT_DE_MONTRER);
     });
 
     void this.demarrer();
@@ -195,10 +231,12 @@ export class App {
         this.pack.ouvrir(),
       ]);
     } catch (cause) {
+      this.trace.souci(`démarrage en échec : ${String(cause)}`);
       this.incidents.signaler(cause);
     } finally {
       await plancher;
       this.amorce.set(false);
+      this.trace.etape(`amorce effacée — jouable=${this.session.jouable()}`);
     }
   }
 
@@ -210,10 +248,14 @@ export class App {
    * afficher une page de connexion à quelqu'un qui vient de se connecter.
    */
   private async reprendreLaMain(): Promise<void> {
+    this.trace.etape('reprise de la main : relecture de la session');
     await this.incidents.pendant(async () => {
       await this.session.ouvrir();
+      this.trace.detail(`session relue — jouable=${this.session.jouable()}`);
       await this.pack.rafraichir();
-      await this.router.navigate(['/spawn']);
+      this.trace.detail('état du pack rafraîchi ; navigation vers Spawn');
+      const allee = await this.router.navigate(['/spawn']);
+      this.trace.etape(`navigation vers Spawn : ${allee ? 'acceptée' : 'REFUSÉE'}`);
     });
 
     // On ne dit PAS ici qu'on est prêt : c'est l'accueil qui le dira, depuis

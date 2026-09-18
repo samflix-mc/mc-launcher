@@ -105,6 +105,19 @@ export class Pont {
     return ecouter<unknown>(EVENEMENT_SESSION, () => recevoir());
   }
 
+  // --- Le journal ----------------------------------------------------------
+
+  /**
+   * Écrit une ligne dans le journal de Rust, sous l'étiquette de cette fenêtre.
+   *
+   * L'étiquette n'est pas envoyée : Rust la lit sur la fenêtre appelante. C'est
+   * le seul point de la chaîne où l'on ne peut pas se tromper de fenêtre — et
+   * se tromper de fenêtre est le défaut que ce journal sert à traquer.
+   */
+  journal(niveau: string, message: string): Promise<void> {
+    return appeler<void>('journal', { niveau, message });
+  }
+
   // --- Le démarrage --------------------------------------------------------
 
   /**
