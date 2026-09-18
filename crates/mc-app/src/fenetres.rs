@@ -33,6 +33,7 @@
 //! c'est `connexion_reussie` qui ferme la fenêtre, et le drapeau est baissé.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -43,14 +44,36 @@ pub const ETIQUETTE: &str = "connexion";
 
 /// La route que la fenêtre charge.
 ///
-/// La MÊME application Angular, à une autre adresse. Le front reconnaît cette
-/// route et se dessine en conséquence : une feuille dépolie pleine fenêtre, une
-/// barre de titre sans bouton d'agrandissement, et le dialogue au milieu.
+/// **L'application, et non une page statique.** Une page statique a été
+/// essayée : elle s'affichait plus vite, et elle rendait à moitié — le bouton
+/// Microsoft n'avait ni la taille ni la forme des siens, il n'y avait ni verre
+/// dépoli ni image derrière, parce que recopier six cent vingt lignes de design
+/// system à la main ne se fait pas.
+///
+/// Le délai qu'elle cherchait à supprimer a été traité à sa vraie place : ce
+/// n'est pas l'ouverture de cette fenêtre qui se voyait, c'est la fenêtre
+/// principale qui se montrait AVANT d'être prête. Voir `connexion_reussie`.
 pub(crate) const ROUTE: &str = "/connexion";
 
 /// Les dimensions du design system, à la ligne près.
 pub(crate) const LARGEUR: f64 = 440.0;
 pub(crate) const HAUTEUR: f64 = 520.0;
+
+/// Combien de temps l'écran « connecté » reste lisible, au minimum.
+///
+/// Sans lui, la connexion réussit et la fenêtre disparaît dans la même image :
+/// ce qui se lit comme un plantage plutôt que comme une réussite. Une seconde
+/// et demie suffit à lire un pseudo et une coche, et ne se remarque pas comme
+/// une attente.
+const PLANCHER_CONNECTE: Duration = Duration::from_millis(1500);
+
+/// Au bout de combien de temps on bascule sans attendre la fenêtre principale.
+///
+/// Elle annonce qu'elle est prête par `principale_prete` ; si elle ne le fait
+/// pas — front bloqué, réseau pendu — il vaut mieux montrer une fenêtre qui
+/// rattrapera son retard que laisser le joueur devant un écran « connecté » qui
+/// ne mène nulle part.
+const DELAI_DE_GARDE: Duration = Duration::from_secs(8);
 
 /// L'événement par lequel la fenêtre principale apprend qu'elle a une session.
 ///
@@ -59,6 +82,14 @@ pub(crate) const HAUTEUR: f64 = 520.0;
 /// connexion qu'elle n'a plus de raison d'afficher, et il faudrait relancer le
 /// launcher pour en sortir.
 pub const EVENEMENT_SESSION: &str = "session-ouverte";
+
+/// La fenêtre principale a-t-elle fini de se préparer ?
+///
+/// Elle reçoit `session-ouverte` alors qu'elle est encore CACHÉE, relit sa
+/// session, rafraîchit l'état du pack et navigue vers Spawn — puis le dit. La
+/// montrer avant lui ferait voir sa page de connexion, puis un écran qui se
+/// remplit : exactement ce qu'on cherche à supprimer.
+static PRINCIPALE_PRETE: AtomicBool = AtomicBool::new(false);
 
 /// La connexion est-elle en cours ?
 ///
@@ -129,27 +160,74 @@ pub async fn ouvrir_connexion(app: AppHandle) -> Result<(), Erreur> {
     Ok(())
 }
 
-/// La session est ouverte : la principale reprend la main, la connexion s'en va.
+/// La session est ouverte : la principale se prépare, puis prend la main.
+///
+/// ## Trois temps, et chacun règle un défaut vu à l'écran
+///
+/// 1. On PRÉVIENT la fenêtre principale. Elle est encore cachée ; elle relit sa
+///    session, rafraîchit l'état du pack et navigue vers Spawn.
+/// 2. On TIENT l'écran « connecté » une seconde et demie au moins. Sans ce
+///    plancher, la connexion réussit et la fenêtre disparaît dans la même
+///    image, ce qui se lit comme un plantage.
+/// 3. On n'échange les fenêtres qu'une fois la principale PRÊTE. La montrer
+///    avant ferait voir sa page de connexion, puis un écran qui se remplit
+///    pendant deux secondes — ce que la recette a relevé.
+///
+/// Les deux attentes se recouvrent : la principale se prépare pendant que
+/// l'écran « connecté » se lit, et le total est donc le plus long des deux, pas
+/// leur somme.
+#[tauri::command]
+pub async fn connexion_reussie(app: AppHandle) -> Result<(), Erreur> {
+    // Baissé d'abord : c'est lui qui désarme la garde de fermeture, et la
+    // fermeture arrive plus bas.
+    EN_COURS.store(false, Ordering::Release);
+    PRINCIPALE_PRETE.store(false, Ordering::Release);
+
+    if let Err(erreur) = app.emit_to("main", EVENEMENT_SESSION, ()) {
+        tracing::warn!(erreur = %erreur, "la fenêtre principale n'a pas reçu le signal de session");
+    }
+
+    let depart = Instant::now();
+    tokio::time::sleep(PLANCHER_CONNECTE).await;
+
+    while !PRINCIPALE_PRETE.load(Ordering::Acquire) && depart.elapsed() < DELAI_DE_GARDE {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    if !PRINCIPALE_PRETE.load(Ordering::Acquire) {
+        tracing::warn!(
+            attente_ms = depart.elapsed().as_millis(),
+            "la fenêtre principale n'a pas annoncé qu'elle était prête : on bascule quand même"
+        );
+    }
+
+    basculer(&app);
+    Ok(())
+}
+
+/// La fenêtre principale annonce qu'elle a de quoi s'afficher.
+///
+/// Appelée par son front une fois la session relue et Spawn monté. Une commande
+/// plutôt qu'un événement : c'est une réponse à une question posée, et Rust doit
+/// pouvoir l'attendre.
+#[tauri::command]
+pub async fn principale_prete() {
+    PRINCIPALE_PRETE.store(true, Ordering::Release);
+}
+
+/// Montre la principale, ferme la connexion.
 ///
 /// L'ordre compte. On montre AVANT de fermer : l'inverse laisserait, le temps
 /// d'une image, zéro fenêtre visible — ce que certains gestionnaires de bureau
 /// traitent comme une application qui se termine, en retirant son entrée de la
 /// barre des tâches.
-#[tauri::command]
-pub async fn connexion_reussie(app: AppHandle) -> Result<(), Erreur> {
-    // Baissé d'abord : c'est lui qui désarme la garde de fermeture, et la
-    // fermeture arrive deux lignes plus bas.
-    EN_COURS.store(false, Ordering::Release);
-
+fn basculer(app: &AppHandle) {
     if let Some(principale) = app.get_webview_window("main") {
-        principale.show().map_err(en_erreur)?;
+        if let Err(erreur) = principale.show() {
+            tracing::error!(erreur = %erreur, "la fenêtre principale n'a pas pu s'afficher");
+        }
         if let Err(erreur) = principale.set_focus() {
             tracing::warn!(erreur = %erreur, "focus non donné à la fenêtre principale");
-        }
-        // Elle a chargé son front avant la connexion : son service de session
-        // porte un compte nul, et rien ne le lui dirait sans ce signal.
-        if let Err(erreur) = app.emit_to("main", EVENEMENT_SESSION, ()) {
-            tracing::warn!(erreur = %erreur, "la fenêtre principale n'a pas reçu le signal de session");
         }
     } else {
         tracing::error!("aucune fenêtre « main » à montrer après la connexion");
@@ -160,8 +238,6 @@ pub async fn connexion_reussie(app: AppHandle) -> Result<(), Erreur> {
     {
         tracing::warn!(erreur = %erreur, "fenêtre de connexion non refermée");
     }
-
-    Ok(())
 }
 
 /// Une erreur de Tauri, dans la forme que le pont sait rendre.

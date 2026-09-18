@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 
-import { Check, Clock, Package, TriangleAlert } from '../noyau/icones';
+import { Check, Clock, Globe, Package, TriangleAlert, Users } from '../noyau/icones';
 import { CarteNouvelle } from '../nouvelles/carte/carte-nouvelle';
 import { Incidents } from '../noyau/incidents';
 import { Nouvelles } from '../noyau/nouvelles';
@@ -68,6 +68,37 @@ export class Spawn {
   protected readonly epinglee = this.nouvelles.epinglee;
 
   protected readonly Package = Package;
+  protected readonly Globe = Globe;
+  protected readonly Users = Users;
+
+  /**
+   * L'état du serveur — **un emplacement réservé**, et rien de plus.
+   *
+   * Le design system pose un panneau « Serveur » à côté de celui du modpack :
+   * une pastille, une adresse, un nombre de joueurs, un ping. Rien ne les
+   * mesure encore — le launcher ne sonde aucun serveur, et le manifeste du pack
+   * n'en publie pas l'adresse.
+   *
+   * Il est donc dessiné dans l'état que le design system réserve à l'avant-
+   * première-réponse : `--unknown`, qui pulse pour dire qu'il attend. Les
+   * valeurs sont des tirets.
+   *
+   * **Écrire « En ligne · 42/120 » en dur serait pire que de ne rien
+   * afficher** : un joueur croirait le serveur joignable, et ne comprendrait
+   * pas que le jeu le refuse. Un emplacement qui dit qu'il ne sait pas ne ment
+   * à personne.
+   *
+   * Ce qu'il faudra pour le remplir : une adresse dans le manifeste, une sonde
+   * côté Rust — le protocole de statut de Minecraft, une poignée de main TCP et
+   * un JSON — et un rafraîchissement toutes les trente secondes, comme le
+   * design system le prescrit.
+   */
+  protected readonly serveur = computed(() => ({
+    nom: this.etat()?.nom ?? 'Serveur',
+    etat: 'État inconnu',
+    adresse: '—',
+    joueurs: '—',
+  }));
   protected readonly Check = Check;
   protected readonly Clock = Clock;
   protected readonly TriangleAlert = TriangleAlert;

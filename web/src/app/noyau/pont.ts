@@ -89,6 +89,17 @@ export class Pont {
     return appeler<void>('connexion_reussie');
   }
 
+  /**
+   * La fenêtre principale annonce qu'elle a de quoi s'afficher.
+   *
+   * Rust l'ATTEND avant d'échanger les fenêtres : la montrer plus tôt ferait
+   * voir un écran qui se remplit pendant deux secondes, ce que la fenêtre de
+   * connexion couvre en restant lisible à sa place.
+   */
+  principalePrete(): Promise<void> {
+    return appeler<void>('principale_prete');
+  }
+
   /** La fenêtre principale apprend qu'une session vient de s'ouvrir ailleurs. */
   surSessionOuverte(recevoir: () => void): Promise<UnlistenFn> {
     return ecouter<unknown>(EVENEMENT_SESSION, () => recevoir());

@@ -21,3 +21,14 @@
 .hm-connexion__note {
   text-align: center;
 }
+
+/* Le pseudo, dans l'écran « c'est fait ». `.hm-auth__done` du design system met
+   une coche et une zone de texte ; le nom du joueur y est ce qu'on lit en
+   premier. */
+.hm-connexion__pseudo {
+  font-weight: 600;
+}
+
+.hm-auth__done .hm-field__hint {
+  margin: 0;
+}

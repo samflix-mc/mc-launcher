@@ -134,6 +134,7 @@ pub fn run() {
             // session manque, on la referme quand elle est là.
             fenetres::ouvrir_connexion,
             fenetres::connexion_reussie,
+            fenetres::principale_prete,
             // Le geste unique, et ce qu'il faut pour le dessiner.
             commandes::pack::etat_du_pack,
             commandes::pack::jouer,

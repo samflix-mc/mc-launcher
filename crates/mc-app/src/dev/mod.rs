@@ -147,7 +147,19 @@ pub async fn router(contexte: Arc<Contexte>, requete: Requete) -> Reponse {
         // routeur du front qui emmène d'une page à l'autre. Elles répondent
         // quand même — une commande inconnue rendrait un 404 que le front
         // ouvrirait en incident, sur un geste qui n'a simplement pas lieu ici.
-        "ouvrir_connexion" | "connexion_reussie" => Reponse::vide(),
+        "ouvrir_connexion" | "principale_prete" => Reponse::vide(),
+
+        // Le plancher de l'écran « connecté », tenu ici aussi.
+        //
+        // Dans la fenêtre, c'est `fenetres::connexion_reussie` qui le tient —
+        // une seconde et demie au moins, le temps qu'on lise son pseudo. Sans
+        // le reproduire, cet écran passerait en une image dans un navigateur,
+        // et l'on ne pourrait pas le travailler : c'est exactement ce que ce
+        // serveur existe pour rendre observable.
+        "connexion_reussie" => {
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+            Reponse::vide()
+        }
 
         _ => Reponse::erreur(404, &format!("commande inconnue : {nom}")),
     }
@@ -261,6 +273,7 @@ fn accueil(etat: Etat) -> Reponse {
             "front_pret",
             "ouvrir_connexion",
             "connexion_reussie",
+            "principale_prete",
         ]
         .into_iter()
         .map(str::to_string)

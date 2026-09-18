@@ -215,6 +215,15 @@ export class App {
       await this.pack.rafraichir();
       await this.router.navigate(['/spawn']);
     });
+
+    // Et seulement là, on le dit : Rust ATTEND ce signal pour échanger les
+    // fenêtres. C'est ce qui a supprimé les deux secondes pendant lesquelles on
+    // voyait encore la connexion, puis un écran qui se remplit.
+    //
+    // Hors du `pendant` : même si la préparation a échoué, il faut rendre la
+    // main, sans quoi la fenêtre de connexion resterait à l'écran jusqu'à son
+    // délai de garde, sur un « Connecté » qui ne mène nulle part.
+    await this.pont.principalePrete().catch(() => {});
   }
 
   /** La donnée `bas` de la route la plus profonde, ou « aucune » à défaut. */

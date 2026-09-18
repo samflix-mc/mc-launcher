@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { LucideAngularModule } from 'lucide-angular';
 
@@ -10,7 +10,7 @@ import { Pont } from '../noyau/pont';
 import { Session } from '../noyau/session';
 
 /** Où l'on en est, des trois pas du design system. */
-type Pas = 'inviter' | 'code' | 'sans-licence';
+type Pas = 'inviter' | 'code' | 'fait' | 'sans-licence';
 
 /**
  * Ouvrir une session Microsoft — une modale, et rien derrière.
@@ -66,15 +66,37 @@ export class Connexion {
   protected readonly ExternalLink = ExternalLink;
   protected readonly TriangleAlert = TriangleAlert;
 
+  /**
+   * L'écran « c'est fait », posé à la main.
+   *
+   * Il ne se DÉDUIT pas de la session : au moment où elle devient jouable, tout
+   * le reste est prêt à basculer, et un état qui disparaîtrait aussitôt ne se
+   * lirait pas. C'est un signal qu'on lève, et que Rust tient une seconde et
+   * demie au moins — voir `PLANCHER_CONNECTE` dans `fenetres.rs`.
+   */
+  private readonly abouti = signal(false);
+
   protected readonly pas = computed<Pas>(() => {
     if (this.session.sansLicence()) {
       return 'sans-licence';
+    }
+    if (this.abouti()) {
+      return 'fait';
     }
     return this.code() ? 'code' : 'inviter';
   });
 
   /** Combien des trois segments sont franchis. */
-  protected readonly franchis = computed(() => (this.pas() === 'code' ? 2 : 1));
+  protected readonly franchis = computed(() => {
+    switch (this.pas()) {
+      case 'fait':
+        return 3;
+      case 'code':
+        return 2;
+      default:
+        return 1;
+    }
+  });
 
   protected async connecter(): Promise<void> {
     await this.incidents.pendant(async () => {
@@ -85,6 +107,11 @@ export class Connexion {
         return;
       }
       this.notifications.signaler('success', 'Connecté', this.compte()?.pseudo ?? null);
+
+      // L'écran « c'est fait » AVANT la bascule : sans lui, la connexion
+      // réussit et la fenêtre disparaît dans la même image, ce qui se lit comme
+      // un plantage plutôt que comme une réussite.
+      this.abouti.set(true);
 
       // Dans la fenêtre de connexion, on ne NAVIGUE pas : on rend la main à la
       // fenêtre principale, qui se montre, relit sa session et va à Spawn. Ici,

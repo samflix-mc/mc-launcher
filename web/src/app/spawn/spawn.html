@@ -22,6 +22,41 @@
 
   <!-- --- Les panneaux d'état --------------------------------------------- -->
   <div class="hm-stack">
+    <!-- --- Le serveur : EMPLACEMENT RÉSERVÉ -------------------------------
+         Rien ne le sonde encore. Les valeurs sont des tirets et la pastille est
+         « unknown », ce que le design system réserve précisément à l'état
+         d'avant la première réponse — et qui pulse pour le dire.
+
+         Afficher « en ligne · 42/120 » en dur serait pire que de ne rien
+         afficher : un joueur croirait le serveur joignable, et ne comprendrait
+         pas pourquoi le jeu le refuse. Voir `docs/interface.md`. -->
+    <div class="hm-glass hm-glass--pad" data-test="panneau-serveur">
+      <div class="hm-spawn__tete">
+        <div>
+          <p class="hm-glass__eyebrow">Serveur</p>
+          <h3 class="hm-glass__title hm-spawn__titre" data-test="nom-serveur">
+            {{ serveur().nom }}
+          </h3>
+        </div>
+
+        <span class="hm-status hm-status--unknown" data-etat="unknown" data-test="pastille-serveur">
+          <span class="hm-status__dot" aria-hidden="true"></span>
+          {{ serveur().etat }}
+        </span>
+      </div>
+
+      <div class="hm-spawn__faits">
+        <span class="hm-row hm-spawn__fait" data-test="adresse">
+          <lucide-icon [img]="Globe" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+          {{ serveur().adresse }}
+        </span>
+        <span class="hm-row hm-spawn__fait" data-test="joueurs">
+          <lucide-icon [img]="Users" [size]="16" [strokeWidth]="2" aria-hidden="true" />
+          {{ serveur().joueurs }}
+        </span>
+      </div>
+    </div>
+
     <div class="hm-glass hm-glass--pad" data-test="panneau-pack">
       <div class="hm-spawn__tete">
         <div>

@@ -18,7 +18,7 @@
         <div class="hm-auth__steps" aria-hidden="true" data-test="pas">
           <span class="hm-auth__step hm-auth__step--done"></span>
           <span class="hm-auth__step" [class.hm-auth__step--done]="franchis() >= 2"></span>
-          <span class="hm-auth__step"></span>
+          <span class="hm-auth__step" [class.hm-auth__step--done]="franchis() >= 3"></span>
         </div>
       }
 
@@ -60,6 +60,29 @@
             >
               Utiliser un autre compte
             </button>
+          </div>
+        }
+
+        @case ('fait') {
+          <!--
+            L'écran que la fenêtre tient une seconde et demie au moins, pendant
+            que la principale se prépare derrière. Sans lui, la connexion
+            réussit et la fenêtre disparaît dans la même image — ce qui se lit
+            comme un plantage plutôt que comme une réussite.
+          -->
+          <div>
+            <h2 class="hm-dialog__title" id="connexion-titre">Connecté</h2>
+            <p class="hm-dialog__text">
+              Le launcher vérifie votre profil Minecraft et s'ouvre dans un instant.
+            </p>
+          </div>
+
+          <div class="hm-auth__done" data-test="abouti">
+            <lucide-icon [img]="Check" [size]="20" [strokeWidth]="2" aria-hidden="true" />
+            <div>
+              <div class="hm-connexion__pseudo">{{ compte()?.pseudo }}</div>
+              <p class="hm-field__hint">Java Edition · licence vérifiée</p>
+            </div>
           </div>
         }
 

@@ -28,12 +28,18 @@ fn l_etiquette_est_celle_que_la_capacite_declare() {
 /// La route chargée est une route du ROUTEUR, pas un fichier.
 ///
 /// Elle s'appuie sur le repli du protocole d'actifs, qui sert `index.html` pour
-/// un chemin inconnu. L'écrire `/connexion.html` marcherait aussi — et
-/// chargerait un fichier qui n'existe pas, donc une fenêtre blanche.
+/// un chemin inconnu. L'écrire `connexion.html` chargerait un fichier statique
+/// — ce qui a été essayé, et rendait à moitié : le design system ne se recopie
+/// pas à la main, et le bouton Microsoft n'avait ni la taille ni la forme des
+/// siens, sans verre dépoli ni image derrière.
 #[test]
 fn la_route_est_celle_du_routeur() {
     assert_eq!(ROUTE, "/connexion");
     assert!(!ROUTE.ends_with(".html"));
+    assert!(
+        ROUTE.starts_with('/'),
+        "le repli SPA attend un chemin absolu"
+    );
 }
 
 /// Au repos, aucune connexion n'est en cours : c'est ce qui autorise
