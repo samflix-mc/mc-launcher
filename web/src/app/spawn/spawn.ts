@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  type OnInit,
   afterNextRender,
   computed,
   inject,
@@ -90,7 +91,7 @@ interface Badge {
   templateUrl: './spawn.html',
   styleUrl: './spawn.css',
 })
-export class Spawn {
+export class Spawn implements OnInit {
   private readonly pack = inject(Pack);
   private readonly incidents = inject(Incidents);
   private readonly news = inject(News);
@@ -225,7 +226,9 @@ export class Spawn {
       this.log.step('Spawn drawn: "main_ready" sent');
       void this.bridge.mainReady().catch(() => {});
     });
+  }
 
+  ngOnInit(): void {
     // The pack is opened by the SHELL — the title bar and the play button
     // depend on it, and they outlive this page. We just ask again for its
     // state: the disk may have changed while we were elsewhere.

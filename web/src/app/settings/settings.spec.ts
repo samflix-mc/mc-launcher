@@ -136,7 +136,7 @@ describe('Settings', () => {
     const fixture = mount();
 
     const entries = [...fixture.nativeElement.querySelectorAll('[data-test^="rail-"]')];
-    expect(entries.length).toBe(5);
+    expect(entries).toHaveLength(5);
     for (const entry of entries as HTMLElement[]) {
       expect(entry.tagName).toBe('BUTTON');
       expect(entry.getAttribute('href')).toBeNull();

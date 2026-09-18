@@ -23,8 +23,8 @@ describe('Notifications', () => {
   it('a toast also enters the center', () => {
     service.notify('success', 'Pack updated', '128 mods');
 
-    expect(service.toasts().length).toBe(1);
-    expect(service.log().length).toBe(1);
+    expect(service.toasts()).toHaveLength(1);
+    expect(service.log()).toHaveLength(1);
     expect(service.log()[0].title).toBe('Pack updated');
   });
 
@@ -35,8 +35,8 @@ describe('Notifications', () => {
   it('archive writes to the center without opening a toast', () => {
     service.archive('danger', 'Something went wrong', 'detail');
 
-    expect(service.toasts().length).toBe(0);
-    expect(service.log().length).toBe(1);
+    expect(service.toasts()).toHaveLength(0);
+    expect(service.log()).toHaveLength(1);
   });
 
   /**
@@ -54,7 +54,7 @@ describe('Notifications', () => {
     vi.advanceTimersByTime(6000);
     expect(service.toasts()).toEqual([]);
     // Gone from the screen, still in the center.
-    expect(service.log().length).toBe(2);
+    expect(service.log()).toHaveLength(2);
   });
 
   /**
@@ -67,7 +67,7 @@ describe('Notifications', () => {
     const id = service.notify('progress', 'Downloading');
 
     vi.advanceTimersByTime(60_000);
-    expect(service.toasts().length).toBe(1);
+    expect(service.toasts()).toHaveLength(1);
 
     service.closeToast(id);
     expect(service.toasts()).toEqual([]);
@@ -95,8 +95,8 @@ describe('Notifications', () => {
       service.notify('info', `Notice ${rank}`);
     }
 
-    expect(service.toasts().length).toBe(3);
-    expect(service.log().length).toBe(5);
+    expect(service.toasts()).toHaveLength(3);
+    expect(service.log()).toHaveLength(5);
   });
 
   /**
@@ -123,7 +123,7 @@ describe('Notifications', () => {
       service.archive('info', `Notice ${rank}`);
     }
 
-    expect(service.log().length).toBe(50);
+    expect(service.log()).toHaveLength(50);
     // Most recent first: it's the sixtieth that remains, not the first.
     expect(service.log()[0].title).toBe('Notice 60');
   });

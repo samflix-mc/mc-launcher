@@ -31,7 +31,7 @@
         class="hm-bell"
         (click)="switchNotifications()"
         [attr.aria-expanded]="panelOpen()"
-        aria-label="Notifications"
+        [attr.aria-label]="unread() > 0 ? unread() + ' unread notifications' : 'Notifications'"
         title="Notifications"
         data-test="bell"
       >

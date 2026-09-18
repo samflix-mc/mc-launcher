@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  type OnInit,
+  computed,
+  inject,
+  signal,
+} from '@angular/core';
 import { LucideAngularModule } from 'lucide-angular';
 
 import { Globe, RefreshCw, X } from '../core/icons';
@@ -35,7 +42,7 @@ import { PostBody } from './body/body';
   templateUrl: './news.html',
   styleUrl: './news.css',
 })
-export class NewsPage {
+export class NewsPage implements OnInit {
   private readonly news = inject(News);
   private readonly incidents = inject(Incidents);
 
@@ -60,7 +67,7 @@ export class NewsPage {
    */
   protected readonly grid = computed(() => this.feed()?.posts ?? []);
 
-  constructor() {
+  ngOnInit(): void {
     void this.incidents.guard(() => this.news.load());
   }
 

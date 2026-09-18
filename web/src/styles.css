@@ -95,29 +95,28 @@
      below, and `SCRIM_FLOOR` on the Rust side. It's a preference, and it
      can therefore go down to zero without breaking anything. */
   --scrim: 0.3;
-}
 
-/* --- Compensating the glass -------------------------------------------------
+  /* --- Compensating the glass -------------------------------------------------
 
-   This is the countermeasure the design system prescribes, and it's
-   automatic here: "on a bright image, raise the glass base to 60% of the
-   background on the window root rather than darkening the text".
+     This is the countermeasure the design system prescribes, and it's
+     automatic here: "on a bright image, raise the glass base to 60% of the
+     background on the window root rather than darkening the text".
 
-   The reasoning fits in one sentence: what needs to stay readable is the
-   PANELS, not the image. Darkening the image to save the text also darkens
-   the middle of the screen, which the design system leaves empty on
-   purpose so the image shows there — i.e. you'd be paying for readability
-   at the exact spot where there's nothing to read.
+     The reasoning fits in one sentence: what needs to stay readable is the
+     PANELS, not the image. Darkening the image to save the text also darkens
+     the middle of the screen, which the design system leaves empty on
+     purpose so the image shows there — i.e. you'd be paying for readability
+     at the exact spot where there's nothing to read.
 
-   The glass base thickens as the scrim thins: 46% of the background — the
-   design system's value — when the scrim is at 0.44 or above, up to 72%
-   when it's zero. At 72%, on a WHITE image, `ink-3` — the lightest hue the
-   design system allows for text — still holds 4.5:1 on a panel.
+     The glass base thickens as the scrim thins: 46% of the background — the
+     design system's value — when the scrim is at 0.44 or above, up to 72%
+     when it's zero. At 72%, on a WHITE image, `ink-3` — the lightest hue the
+     design system allows for text — still holds 4.5:1 on a panel.
 
-   `clamp` at both ends: without it, a scrim of 1 would produce an 18%
-   glass, i.e. nearly transparent panels laid over an already black image —
-   the exact opposite of what's wanted. */
-:root {
+     `clamp` at both ends: without it, a scrim of 1 would produce an 18%
+     glass, i.e. nearly transparent panels laid over an already black image —
+     the exact opposite of what's wanted. */
+
   /* A COLOR, not a percentage: `--glass-base` is consumed as a background
      (`background: var(--glass-face), var(--glass-base)`), and a percentage
      value would be invalid there — the panel would then render

@@ -120,7 +120,7 @@
             class="hm-select hm-select--auto"
             [value]="view().window.mode"
             (change)="changeMode($any($event.target).value)"
-            aria-label="Game window mode"
+            aria-label="Mode: game window"
             data-test="mode"
           >
             @for (choice of modes; track choice.value) {
@@ -269,6 +269,7 @@
             class="hm-switch"
             role="switch"
             [checked]="view().game.vsync"
+            [attr.aria-checked]="view().game.vsync"
             (change)="switchGame('vsync', $any($event.target).checked)"
             aria-label="Vertical sync"
             data-test="vsync"
@@ -367,6 +368,7 @@
             class="hm-switch"
             role="switch"
             [checked]="view().launcher.minimizeOnLaunch"
+            [attr.aria-checked]="view().launcher.minimizeOnLaunch"
             (change)="changeMinimize($any($event.target).checked)"
             aria-label="Minimize the launcher on launch"
             data-test="minimize"

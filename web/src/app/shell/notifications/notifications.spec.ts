@@ -70,7 +70,7 @@ describe('Notifications (component)', () => {
     const fixture = mount();
 
     const rows = fixture.nativeElement.querySelectorAll('[data-test="row"]');
-    expect(rows.length).toBe(1);
+    expect(rows).toHaveLength(1);
     expect(rows[0].textContent).toContain('the detail');
   });
 
@@ -92,7 +92,7 @@ describe('Notifications (component)', () => {
     fixture.nativeElement.querySelector('[data-test="clear-all"]').click();
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelectorAll('[data-test="row"]').length).toBe(0);
+    expect(fixture.nativeElement.querySelectorAll('[data-test="row"]')).toHaveLength(0);
   });
 
   /** Hiding a toast removes it from the screen, never from the center. */
@@ -104,6 +104,6 @@ describe('Notifications (component)', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.querySelector('[data-test="toast"]')).toBeNull();
-    expect(service.log().length).toBe(1);
+    expect(service.log()).toHaveLength(1);
   });
 });

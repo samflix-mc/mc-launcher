@@ -3,7 +3,7 @@
   beneath it, the status beneath the bar. No page title, no button — nothing
   but the wait.
 -->
-<div class="hm-splash" role="status" aria-live="polite" data-test="boot">
+<output class="hm-splash" role="status" aria-live="polite" data-test="boot">
   <h1 class="hm-wordmark" data-test="name">
     {{ brand().name }}<span class="hm-wordmark__dot" aria-hidden="true"></span>
   </h1>
@@ -23,4 +23,4 @@
     <span class="hm-spinner hm-spinner--sm" aria-hidden="true"></span>
     {{ phrase() ?? defaultPhrase }}
   </div>
-</div>
+</output>

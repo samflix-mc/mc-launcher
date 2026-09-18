@@ -72,7 +72,7 @@ export function duration(seconds: number): string {
  * without a bound, the bar would go past its own width.
  */
 export function percentage(acquired: number, total: number): number {
-  if (!(total > 0)) {
+  if (total <= 0) {
     return 0;
   }
   return Math.max(0, Math.min(100, (acquired / total) * 100));
@@ -120,7 +120,7 @@ export function batchFraction(
  * of the install, not "ready" or "launched", which aren't work.
  */
 export function overallProgress(rank: number, fraction: number, steps: number): number {
-  if (!(steps > 0) || rank < 0) {
+  if (steps <= 0 || rank < 0) {
     return 0;
   }
   const bounded = Math.max(0, Math.min(1, fraction));
@@ -138,7 +138,7 @@ export function overallProgress(rank: number, fraction: number, steps: number): 
 export function hue(identifier: string): number {
   let sum = 0;
   for (const character of identifier) {
-    sum = (sum * 31 + character.charCodeAt(0)) % 360;
+    sum = (sum * 31 + (character.codePointAt(0) ?? 0)) % 360;
   }
   return sum;
 }

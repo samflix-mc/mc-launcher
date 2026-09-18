@@ -11,7 +11,7 @@ import * as format from './format';
  * They close the path and don't count toward progress: "ready to play"
  * isn't a step you execute, it's the result of the others.
  */
-const TERMINAL_PHASES: readonly Phase[] = ['ready', 'launch'];
+const TERMINAL_PHASES: ReadonlySet<Phase> = new Set(['ready', 'launch']);
 
 /** Where a phase of the path stands, from the display's point of view. */
 export type State = 'done' | 'in-progress' | 'upcoming';
@@ -82,7 +82,7 @@ export class Pack {
 
   /** How many steps actually count toward progress. */
   private readonly usefulSteps = computed(
-    () => this.path().filter((step) => !TERMINAL_PHASES.includes(step.phase)).length,
+    () => this.path().filter((step) => !TERMINAL_PHASES.has(step.phase)).length,
   );
 
   /**
@@ -99,16 +99,20 @@ export class Pack {
     // A "done" phase is behind us, not in progress: "ready to play"
     // shouldn't flicker as if it were still being waited on.
     const inProgress = seen && !seen.done ? rank : -1;
-    const lastDone = seen ? (seen.done ? rank : rank - 1) : -1;
+    let lastDone = -1;
+    if (seen) {
+      lastDone = seen.done ? rank : rank - 1;
+    }
 
-    return this.path().map((step) => ({
-      ...step,
-      state: (step.rank <= lastDone
-        ? 'done'
-        : step.rank === inProgress
-          ? 'in-progress'
-          : 'upcoming') as State,
-    }));
+    return this.path().map((step) => {
+      let state: State = 'upcoming';
+      if (step.rank <= lastDone) {
+        state = 'done';
+      } else if (step.rank === inProgress) {
+        state = 'in-progress';
+      }
+      return { ...step, state };
+    });
   });
 
   /** The progress of the WHOLE installation, not just the current batch. */

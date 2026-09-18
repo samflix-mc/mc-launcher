@@ -84,7 +84,7 @@ describe('App', () => {
     await goTo(fixture, '/spawn');
 
     const page = fixture.nativeElement.querySelector('[data-test="page"]');
-    expect(page.classList.contains('hm-page--three-rows')).toBe(true);
+    expect(page.classList).toContain('hm-page--three-rows');
     expect(fixture.nativeElement.querySelector('[data-test="nav"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-test="playbar"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-test="player-badge"]')).not.toBeNull();
@@ -110,7 +110,7 @@ describe('App', () => {
     await goTo(fixture, '/settings');
 
     const page = fixture.nativeElement.querySelector('[data-test="page"]');
-    expect(page.classList.contains('hm-page--two-rows')).toBe(true);
+    expect(page.classList).toContain('hm-page--two-rows');
     expect(fixture.nativeElement.querySelector('[data-test="bottom-bar"]')).toBeNull();
   });
 
@@ -151,7 +151,7 @@ describe('App', () => {
 
     const edges = fixture.nativeElement.querySelector('[data-test="edges"]');
     expect(edges).not.toBeNull();
-    expect(edges.children.length).toBe(8);
+    expect(edges.children).toHaveLength(8);
   });
 
   /** The scene carries the image: it's what gives the glass something to blur. */

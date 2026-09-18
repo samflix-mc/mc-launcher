@@ -65,7 +65,7 @@ describe('NewsPage', () => {
     const fixture = mount();
 
     expect(fixture.nativeElement.querySelector('[data-test="featured"]')).not.toBeNull();
-    expect(fixture.nativeElement.querySelectorAll('[data-test="tile"]').length).toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('[data-test="tile"]')).toHaveLength(2);
   });
 
   /**

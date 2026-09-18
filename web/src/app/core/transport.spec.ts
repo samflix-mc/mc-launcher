@@ -135,7 +135,7 @@ describe('transport', () => {
     await subscribe('a', () => {});
 
     expect(FakeStream.alive).toBe(1);
-    expect(FakeStream.opened.length).toBe(2);
+    expect(FakeStream.opened).toHaveLength(2);
   });
 
   /**

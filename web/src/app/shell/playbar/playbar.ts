@@ -395,7 +395,7 @@ export class Playbar {
  */
 export function fileName(path: string): string | null {
   const parts = path.split(/[\\/]/);
-  const name = parts[parts.length - 1] || path;
+  const name = parts.at(-1) || path;
   return isDigest(name) ? null : name;
 }
 

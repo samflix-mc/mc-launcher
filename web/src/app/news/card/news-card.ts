@@ -83,7 +83,7 @@ export class NewsCard {
    */
   protected readonly excerpt = computed(() => {
     const first = this.post().body.find((block) => block.type === 'paragraph');
-    if (!first || first.type !== 'paragraph') {
+    if (first?.type !== 'paragraph') {
       return '';
     }
     return first.content

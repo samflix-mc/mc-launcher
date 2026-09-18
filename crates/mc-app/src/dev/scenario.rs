@@ -50,7 +50,7 @@ pub enum State {
 
 impl State {
     /// All the scenarios, with the name by which they're requested.
-    pub const ALL: [(&'static str, State); 8] = [
+    pub const ALL: [(&str, State); 8] = [
         ("signed-out", State::SignedOut),
         ("no-license", State::NoLicense),
         ("nothing-installed", State::NothingInstalled),

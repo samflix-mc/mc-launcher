@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  type OnInit,
   afterNextRender,
   computed,
   inject,
@@ -85,7 +86,7 @@ const SIGNIN_ROUTE = '/signin';
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
-export class App {
+export class App implements OnInit {
   // All injected as FIELDS and not inside `start()`: `inject()` is only
   // usable in an injection context, and an async method leaves it as soon
   // as the first `await` runs. The error only shows up at runtime, as an
@@ -166,6 +167,21 @@ export class App {
       }
     });
 
+    // The signal that closes the splash screen and shows the window.
+    //
+    // It does NOT depend on `start()`, and that's deliberate: that one
+    // queries the network, which can take a while behind a captive portal.
+    // Waiting on its data to show the window would leave the player facing
+    // a splash screen with no button at all.
+    afterNextRender(() => {
+      setTimeout(() => {
+        this.trace.step('first render: "front_ready" sent');
+        void this.bridge.frontReady().catch(() => {});
+      }, BEFORE_SHOWING_MS);
+    });
+  }
+
+  ngOnInit(): void {
     // When the session opens in the other window, this one has to learn
     // about it: its session service carries a null account since it
     // loaded, and nothing would tell it otherwise.
@@ -189,19 +205,6 @@ export class App {
         })
         .catch(() => {});
     }
-
-    // The signal that closes the splash screen and shows the window.
-    //
-    // It does NOT depend on `start()`, and that's deliberate: that one
-    // queries the network, which can take a while behind a captive portal.
-    // Waiting on its data to show the window would leave the player facing
-    // a splash screen with no button at all.
-    afterNextRender(() => {
-      setTimeout(() => {
-        this.trace.step('first render: "front_ready" sent');
-        void this.bridge.frontReady().catch(() => {});
-      }, BEFORE_SHOWING_MS);
-    });
 
     void this.start();
   }

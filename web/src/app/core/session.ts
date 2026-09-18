@@ -54,9 +54,7 @@ export class Session {
       this.account.set(null);
       return;
     }
-    if (!this.unsubscribe) {
-      this.unsubscribe = await this.bridge.onDeviceCode((code) => this.code.set(code));
-    }
+    this.unsubscribe ??= await this.bridge.onDeviceCode((code) => this.code.set(code));
     this.account.set(await this.bridge.status());
   }
 

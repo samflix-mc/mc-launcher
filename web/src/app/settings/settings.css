@@ -10,10 +10,6 @@
   min-width: 0;
 }
 
-.hm-settings {
-  min-width: 0;
-}
-
 /* The page title, in pixel-perfect terms.
 
    Twenty-four pixels and not the thirty-two of `display-lg`: the design
@@ -37,6 +33,7 @@
    same reason: our labels run longer, and "Game window" is longer than
    "Minecraft". */
 .hm-settings {
+  min-width: 0;
   grid-template-columns: 220px 1fr;
 }
 

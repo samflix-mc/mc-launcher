@@ -47,8 +47,8 @@ describe('SignIn', () => {
     const fixture = mount();
 
     const steps = [...fixture.nativeElement.querySelector('[data-test="step"]').children];
-    expect(steps.length).toBe(3);
-    expect(steps.filter((s: Element) => s.classList.contains('hm-auth__step--done')).length).toBe(
+    expect(steps).toHaveLength(3);
+    expect(steps.filter((s: Element) => s.classList.contains('hm-auth__step--done'))).toHaveLength(
       1,
     );
   });
@@ -71,7 +71,7 @@ describe('SignIn', () => {
     const fixture = mount();
 
     const steps = [...fixture.nativeElement.querySelector('[data-test="step"]').children];
-    expect(steps.filter((s: Element) => s.classList.contains('hm-auth__step--done')).length).toBe(
+    expect(steps.filter((s: Element) => s.classList.contains('hm-auth__step--done'))).toHaveLength(
       2,
     );
   });
@@ -84,11 +84,9 @@ describe('SignIn', () => {
     session.code.set({ code: 'A', url: 'https://x', directUrl: 'https://x' });
     const fixture = mount();
 
-    expect(
-      fixture.nativeElement
-        .querySelector('[data-test="code-well"]')
-        .classList.contains('hm-selectionnable'),
-    ).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-test="code-well"]').classList).toContain(
+      'hm-selectionnable',
+    );
     expect(fixture.nativeElement.querySelector('[data-test="copy-code"]')).not.toBeNull();
   });
 

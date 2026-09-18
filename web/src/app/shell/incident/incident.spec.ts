@@ -48,11 +48,9 @@ describe('Incident', () => {
     incidents.report('an error');
     const fixture = mount();
 
-    expect(
-      fixture.nativeElement
-        .querySelector('[data-test="message"]')
-        .classList.contains('hm-selectionnable'),
-    ).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-test="message"]').classList).toContain(
+      'hm-selectionnable',
+    );
   });
 
   it('close closes it', () => {
