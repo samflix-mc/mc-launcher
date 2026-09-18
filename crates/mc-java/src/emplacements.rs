@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 /// Répertoire où le launcher installe ses runtimes Java.
 pub fn default_runtime_dir() -> PathBuf {
-    mc_dl::data_dir().join("runtime")
+    mc_chemins::courants().donnees.join("runtime")
 }
 
 /// Emplacement du runtime géré pour une version majeure donnée.

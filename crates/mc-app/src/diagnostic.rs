@@ -81,6 +81,25 @@ pub fn rapport(dmabuf_desactive: bool) -> String {
         }
     );
 
+    // Les quatre racines, et la mention de leur provenance.
+    //
+    // `--diagnostic` répond AVANT que la fenêtre ne soit construite : le
+    // résolveur de Tauri n'a donc pas encore parlé, et ce qu'on montre ici est
+    // ce que l'environnement dit. C'est écrit noir sur blanc plutôt que
+    // supposé : les deux peuvent diverger, et c'est précisément le genre
+    // d'écart qu'un joueur signale par « il ne retrouve pas mes mods ».
+    let _ = writeln!(texte, "\nEmplacements (de l'environnement)");
+    let emplacements = mc_chemins::courants();
+    for (nom, chemin) in emplacements.enumerer() {
+        let _ = writeln!(texte, "  {nom:<13} : {}", chemin.display());
+    }
+    if !mc_chemins::poses() {
+        let _ = writeln!(
+            texte,
+            "  (l'application pose ceux de Tauri au démarrage de la fenêtre)"
+        );
+    }
+
     let _ = writeln!(texte, "\nJournaux et incidents");
     let _ = writeln!(texte, "  répertoire    : {}", mc_log::log_dir().display());
     let _ = writeln!(

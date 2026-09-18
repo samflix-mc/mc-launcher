@@ -2541,6 +2541,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mc-auth",
+ "mc-chemins",
  "mc-dl",
  "mc-instance",
  "mc-java",
@@ -2561,6 +2562,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "keyring",
+ "mc-chemins",
  "mc-essais",
  "mc-log",
  "md-5",
@@ -2572,6 +2574,10 @@ dependencies = [
  "tokio",
  "tracing",
 ]
+
+[[package]]
+name = "mc-chemins"
+version = "0.1.0"
 
 [[package]]
 name = "mc-dl"
@@ -2602,6 +2608,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures-util",
+ "mc-chemins",
  "mc-dl",
  "mutants",
  "serde",
@@ -2616,6 +2623,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "flate2",
+ "mc-chemins",
  "mc-dl",
  "mc-essais",
  "mc-log",
@@ -2631,6 +2639,7 @@ dependencies = [
 name = "mc-log"
 version = "0.1.0"
 dependencies = [
+ "mc-chemins",
  "mc-dl",
  "sentry",
  "sentry-tracing",
@@ -2646,6 +2655,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures-util",
+ "mc-chemins",
  "mc-dl",
  "mc-essais",
  "mutants",
@@ -2664,6 +2674,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mc-auth",
+ "mc-chemins",
  "mc-dl",
  "mc-essais",
  "mc-instance",

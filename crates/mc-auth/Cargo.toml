@@ -6,6 +6,7 @@ license.workspace = true
 description = "Chaîne d'authentification Microsoft → Xbox Live → XSTS → Minecraft"
 
 [dependencies]
+mc-chemins = { path = "../mc-chemins" }
 anyhow.workspace = true
 tracing.workspace = true
 mc-log = { path = "../mc-log" }

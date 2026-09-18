@@ -6,6 +6,7 @@ license.workspace = true
 description = "Résolution et téléchargement des mods : Modrinth d'abord, CurseForge en repli"
 
 [dependencies]
+mc-chemins = { path = "../mc-chemins" }
 anyhow.workspace = true
 tracing.workspace = true
 mutants.workspace = true

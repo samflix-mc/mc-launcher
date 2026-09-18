@@ -1,17 +1,21 @@
 //! L'interface du launcher samflix-mc.
 //!
-//! Une maquette, pour l'instant : elle sait dire qui est connecté, ouvrir une
-//! session Microsoft, l'oublier — et rien de plus. Le bouton « Jouer » existe
-//! et ne lance pas le jeu ; c'est délibéré, et il le dit.
+//! La fenêtre. Elle authentifie le joueur, installe le pack, le vérifie et
+//! lance le jeu — chacune de ces étapes étant déjà écrite et testée dans l'un
+//! des crates de la racine.
 //!
 //! ## Ce que ce crate fait, et ce qu'il ne fait pas
 //!
 //! Il ne contient aucune logique de launcher. L'authentification est celle de
-//! `mc-auth`, la journalisation celle de `mc-log` — ce module n'ajoute qu'un
-//! pont : des types sérialisables, quatre commandes, et un coffre pour le
-//! jeton. Tout ce qui viendra ensuite — installation du pack, vérification,
-//! lancement — est déjà écrit dans les crates de la racine et n'aura qu'à être
-//! appelé de la même façon.
+//! `mc-auth`, l'installation celle de `mc-pack`, la journalisation celle de
+//! `mc-log`, les chemins ceux de `mc-chemins`. Ce module n'ajoute qu'un pont :
+//! des types sérialisables, les commandes que le front appelle, et l'ordre
+//! dans lequel tout cela démarre.
+//!
+//! C'est aussi pourquoi il est hors du périmètre de mutation (voir
+//! `default-members` dans le Cargo.toml racine) : muter une enveloppe
+//! demanderait à un test de vérifier une délégation, ce que seul un essai de
+//! bout en bout — avec un serveur d'affichage — pourrait faire.
 //!
 //! ## Pourquoi la fenêtre journalise par `mc-log`
 //!
@@ -21,10 +25,12 @@
 //! journal est alors la seule chose qu'un joueur puisse joindre à un rapport,
 //! et c'est exactement le moment où il ne faut pas qu'un jeton s'y trouve.
 
+mod chemins;
 mod cinematique;
 mod commandes;
 mod diagnostic;
 mod marque;
+mod navigation;
 mod phase;
 mod suivi;
 mod webkit;
@@ -36,32 +42,44 @@ pub fn run() {
     // processus, et ce n'est sûr que tant qu'il est seul à y toucher.
     let dmabuf_desactive = webkit::regler_le_rendu();
 
-    // Avant la fenêtre, et avant le journal : `--diagnostic` répond puis sort.
+    // Avant la fenêtre et avant le journal : `--diagnostic` répond puis sort.
     // C'est ce que la CI lance sur le binaire qu'elle vient de construire pour
     // savoir s'il porte l'environnement qu'on croit — un binaire de production
     // qui se croit « development » irait chercher le pack de dev et ferait
-    // entrer les joueurs sur le serveur de dev, sans qu'une ligne du dépôt ait
-    // changé. Ouvrir une fenêtre pour répondre à cette question demanderait un
-    // serveur d'affichage sur un runner qui n'en a pas.
+    // entrer les joueurs sur le serveur de dev. Ouvrir une fenêtre pour
+    // répondre à cette question demanderait un serveur d'affichage sur un
+    // runner qui n'en a pas.
     if diagnostic::demande(std::env::args()) {
         print!("{}", diagnostic::rapport(dmabuf_desactive));
         return;
     }
 
-    // Le garde tient les couches de journalisation ouvertes : le lâcher ici
-    // viderait le fichier de son contenu tamponné et couperait Sentry avant
-    // même l'affichage de la fenêtre.
-    let _journal = mc_log::init("samflix-launcher");
-
-    if dmabuf_desactive {
-        // Une fenêtre blanche sous NVIDIA se diagnostique mal ; savoir que le
-        // contournement s'est déclenché — ou pas — est la première chose à
-        // vérifier dans le journal.
-        tracing::info!("pilote NVIDIA détecté, rendu DMA-BUF de WebKit désactivé");
-    }
-
-    tauri::Builder::default()
+    // L'ORDRE DE CE QUI SUIT EST LE SUJET, et il se lit mal :
+    //
+    // 1. `build()` construit l'application SANS ouvrir de fenêtre, mais avec
+    //    son résolveur de chemins déjà en place.
+    // 2. On pose donc les emplacements ici — avant le journal, qui doit
+    //    ouvrir son fichier au bon endroit du premier coup.
+    // 3. `mc_log::init` ensuite.
+    // 4. `app.run()` enfin, et c'est lui qui crée la fenêtre.
+    //
+    // Le piège est à l'étape 1 : juste après `build()`,
+    // `get_webview_window("main")` rend `None`. Les fenêtres déclarées dans
+    // tauri.conf.json sont construites par la fonction libre `setup()`
+    // (app.rs:2520-2535), appelée sur `RuntimeRunEvent::Ready`
+    // (app.rs:1422-1428), à l'intérieur de `App::run`. C'est pour cela que le
+    // hook `.setup()` ci-dessous RESTE : y substituer un appel direct ici ne
+    // ferait rien — sans un avertissement — et la fenêtre garderait le titre
+    // figé du fichier de configuration.
+    let application = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // La liste blanche de navigation. Sous forme de greffon parce que
+        // `on_navigation` n'existe pas sur `tauri::Builder` : seulement sur un
+        // constructeur de webview — or la nôtre est déclarée dans
+        // tauri.conf.json et n'existe pas encore ici — ou sur un constructeur
+        // de greffon, dont le magasin est consulté pour TOUTE webview
+        // (manager/webview.rs:596-602).
+        .plugin(navigation::greffon())
         // Le compteur d'avancement vit aussi longtemps que la fenêtre : les
         // téléchargements l'incrémentent depuis leurs tâches, la boucle
         // d'émission le lit, et aucune commande ne peut le posséder.
@@ -88,6 +106,63 @@ pub fn run() {
             commandes::installation,
             commandes::lancer_jeu,
         ])
-        .run(tauri::generate_context!())
-        .expect("démarrage de la fenêtre");
+        .build(tauri::generate_context!());
+
+    let application = match application {
+        Ok(application) => application,
+        Err(erreur) => {
+            // Un échec de `R::new()` — pas de serveur d'affichage, WebKit
+            // indisponible — sortirait sinon sur la seule sortie d'erreur
+            // d'une application graphique, que personne ne lit, et sans
+            // journal ni Sentry puisque `mc_log::init` n'a pas encore tourné.
+            secours_de_demarrage(&erreur);
+            panic!("démarrage de la fenêtre : {erreur}");
+        }
+    };
+
+    // Le résolveur de Tauri est disponible dès `build()` : les crates ne
+    // dérivent plus rien toutes seules à partir d'ici.
+    chemins::poser(&application);
+
+    // Le garde tient les couches de journalisation ouvertes : le lâcher ici
+    // viderait le fichier de son contenu tamponné et couperait Sentry avant
+    // même l'affichage de la fenêtre.
+    let _journal = mc_log::init("samflix-launcher");
+
+    chemins::journaliser_la_divergence();
+
+    if dmabuf_desactive {
+        // Une fenêtre blanche sous NVIDIA se diagnostique mal ; savoir que le
+        // contournement s'est déclenché — ou pas — est la première chose à
+        // vérifier dans le journal.
+        tracing::info!("pilote NVIDIA détecté, rendu DMA-BUF de WebKit désactivé");
+    }
+
+    // Prend une clôture, et ne rend rien : le `expect` d'avant portait sur
+    // `build`, pas sur `run`.
+    application.run(|_, _| {});
+}
+
+/// Écrit la cause d'un démarrage impossible là où les journaux vont
+/// d'habitude, puisque `mc-log` n'a pas encore pu s'ouvrir.
+///
+/// Sans cela, la seule trace d'un poste sans serveur d'affichage serait une
+/// panique sur une sortie d'erreur que personne ne lit — et le rapport du
+/// joueur se résumerait à « ça ne s'ouvre pas ».
+fn secours_de_demarrage(erreur: &tauri::Error) {
+    use std::io::Write as _;
+
+    eprintln!("[démarrage] la fenêtre n'a pas pu être construite : {erreur}");
+
+    let journaux = mc_chemins::du_systeme().journaux;
+    if std::fs::create_dir_all(&journaux).is_err() {
+        return;
+    }
+    if let Ok(mut fichier) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(journaux.join("demarrage-impossible.log"))
+    {
+        let _ = writeln!(fichier, "la fenêtre n'a pas pu être construite : {erreur}");
+    }
 }

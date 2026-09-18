@@ -39,7 +39,7 @@ fn tout_tient_sous_une_seule_racine() {
 
 #[test]
 fn la_disposition_par_defaut_suit_le_repertoire_de_donnees() {
-    assert_eq!(Layout::default().root, mc_dl::data_dir());
+    assert_eq!(Layout::default().root, mc_chemins::courants().donnees);
 }
 
 #[test]

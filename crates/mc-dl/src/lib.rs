@@ -1,4 +1,4 @@
-//! Plomberie partagée : téléchargement vérifié et emplacements de données.
+//! Plomberie partagée : téléchargement vérifié par empreinte, réessayable.
 //!
 //! Installer un modpack, c'est récupérer quelques milliers de fichiers depuis
 //! cinq domaines différents. Trois propriétés suffisent à rendre l'opération
@@ -19,13 +19,11 @@
 //!   est annoncé : voir [`progression`].
 mod check;
 mod checksum;
-mod emplacements;
 pub mod progression;
 mod telechargement;
 
 pub use check::{Check, Fetched};
 pub use checksum::{Checksum, sha1_of_file, sha512_of_file};
-pub use emplacements::data_dir;
 pub use progression::{Avancement, Observateur};
 pub use telechargement::Downloader;
 pub use telechargement::fichier::write_atomic;

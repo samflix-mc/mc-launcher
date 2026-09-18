@@ -34,7 +34,7 @@ fn vieillir(chemin: &std::path::Path, jours: u64) {
 #[test]
 fn les_journaux_vivent_sous_le_repertoire_de_donnees() {
     assert!(log_dir().ends_with("logs"));
-    assert!(log_dir().starts_with(mc_dl::data_dir()));
+    assert!(log_dir().starts_with(mc_chemins::courants().donnees));
 }
 
 #[test]

@@ -6,6 +6,7 @@ license.workspace = true
 description = "Installe un pack décrit par un manifeste JSON : Java, jeu, chargeur et mods"
 
 [dependencies]
+mc-chemins = { path = "../mc-chemins" }
 anyhow.workspace = true
 tracing.workspace = true
 mutants.workspace = true

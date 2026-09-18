@@ -12,7 +12,7 @@ pub struct Layout {
 impl Default for Layout {
     fn default() -> Self {
         Self {
-            root: mc_dl::data_dir(),
+            root: mc_chemins::courants().donnees,
         }
     }
 }

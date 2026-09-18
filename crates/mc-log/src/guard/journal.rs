@@ -9,8 +9,12 @@ use std::path::{Path, PathBuf};
 const KEEP_DAYS: u64 = 14;
 
 /// Répertoire des journaux.
+///
+/// Déduit par `mc-chemins`, qui le place sous les données — et non par un
+/// « app_log_dir » du système, qui rangerait sous `~/Library/Logs` sous macOS,
+/// c'est-à-dire hors de ce qu'il suffit de supprimer pour repartir de zéro.
 pub fn log_dir() -> PathBuf {
-    mc_dl::data_dir().join("logs")
+    mc_chemins::courants().journaux
 }
 
 /// Le nom que `rolling::daily` donne au fichier du jour.

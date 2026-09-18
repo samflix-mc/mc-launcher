@@ -6,6 +6,7 @@ license.workspace = true
 description = "Détection d'un runtime Java existant, sinon installation d'un Temurin dédié"
 
 [dependencies]
+mc-chemins = { path = "../mc-chemins" }
 anyhow.workspace = true
 tracing.workspace = true
 mc-log = { path = "../mc-log" }

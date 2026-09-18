@@ -27,6 +27,35 @@ second chemin — sur un poste où le portefeuille redemande sa phrase à chaque
 accès, ou dans une suite de tests : le fichier s'isole en déplaçant
 `XDG_CONFIG_HOME`, le trousseau non.
 
+### Où ce fichier se trouve, plateforme par plateforme
+
+Le chemin ne se devine plus : il vient de `mc-chemins`, et l'application lui
+impose au démarrage les racines que Tauri connaît, pour que les crates et la
+fenêtre ne tombent jamais sur deux arborescences différentes.
+
+| Système | Session | Données installées |
+|---|---|---|
+| Linux | `~/.config/samflix-mc/` | `~/.local/share/samflix-mc/` |
+| macOS | `~/Library/Application Support/samflix-mc/` | **le même répertoire** |
+| Windows | `%APPDATA%\samflix-mc\` | **le même répertoire** |
+
+**La réserve, et elle compte.** Sous macOS et Windows, configuration et données
+sont le même répertoire — c'est ce que rend le résolveur de Tauri
+(`path/desktop.rs:62-63,73-74`), et s'en écarter ferait diverger l'application
+de ses propres crates, ce qui serait bien pire.
+
+Conséquence : la promesse « supprimer les données installées sans perdre ses
+préférences ni sa session » **ne vaut que sous Linux**. Ailleurs, effacer le
+répertoire pour repartir de zéro efface aussi la session — le joueur devra se
+reconnecter. Ce n'est pas grave, puisque le jeton vit d'abord dans le trousseau,
+qui n'est pas dans ce répertoire ; mais il faut le dire à qui donne la consigne
+« supprime le dossier et relance ».
+
+Le segment est `samflix-mc` et non l'identifiant `mc.samflix.launcher` : on
+prend de Tauri les racines NUES — `data_dir()`, et non `app_data_dir()` — pour
+y joindre notre segment. C'est ce qui fait qu'aucune migration n'est nécessaire :
+le chemin obtenu est, au caractère près, celui que les crates calculaient déjà.
+
 Le choix du mode est explicite. `--pseudo` demande une session hors-ligne ; son
 absence demande le compte enregistré. Aucun repli silencieux de l'un vers
 l'autre : entrer sur un serveur sous une identité qu'on n'a pas choisie est

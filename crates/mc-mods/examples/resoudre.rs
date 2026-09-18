@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
         std::process::exit(2);
     }
 
-    let cache = mc_dl::data_dir().join("cache").join("mods");
+    let cache = mc_chemins::courants().donnees.join("cache").join("mods");
     let registry = Registry::new(cache)?;
     let requests: Vec<Request> = slugs
         .into_iter()

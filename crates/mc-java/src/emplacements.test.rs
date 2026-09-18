@@ -6,7 +6,7 @@ use std::path::Path;
 #[test]
 fn le_runtime_du_launcher_vit_sous_ses_propres_donnees() {
     assert!(default_runtime_dir().ends_with("runtime"));
-    assert!(default_runtime_dir().starts_with(mc_dl::data_dir()));
+    assert!(default_runtime_dir().starts_with(mc_chemins::courants().donnees));
 }
 
 #[test]

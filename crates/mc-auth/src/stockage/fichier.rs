@@ -15,11 +15,7 @@ use anyhow::{Context, Result};
 /// À côté de la clé CurseForge, dans la configuration et non dans les données :
 /// c'est un secret de l'utilisateur, pas un cache reconstructible.
 pub fn chemin() -> PathBuf {
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-        .unwrap_or_else(|| PathBuf::from("."));
-    base.join("samflix-mc").join("session.json")
+    mc_chemins::courants().config.join("session.json")
 }
 
 /// Les trois opérations prennent le chemin en argument plutôt que de le lire
