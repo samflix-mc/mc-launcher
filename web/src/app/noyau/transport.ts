@@ -38,7 +38,10 @@ export const DANS_TAURI = isTauri();
  * cette même chaîne en JSON avec un code d'échec. `messageDErreur` les traite
  * donc toutes les deux sans rien savoir du transport.
  */
-export async function appeler<T>(commande: string, arguments_?: Record<string, unknown>): Promise<T> {
+export async function appeler<T>(
+  commande: string,
+  arguments_?: Record<string, unknown>,
+): Promise<T> {
   if (DANS_TAURI) {
     return invoke<T>(commande, arguments_);
   }
