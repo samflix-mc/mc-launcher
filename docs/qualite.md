@@ -90,7 +90,37 @@ seuils, qui ne disent pas la même chose :
 | Porte de qualité | code nouveau d'une PR | 80 % | Sonar, `sonar.qualitygate.wait` |
 
 Le premier interdit de redescendre, le second exige 80 % de ce qu'on écrit
-désormais. Le cliquet se remonte à la main, à mesure que le chiffre monte, et
+désormais.
+
+### Ce qui sort de la couverture, et pourquoi c'est nommé
+
+Un seuil qui porte sur du code dont personne ne peut écrire le test finit
+contourné — on baisse le seuil — et il emporte alors les fichiers où il disait
+vrai. Mieux vaut donc nommer ce qui ne peut pas être couvert.
+
+Le critère est le même que celui qui écarte `mc-app` de la mutation : ces
+fonctions demandent une application Tauri construite, donc un serveur
+d'affichage. `run()` monte la fenêtre ; `chemins::poser` prend une `&App` ; les
+commandes prennent un `AppHandle` et n'enveloppent que des appels dont chacun
+est éprouvé dans le crate qui le porte.
+
+```
+crates/mc-app/src/lib.rs        crates/mc-app/src/commandes.rs
+crates/mc-app/src/main.rs       crates/mc-app/src/commandes/**
+crates/mc-app/src/chemins.rs
+```
+
+**Le reste de `mc-app` demeure dans le périmètre, et c'est le point.**
+`csp.rs`, `recette.rs`, `marque.rs`, `navigation.rs`, `phase.rs`, `suivi.rs`,
+`diagnostic.rs` et `cinematique.rs` ont tous une moitié pure, et elle est
+testée — certaines à cent pour cent. Exclure le crate entier aurait été plus
+simple, et aurait masqué cela.
+
+Le front, lui, n'est pas exclu : `sonar.sources` porte sur `crates` **et**
+`web/src`. La conséquence a été mesurée plutôt que supposée — la couverture du
+front était à 20,5 %, et c'était toute la cause d'une porte rouge. La réponse a
+été d'écrire les tests qui manquaient aux services de `noyau/`, pas d'élargir
+l'exclusion. Le cliquet se remonte à la main, à mesure que le chiffre monte, et
 reste quelques points sous le réel : il est là pour arrêter une chute, pas pour
 rougir sur une variation d'un test.
 
