@@ -1,0 +1,58 @@
+<nav
+  data-test="menu"
+  class="flex h-full w-48 shrink-0 flex-col gap-1 p-3"
+  aria-label="Navigation du launcher"
+>
+  <!--
+    Les trois onglets. `routerLinkActive` pose l'attribut d'état, que le style
+    lit — et que les tests lisent aussi. C'est la famille « data-<état> », celle
+    qui est un contrat des deux côtés.
+  -->
+  @for (onglet of onglets; track onglet.chemin) {
+    <a
+      [routerLink]="onglet.chemin"
+      routerLinkActive
+      #actif="routerLinkActive"
+      [attr.data-actif]="actif.isActive ? '' : null"
+      [attr.aria-current]="actif.isActive ? 'page' : null"
+      [attr.data-test]="'onglet-' + onglet.libelle.toLowerCase()"
+      class="flex items-center gap-3 rounded-box px-3 py-2 text-sm transition-colors"
+    >
+      <span class="w-4 text-center opacity-70" aria-hidden="true">{{ onglet.glyphe }}</span>
+      {{ onglet.libelle }}
+    </a>
+  }
+
+  <!--
+    `mt-auto` colle la rangée en bas. Pas de `sticky` : dans une colonne flex
+    qui occupe toute la hauteur, la marge automatique suffit et ne crée aucun
+    contexte d'empilement.
+
+    Les deux boutons partagent la largeur en DEUX MOITIÉS ÉGALES — `flex-1` sur
+    chacun. Sans cela, le bouton de déconnexion grandirait avec la longueur de
+    son libellé et la rangée cesserait d'être symétrique.
+  -->
+  <div class="mt-auto flex gap-2 pt-3" data-test="rangee-basse">
+    <a
+      routerLink="/configuration"
+      class="btn btn-ghost btn-sm flex-1"
+      data-test="raccourci-configuration"
+      aria-label="Ouvrir la configuration"
+      title="Configuration"
+    >
+      <span aria-hidden="true">&#x2699;</span>
+    </a>
+
+    <button
+      type="button"
+      class="btn btn-ghost btn-sm flex-1"
+      (click)="deconnecter()"
+      [disabled]="occupe()"
+      data-test="deconnexion"
+      aria-label="Se déconnecter"
+      [title]="compte() ? 'Se déconnecter de ' + compte()!.pseudo : 'Se déconnecter'"
+    >
+      <span aria-hidden="true">&#x23FB;</span>
+    </button>
+  </div>
+</nav>

@@ -1,0 +1,24 @@
+/* L'overlay d'incident.
+
+   L'hôte est en `display: contents` : il ne dessine rien lui-même, et son seul
+   enfant est déjà en `position: fixed`. Un hôte `block` interposerait une boîte
+   dans la charpente de la coque, qui décalerait tout d'un cran sans rien
+   afficher. */
+:host {
+  display: contents;
+}
+
+/* Le fond qui bloque les clics. Sombre plutôt que flou : ce qui est derrière
+   est déjà flouté par la coque, et empiler deux flous coûte cher sur une
+   WebView sans DMA-BUF — précisément la configuration NVIDIA que ce launcher
+   rencontre. */
+[data-test='overlay'] {
+  background: oklch(0% 0 0 / 0.55);
+}
+
+/* Le détail d'une erreur est ce qu'on demande au joueur de recopier : il doit
+   pouvoir le sélectionner, là où le reste de la fenêtre ne le permet pas. */
+.selectionnable {
+  user-select: text;
+  cursor: text;
+}

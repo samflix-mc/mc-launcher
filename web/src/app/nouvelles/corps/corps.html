@@ -1,0 +1,98 @@
+<!--
+  Un `@switch` par niveau, et rien d'autre. Pas un seul `innerHTML` : c'est la
+  condition à laquelle le CSP a été desserré, et ce gabarit est la moitié front
+  de la garantie.
+
+  Le gabarit des fragments est écrit une fois, en `ng-template`, et réutilisé
+  par les trois blocs qui en contiennent. Le recopier trois fois donnerait trois
+  occasions d'oublier un cas — et un cas oublié affiche du vide, pas une erreur.
+-->
+@for (bloc of blocs(); track $index) {
+  @switch (bloc.type) {
+    @case ('paragraphe') {
+      <p data-test="paragraphe">
+        <ng-container
+          *ngTemplateOutlet="fragments; context: { $implicit: bloc.contenu }"
+        ></ng-container>
+      </p>
+    }
+
+    @case ('titre') {
+      <!--
+        Le niveau vient de Rust, borné à 2..=4 : le titre du billet occupe déjà
+        le niveau 1 de la page, et un `#` du corps ne doit pas le concurrencer —
+        ni au rendu, ni pour un lecteur d'écran, qui se sert de la hiérarchie
+        pour naviguer.
+      -->
+      @switch (bloc.niveau) {
+        @case (2) {
+          <h2 data-test="titre">
+            <ng-container
+              *ngTemplateOutlet="fragments; context: { $implicit: bloc.contenu }"
+            ></ng-container>
+          </h2>
+        }
+        @case (3) {
+          <h3 data-test="titre">
+            <ng-container
+              *ngTemplateOutlet="fragments; context: { $implicit: bloc.contenu }"
+            ></ng-container>
+          </h3>
+        }
+        @default {
+          <h4 data-test="titre">
+            <ng-container
+              *ngTemplateOutlet="fragments; context: { $implicit: bloc.contenu }"
+            ></ng-container>
+          </h4>
+        }
+      }
+    }
+
+    @case ('liste') {
+      <ul data-test="liste">
+        @for (puce of bloc.puces; track $index) {
+          <li>
+            <ng-container
+              *ngTemplateOutlet="fragments; context: { $implicit: puce }"
+            ></ng-container>
+          </li>
+        }
+      </ul>
+    }
+
+    @case ('separateur') {
+      <hr data-test="separateur" />
+    }
+  }
+}
+
+<ng-template #fragments let-contenu>
+  @for (morceau of contenu; track $index) {
+    @switch (morceau.type) {
+      @case ('texte') {
+        {{ morceau.texte }}
+      }
+      @case ('gras') {
+        <strong>{{ morceau.texte }}</strong>
+      }
+      @case ('italique') {
+        <em>{{ morceau.texte }}</em>
+      }
+      @case ('code') {
+        <code>{{ morceau.texte }}</code>
+      }
+      @case ('lien') {
+        <!--
+          Un `<button>` et non un `<a href>` : un `href` ferait naviguer la
+          fenêtre, ce que le greffon de navigation de Rust refuserait — en
+          laissant le joueur devant un lien qui ne fait rien. On passe par le
+          navigateur du système.
+        -->
+        <button type="button" class="lien" (click)="ouvrir(morceau)" data-test="lien">
+          {{ morceau.texte }}
+        </button>
+      }
+    }
+  }
+</ng-template>

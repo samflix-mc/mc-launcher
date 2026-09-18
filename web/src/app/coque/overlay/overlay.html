@@ -1,0 +1,36 @@
+@if (message(); as texte) {
+  <div
+    data-test="overlay"
+    class="fixed inset-0 z-50 grid place-items-center p-8"
+    role="alertdialog"
+    aria-modal="true"
+    aria-labelledby="incident-titre"
+  >
+    <div class="card w-full max-w-lg border border-error/40 bg-base-100/95 shadow-2xl">
+      <div class="card-body gap-4">
+        <h2 id="incident-titre" class="card-title text-error">Quelque chose n'a pas fonctionné</h2>
+
+        <!--
+          `data-test="message"` et non une classe : le texte est du contenu, et
+          les tests le lisent. Sélectionnable, parce que c'est exactement ce
+          qu'on demande à un joueur de recopier.
+        -->
+        <p data-test="message" class="selectionnable text-sm opacity-90">{{ texte }}</p>
+
+        <div class="card-actions justify-end">
+          <button type="button" class="btn btn-ghost btn-sm" (click)="copier()" data-test="copier">
+            Copier
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            (click)="fermer()"
+            data-test="fermer"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

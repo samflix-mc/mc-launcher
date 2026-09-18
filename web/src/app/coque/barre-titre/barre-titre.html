@@ -1,0 +1,70 @@
+<!--
+  `data-tauri-drag-region` sur l'en-tête entier : c'est lui qui rend la barre
+  saisissable. Les boutons sont écartés par le script de Tauri lui-même, sans
+  qu'on ait à neutraliser leurs pointeurs.
+-->
+<header
+  data-tauri-drag-region
+  data-test="barre-titre"
+  class="flex h-barre-titre shrink-0 items-center gap-3 pt-bord-fenetre pl-bord-fenetre"
+>
+  <span
+    data-tauri-drag-region
+    class="grid size-6 place-items-center rounded-md bg-primary/80 text-[11px] font-bold text-primary-content"
+    aria-hidden="true"
+    >{{ marque().sceau }}</span
+  >
+
+  <span data-tauri-drag-region class="text-sm font-medium opacity-90" data-test="titre">
+    {{ marque().nom }}
+  </span>
+
+  <!-- Pousse les boutons à droite, et reste saisissable. -->
+  <span data-tauri-drag-region class="flex-1"></span>
+
+  <!--
+    Les trois boutons du système. Leurs permissions ne sont PAS dans
+    core:window:default : elles sont déclarées nommément dans
+    capabilities/default.json, et leur absence se voit en build packagé
+    seulement.
+
+    `mr-bord-fenetre` : la contrainte des huit pixels vaut aussi à droite, où
+    la bande de redimensionnement guette le bouton « fermer ».
+  -->
+  <div class="mr-bord-fenetre flex items-center gap-1">
+    <button
+      type="button"
+      class="btn btn-ghost btn-xs px-2"
+      (click)="reduire()"
+      data-test="reduire"
+      aria-label="Réduire la fenêtre"
+      title="Réduire"
+    >
+      <!-- Des glyphes et non des icônes : trois traits ne valent pas une
+           dépendance de plus dans un binaire qu'on distribue. -->
+      <span aria-hidden="true">&#x2013;</span>
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-ghost btn-xs px-2"
+      (click)="basculer()"
+      data-test="maximiser"
+      [attr.aria-label]="maximisee() ? 'Restaurer la fenêtre' : 'Agrandir la fenêtre'"
+      [title]="maximisee() ? 'Restaurer' : 'Agrandir'"
+    >
+      <span aria-hidden="true">{{ maximisee() ? '&#x2750;' : '&#x25A1;' }}</span>
+    </button>
+
+    <button
+      type="button"
+      class="btn btn-ghost btn-xs px-2 hover:bg-error hover:text-error-content"
+      (click)="fermer()"
+      data-test="fermer"
+      aria-label="Fermer le launcher"
+      title="Fermer"
+    >
+      <span aria-hidden="true">&#x2715;</span>
+    </button>
+  </div>
+</header>

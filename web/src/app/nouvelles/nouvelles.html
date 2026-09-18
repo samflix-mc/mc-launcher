@@ -1,0 +1,82 @@
+<section class="mx-auto flex max-w-2xl flex-col gap-5 p-6" data-test="page-nouvelles">
+  <header class="flex items-center gap-3">
+    <h1 class="text-xl font-semibold">Nouvelles</h1>
+
+    @if (fil()?.horsLigne) {
+      <!--
+        Le fil vient de la copie. Le dire est indispensable : une page de news
+        d'hier vaut mieux qu'une page vide, mais une page qui mentirait sur sa
+        fraîcheur serait pire que les deux.
+      -->
+      <span class="badge badge-sm badge-warning" data-test="hors-ligne">hors ligne</span>
+    }
+
+    <button
+      type="button"
+      class="btn btn-ghost btn-sm ml-auto"
+      (click)="recharger()"
+      [disabled]="chargement()"
+      data-test="recharger"
+    >
+      @if (chargement()) {
+        <span class="loading loading-spinner loading-xs"></span>
+      }
+      Actualiser
+    </button>
+  </header>
+
+  @if (fil(); as contenu) {
+    @if (contenu.billets.length === 0) {
+      <p class="opacity-60" data-test="aucune">Aucune nouvelle pour le moment.</p>
+    }
+
+    @for (billet of contenu.billets; track billet.id) {
+      <article class="card border border-white/10 bg-base-100/40 verre" data-test="billet">
+        @if (billet.image) {
+          <figure>
+            <!--
+              Un `data:` fabriqué par Rust, jamais une URL distante. C'est ce
+              qui évite d'ouvrir `img-src` à un hôte, et ce qui permet de
+              borner la taille et de déduire le type des octets.
+            -->
+            <img [src]="billet.image" [alt]="'Illustration : ' + billet.titre" loading="lazy" />
+          </figure>
+        }
+
+        <div class="card-body gap-3">
+          <div class="flex items-baseline gap-2">
+            <h2 class="card-title text-lg" data-test="titre">{{ billet.titre }}</h2>
+            @if (billet.epinglee) {
+              <span class="badge badge-sm badge-outline" data-test="epinglee">épinglée</span>
+            }
+            <time class="ml-auto text-xs opacity-60" [attr.datetime]="billet.date" data-test="date">
+              {{ quand(billet.date) }}
+            </time>
+          </div>
+
+          <div class="text-sm opacity-90">
+            <app-corps-billet [blocs]="billet.corps" />
+          </div>
+        </div>
+      </article>
+    }
+
+    @if (contenu.ecartes.length > 0) {
+      <!--
+        Un fil à moitié fautif doit se remarquer. Pas un bandeau d'erreur — les
+        billets qui restent s'affichent très bien — mais une note discrète, à
+        la fin, pour qui publie.
+      -->
+      <details class="text-xs opacity-50" data-test="ecartes">
+        <summary>{{ contenu.ecartes.length }} billet(s) écarté(s)</summary>
+        <ul class="list-inside list-disc pt-2">
+          @for (ecart of contenu.ecartes; track ecart) {
+            <li>{{ ecart }}</li>
+          }
+        </ul>
+      </details>
+    }
+  } @else if (chargement()) {
+    <p class="opacity-60" data-test="chargement">Chargement du fil…</p>
+  }
+</section>

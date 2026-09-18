@@ -1,0 +1,7 @@
+:host {
+  display: block;
+}
+
+.verre {
+  backdrop-filter: blur(var(--blur-verre-fin)) saturate(140%);
+}

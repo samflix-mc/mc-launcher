@@ -1,0 +1,17 @@
+:host {
+  display: block;
+}
+
+.verre {
+  backdrop-filter: blur(var(--blur-verre-fin)) saturate(140%);
+}
+
+/* Les illustrations sont bornées côté Rust à 512 kio, mais rien ne borne leurs
+   DIMENSIONS : un hôte peut servir une image de trois mille pixels de haut dans
+   512 kio. Sans ce plafond, un billet illustré occuperait toute la fenêtre et
+   l'on ne verrait plus qu'une image. */
+figure img {
+  width: 100%;
+  max-height: 14rem;
+  object-fit: cover;
+}

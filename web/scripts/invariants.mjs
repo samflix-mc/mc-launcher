@@ -32,7 +32,14 @@ const INVARIANTS = [
   {
     nom: 'aucun innerHTML',
     actif: true,
-    motif: /\binnerHTML\b/,
+    // Les DEUX formes qui écrivent réellement du DOM, et elles seules :
+    // l'affectation de propriété, et la liaison de propriété d'Angular.
+    //
+    // Le motif était `\binnerHTML\b` au départ, ce qui se déclenchait sur les
+    // commentaires expliquant pourquoi on n'en met pas — un contrôle qui
+    // punit sa propre documentation finit par être désactivé, et l'on perd
+    // avec lui les cas qu'il attrapait vraiment.
+    motif: /\.innerHTML\s*=|\[innerHTML\]|\binnerHTML\s*:/,
     extensions: ['.ts', '.html'],
     pourquoi: [
       "Le CSP du launcher desserre `style-src` jusqu'à 'unsafe-inline' pour",

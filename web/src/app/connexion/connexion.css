@@ -1,0 +1,15 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.verre {
+  backdrop-filter: blur(var(--blur-verre-fin)) saturate(140%);
+}
+
+/* Le code d'appareil est ce qu'on demande de recopier : il doit pouvoir être
+   sélectionné, là où le reste de la fenêtre ne le permet pas. */
+.selectionnable {
+  user-select: text;
+  cursor: text;
+}

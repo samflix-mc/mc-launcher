@@ -1,0 +1,50 @@
+/* Le menu, en verre dépoli.
+
+   `:host { display: … }` d'abord : un élément de composant est `inline` tant
+   qu'on ne le dit pas, et une hauteur posée sur un hôte `inline` semble ne rien
+   produire. */
+:host {
+  display: block;
+  position: relative;
+  /* Au-dessus du voile de `body`. */
+  z-index: 10;
+}
+
+/* Le verre.
+
+   `backdrop-filter` crée un contexte d'empilement ET fait de cet élément un
+   bloc conteneur pour ses descendants en `position: fixed`. Conséquence à
+   tenir : l'overlay d'incident ne doit PAS vivre ici — il serait borné au
+   menu, quel que soit son `inset`. Il est monté au niveau de `App`.
+
+   Le préfixe `-webkit-` n'est pas écrit à la main : esbuild l'ajoute, parce que
+   la `browserslist` du projet reste sous Safari 18. L'écrire ici ferait passer
+   `pnpm verifier:prefixes` tout en laissant les utilitaires Tailwind
+   inopérants — on perdrait le contrôle qui nous avertit. */
+nav {
+  backdrop-filter: blur(var(--blur-verre)) saturate(150%);
+  background: oklch(from var(--color-base-100) l c h / 0.32);
+  border-right: 1px solid oklch(100% 0 0 / 0.08);
+}
+
+/* Les onglets. La couleur du texte suffit à dire « inactif » ; le fond est
+   réservé à l'actif, pour qu'un seul élément attire l'œil à la fois. */
+a[routerLink] {
+  color: oklch(from var(--color-base-content) l c h / 0.68);
+}
+
+a[routerLink]:hover {
+  color: var(--color-base-content);
+  background: oklch(100% 0 0 / 0.06);
+}
+
+/* L'onglet courant. L'attribut, et non une classe : il est lu par le style ET
+   par les tests, ce qui en fait un contrat. */
+a[data-actif] {
+  color: var(--color-base-content);
+  background: oklch(100% 0 0 / 0.1);
+  font-weight: 500;
+  /* Un liseré à gauche : la couleur seule ne suffit pas à quelqu'un qui
+     distingue mal les contrastes, et un liseré se voit en noir et blanc. */
+  box-shadow: inset 2px 0 0 var(--color-primary);
+}

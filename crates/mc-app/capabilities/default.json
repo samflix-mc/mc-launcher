@@ -1,11 +1,17 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Ce que la fenêtre a le droit de demander au système : les quatre commandes du launcher, et l'ouverture de la page de connexion Microsoft.",
+  "description": "Ce que la fenêtre a le droit de demander au système. « core:default » agrège neuf jeux, soit quatre-vingt-douze permissions, dont les vingt-huit de « core:window:default » — qui donnent déjà le double-clic pour maximiser et l'écran principal, mais NI minimize, NI toggle-maximize, NI close, NI start-dragging : la barre de titre sans décorations les réclame nommément. « opener:allow-open-path » ouvre un dossier du launcher dans l'explorateur ; elle ne figure dans aucun défaut, et son absence se manifeste par un refus d'ACL qu'on ne voit qu'en build packagé, jamais en tauri dev.",
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:window:allow-is-maximized",
     "opener:allow-open-url",
+    "opener:allow-open-path",
     "opener:allow-default-urls"
   ]
 }

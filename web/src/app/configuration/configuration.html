@@ -1,0 +1,306 @@
+<section class="mx-auto flex max-w-2xl flex-col gap-6 p-6" data-test="configuration">
+  <h1 class="text-xl font-semibold">Configuration</h1>
+
+  <!-- === Apparence : la fenêtre DU LAUNCHER ============================ -->
+  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
+    <legend class="fieldset-legend px-2">Apparence du launcher</legend>
+
+    <label class="label" for="fond">Image de fond</label>
+    <select
+      id="fond"
+      class="select select-sm w-full"
+      [value]="vue().apparence.fond"
+      (change)="changerFond($any($event.target).value)"
+      data-test="fond"
+    >
+      @for (choix of fonds; track choix.valeur) {
+        <option [value]="choix.valeur">{{ choix.libelle }}</option>
+      }
+    </select>
+
+    <label class="label mt-3" for="voile">
+      Assombrissement — {{ (vue().apparence.voile * 100).toFixed(0) }} %
+    </label>
+    <!--
+      Le curseur démarre au PLANCHER et non à zéro. En dessous, le texte cesse
+      de tenir le contraste sur l'image la plus claire, et les libellés
+      deviennent illisibles sur une partie de l'écran seulement — ce qui
+      ressemble à un défaut de rendu et non à un réglage. Rust borne de toute
+      façon ; le curseur ne propose simplement pas ce qu'il refuserait.
+    -->
+    <input
+      id="voile"
+      type="range"
+      class="range range-sm range-primary"
+      min="0.35"
+      max="1"
+      step="0.05"
+      [value]="vue().apparence.voile"
+      (change)="changerVoile($any($event.target).value)"
+      data-test="voile"
+    />
+  </fieldset>
+
+  <!-- === Fenêtre : celle DU JEU ======================================== -->
+  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
+    <legend class="fieldset-legend px-2">Fenêtre du jeu</legend>
+
+    <label class="label" for="mode">Mode</label>
+    <select
+      id="mode"
+      class="select select-sm w-full"
+      [value]="vue().fenetre.mode"
+      (change)="changerMode($any($event.target).value)"
+      data-test="mode"
+    >
+      @for (choix of modes; track choix.valeur) {
+        <option [value]="choix.valeur">{{ choix.libelle }}</option>
+      }
+    </select>
+
+    @if (vue().fenetre.mode === 'fenetree') {
+      <div class="mt-3 flex gap-3">
+        <div class="flex-1">
+          <label class="label" for="largeur">Largeur</label>
+          <input
+            id="largeur"
+            type="number"
+            class="input input-sm w-full"
+            min="640"
+            max="7680"
+            [value]="vue().fenetre.largeur"
+            (change)="changerTaille('largeur', $any($event.target).value)"
+            data-test="largeur"
+          />
+        </div>
+        <div class="flex-1">
+          <label class="label" for="hauteur">Hauteur</label>
+          <input
+            id="hauteur"
+            type="number"
+            class="input input-sm w-full"
+            min="480"
+            max="4320"
+            [value]="vue().fenetre.hauteur"
+            (change)="changerTaille('hauteur', $any($event.target).value)"
+            data-test="hauteur"
+          />
+        </div>
+      </div>
+    }
+
+    @if (tailleEcran(); as taille) {
+      <p class="label mt-2 text-xs" data-test="zone-utile">
+        Zone utile de votre écran&nbsp;: {{ taille }} — panneaux du bureau déduits.
+      </p>
+    }
+  </fieldset>
+
+  <!-- === Vidéo : les clés fusionnées dans options.txt ================== -->
+  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
+    <legend class="fieldset-legend px-2">Vidéo</legend>
+
+    <label class="label" for="rendu">Distance de rendu — {{ vue().jeu.renderDistance }}</label>
+    <input
+      id="rendu"
+      type="range"
+      class="range range-sm range-primary"
+      min="2"
+      max="32"
+      [value]="vue().jeu.renderDistance"
+      (change)="changerJeu('renderDistance', $any($event.target).value)"
+      data-test="rendu"
+    />
+
+    <label class="label mt-3" for="simulation">
+      Distance de simulation — {{ vue().jeu.simulationDistance }}
+    </label>
+    <input
+      id="simulation"
+      type="range"
+      class="range range-sm range-primary"
+      min="5"
+      max="32"
+      [value]="vue().jeu.simulationDistance"
+      (change)="changerJeu('simulationDistance', $any($event.target).value)"
+      data-test="simulation"
+    />
+
+    <label class="label mt-3" for="fps">Images par seconde — {{ vue().jeu.maxFps }}</label>
+    <input
+      id="fps"
+      type="range"
+      class="range range-sm range-primary"
+      min="10"
+      max="260"
+      step="10"
+      [value]="vue().jeu.maxFps"
+      (change)="changerJeu('maxFps', $any($event.target).value)"
+      data-test="fps"
+    />
+
+    <label class="label mt-3 cursor-pointer justify-start gap-3">
+      <input
+        type="checkbox"
+        class="toggle toggle-sm toggle-primary"
+        [checked]="vue().jeu.vsync"
+        (change)="changerJeu('vsync', $any($event.target).checked)"
+        data-test="vsync"
+      />
+      Synchronisation verticale
+    </label>
+
+    <p class="label mt-2 text-xs">
+      Ces réglages sont fusionnés dans le <code>options.txt</code> de l'instance, sans toucher à vos
+      touches ni à votre volume. Ils s'appliqueront après votre première partie si le fichier
+      n'existe pas encore.
+    </p>
+  </fieldset>
+
+  <!-- === Java : rien à régler ========================================== -->
+  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
+    <legend class="fieldset-legend px-2">Java</legend>
+
+    @if (etatDuPack()?.java; as majeure) {
+      <p class="text-sm" data-test="java">
+        Le pack exige <strong>Java {{ majeure }}</strong
+        >.
+      </p>
+    } @else {
+      <p class="text-sm opacity-60" data-test="java-inconnu">
+        La version exigée sera connue dès que le pack aura été consulté.
+      </p>
+    }
+
+    <p class="label mt-2 text-xs">
+      Il n'y a rien à choisir, et c'est délibéré&nbsp;: la version est une propriété du pack, écrite
+      dans son verrou et vérifiée à chaque lancement. Le launcher installe pour lui-même le Java
+      exact qu'il faut — jamais pour le système entier, et sans toucher à celui que vous avez déjà.
+    </p>
+  </fieldset>
+
+  <!-- === Avancé ======================================================== -->
+  <fieldset class="fieldset rounded-box border border-white/10 bg-base-100/40 p-4 verre">
+    <legend class="fieldset-legend px-2">Avancé</legend>
+
+    <label class="label" for="memoire">
+      Mémoire allouée au jeu —
+      {{ memoireGo() === null ? 'laissée à la JVM' : memoireGo() + ' Go' }}
+    </label>
+    <input
+      id="memoire"
+      type="range"
+      class="range range-sm range-primary"
+      min="1"
+      max="32"
+      step="0.5"
+      [value]="memoireGo() ?? 4"
+      (change)="changerMemoire($any($event.target).value)"
+      data-test="memoire"
+    />
+    <p class="label text-xs">
+      Sans réglage, la JVM prend un quart de la mémoire de la machine — ce qui ne suffit pas à un
+      modpack, et donne un plantage après vingt minutes.
+    </p>
+
+    <label class="label mt-3 cursor-pointer justify-start gap-3">
+      <input
+        type="checkbox"
+        class="toggle toggle-sm toggle-primary"
+        [checked]="vue().lanceur.reduireAuLancement"
+        (change)="changerReduction($any($event.target).checked)"
+        data-test="reduire"
+      />
+      Réduire le launcher quand le jeu démarre
+    </label>
+
+    <div class="divider my-4"></div>
+
+    <p class="label">Vérifier les fichiers de l'instance</p>
+    <div class="flex flex-wrap gap-2">
+      <button
+        type="button"
+        class="btn btn-sm"
+        (click)="verifier(false)"
+        [disabled]="verificationEnCours()"
+        data-test="verifier-rapide"
+      >
+        Vérification rapide
+      </button>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline"
+        (click)="verifier(true)"
+        [disabled]="verificationEnCours()"
+        data-test="verifier-profond"
+      >
+        Vérification complète
+      </button>
+      @if (verificationEnCours()) {
+        <span class="loading loading-spinner loading-sm"></span>
+      }
+    </div>
+    <p class="label text-xs">
+      La vérification complète relit et recalcule l'empreinte de plusieurs centaines de
+      mégaoctets&nbsp;: comptez quelques minutes.
+    </p>
+
+    @if (verification(); as problemes) {
+      @if (problemes.length === 0) {
+        <div class="alert alert-success alert-soft mt-3 text-sm" data-test="verification-ok">
+          <span>Tout est en place.</span>
+        </div>
+      } @else {
+        <div class="alert alert-warning alert-soft mt-3 text-sm" data-test="verification-problemes">
+          <div>
+            <p class="font-medium">{{ problemes.length }} problème(s) :</p>
+            <ul class="list-inside list-disc">
+              @for (probleme of problemes; track probleme) {
+                <li>{{ probleme }}</li>
+              }
+            </ul>
+            <p class="mt-1 opacity-70">Le prochain lancement les rattrapera par différence.</p>
+          </div>
+        </div>
+      }
+    }
+
+    <div class="divider my-4"></div>
+
+    <p class="label">Ouvrir un dossier</p>
+    <div class="flex flex-wrap gap-2">
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm"
+        (click)="ouvrirDossier('instance')"
+        data-test="dossier-instance"
+      >
+        Instance de jeu
+      </button>
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm"
+        (click)="ouvrirDossier('donnees')"
+        data-test="dossier-donnees"
+      >
+        Données
+      </button>
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm"
+        (click)="ouvrirDossier('config')"
+        data-test="dossier-config"
+      >
+        Configuration
+      </button>
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm"
+        (click)="ouvrirDossier('journaux')"
+        data-test="dossier-journaux"
+      >
+        Journaux
+      </button>
+    </div>
+  </fieldset>
+</section>

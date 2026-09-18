@@ -32,6 +32,7 @@ mc-auth = { path = "../mc-auth" }
 mc-dl = { path = "../mc-dl" }
 mc-instance = { path = "../mc-instance" }
 mc-java = { path = "../mc-java" }
+mc-nouvelles = { path = "../mc-nouvelles" }
 mc-pack = { path = "../mc-pack" }
 # Ce que le joueur règle. mc-pack n'en dépend PAS : la bibliothèque
 # d'installation n'a pas à savoir qu'une interface existe, et le CLI garde ses

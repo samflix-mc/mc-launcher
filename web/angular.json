@@ -24,9 +24,7 @@
                 "input": "public"
               }
             ],
-            "styles": [
-              "src/styles.css"
-            ]
+            "styles": ["src/styles.css"]
           },
           "configurations": {
             "production": {
@@ -70,19 +68,9 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "coverageReporters": [
-              "text",
-              "lcov"
-            ],
-            "coverageInclude": [
-              "src/**/*.ts",
-              "src/**/*.html"
-            ],
-            "coverageExclude": [
-              "src/main.ts",
-              "src/**/*.spec.ts",
-              "src/**/*.d.ts"
-            ]
+            "coverageReporters": ["text", "lcov"],
+            "coverageInclude": ["src/**/*.ts", "src/**/*.html"],
+            "coverageExclude": ["src/main.ts", "src/**/*.spec.ts", "src/**/*.d.ts"]
           }
         }
       }

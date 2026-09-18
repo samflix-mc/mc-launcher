@@ -2546,6 +2546,7 @@ dependencies = [
  "mc-instance",
  "mc-java",
  "mc-log",
+ "mc-nouvelles",
  "mc-pack",
  "mc-reglages",
  "serde",

@@ -1,13 +1,50 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" data-fond="spawn">
   <head>
     <meta charset="utf-8" />
     <title>samflix-mc</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+
+    <!--
+      Le fond, préchargé.
+
+      Sans cela, la photographie arrive APRÈS le premier rendu et produit un
+      flash — à l'endroit précis que l'amorce existe pour couvrir. Le
+      préchargement se fait pendant le plancher de neuf cents millisecondes, ce
+      qui suffit très largement pour quarante kilooctets locaux.
+
+      `fetchpriority="high"` : sans lui, le navigateur classe une image de fond
+      après les scripts, et le préchargement arriverait trop tard pour servir.
+    -->
+    <link rel="preload" as="image" href="fonds/spawn.webp" fetchpriority="high" />
   </head>
   <body>
-    <app-root></app-root>
+    <!--
+      L'amorce STATIQUE : ce qui s'affiche avant qu'Angular n'ait démarré.
+
+      Angular vide `<app-root>` au bootstrap (`el.textContent = ''`), dans la
+      même tâche que son premier rendu : ce bloc disparaît donc exactement
+      quand le composant d'amorce prend le relais, sans transition visible et
+      sans qu'on ait rien à orchestrer.
+
+      Les classes sont celles de Tailwind, et c'est pour elles que
+      `web/src/styles.css` déclare `@source "./index.html"`. Mal pointé, ce
+      chemin ne produit aucune erreur : il produit une amorce SANS STYLE, en
+      production seulement.
+    -->
+    <app-root>
+      <div class="grid h-screen place-items-center">
+        <div class="flex flex-col items-center gap-5">
+          <div
+            class="grid size-20 place-items-center rounded-box bg-primary text-2xl font-bold text-primary-content shadow-lg"
+          >
+            SA
+          </div>
+          <span class="loading loading-dots loading-md text-primary"></span>
+        </div>
+      </div>
+    </app-root>
   </body>
 </html>

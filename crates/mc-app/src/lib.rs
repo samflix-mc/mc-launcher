@@ -102,9 +102,17 @@ pub fn run() {
             commandes::statut,
             commandes::connexion,
             commandes::deconnexion,
-            commandes::installer,
-            commandes::installation,
-            commandes::lancer_jeu,
+            // Le geste unique, et ce qu'il faut pour le dessiner.
+            commandes::pack::etat_du_pack,
+            commandes::pack::jouer,
+            commandes::pack::verifier_les_fichiers,
+            // Les nouvelles du réseau.
+            commandes::nouvelles::nouvelles,
+            // Les réglages, et ce que l'écran permet.
+            commandes::reglages::reglages,
+            commandes::reglages::enregistrer_reglages,
+            commandes::reglages::ecran,
+            commandes::reglages::ouvrir_dossier,
         ])
         .build(tauri::generate_context!());
 

@@ -1,0 +1,113 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+/* Le verre dépoli des cartes posées sur le fond.
+
+   Une classe et non un utilitaire recopié : trois composants la portent, et
+   `backdrop-blur-verre backdrop-saturate-150` écrit trois fois diverge au
+   premier ajustement.
+
+   Le préfixe `-webkit-` n'est pas écrit ici : esbuild l'ajoute, parce que la
+   `browserslist` du projet reste sous Safari 18. L'écrire à la main ferait
+   passer `pnpm verifier:prefixes` tout en laissant les utilitaires Tailwind
+   inopérants ailleurs — on perdrait le contrôle qui nous avertit. */
+.verre {
+  backdrop-filter: blur(var(--blur-verre-fin)) saturate(140%);
+}
+
+/* --- La cinématique -------------------------------------------------------
+   Trois états, trois opacités. La couleur seule ne suffirait pas à quelqu'un
+   qui distingue mal les contrastes ; le gras ajoute un second signal. */
+
+li[data-etat='a-venir'] {
+  opacity: 0.35;
+}
+
+li[data-etat='en-cours'] {
+  opacity: 1;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+li[data-etat='faite'] {
+  opacity: 0.6;
+}
+
+/* --- La jauge -------------------------------------------------------------
+
+   ## Pourquoi `appearance: none` était inévitable
+
+   La feuille d'agent de la WebKitGTK installée tient en quatre règles et ne
+   contient AUCUNE règle `:indeterminate` — elle pose
+   `::-webkit-progress-value { inline-size: 50% }` et rien d'autre. Ce qui anime
+   une barre indéterminée relève du rendu natif que sélectionne
+   `appearance: auto`, c'est-à-dire exactement ce que la direction artistique
+   nous fait éteindre.
+
+   Sans l'animation ci-dessous, une barre indéterminée serait donc un bloc vert
+   FIGÉ À CINQUANTE POUR CENT : le mensonge précis qu'une jauge existe pour ne
+   pas dire. On réécrit donc l'animation nous-mêmes, sur la piste. */
+
+progress {
+  appearance: none;
+  -webkit-appearance: none;
+  block-size: 6px;
+  inline-size: 100%;
+  border: none;
+  border-radius: 999px;
+  overflow: hidden;
+  background: oklch(100% 0 0 / 0.1);
+}
+
+progress::-webkit-progress-bar {
+  background: oklch(100% 0 0 / 0.1);
+}
+
+progress::-webkit-progress-value {
+  background: var(--color-primary);
+  border-radius: 999px;
+  /* La transition est sur la VALEUR et non sur l'élément : c'est elle qui
+     bouge, et l'animer sur `progress` ne ferait rien. */
+  transition: inline-size 200ms linear;
+}
+
+/* La barre indéterminée : pas d'attribut `value`, donc pas de
+   `::-webkit-progress-value` à montrer. On anime la piste elle-même, en
+   faisant glisser un dégradé. */
+progress:not([value]) {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--color-primary) 35%,
+    var(--color-primary) 65%,
+    transparent 100%
+  );
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: glisse 1.1s ease-in-out infinite;
+}
+
+@keyframes glisse {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
+
+/* Une barre qui glisse sans fin est exactement ce que « mouvement réduit »
+   demande d'éviter. On la remplace par une pulsation d'opacité, qui dit la
+   même chose sans déplacer quoi que ce soit. */
+@media (prefers-reduced-motion: reduce) {
+  progress:not([value]) {
+    animation: none;
+    background-position: 50% 0;
+    background-size: 100% 100%;
+  }
+  progress::-webkit-progress-value {
+    transition: none;
+  }
+}

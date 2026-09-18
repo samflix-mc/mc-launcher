@@ -1,0 +1,33 @@
+/* La barre de titre.
+
+   `:host { display: … }` est la première ligne, et ce n'est pas rituel : un
+   élément de composant est `inline` tant qu'on ne le dit pas. Une hauteur, une
+   bordure ou un fond posés sur un hôte `inline` semblent ne rien produire, et
+   l'on cherche longtemps du côté du gabarit. */
+:host {
+  display: block;
+  position: relative;
+  /* Au-dessus du voile de `body`, qui est en z-index 0. */
+  z-index: 10;
+}
+
+/* Le verre dépoli de la barre.
+
+   `-webkit-backdrop-filter` n'est PAS écrit ici à la main, et c'est
+   délibéré : esbuild l'ajoute, parce que la `browserslist` du projet reste
+   sous Safari 18. L'écrire à la main ferait passer le contrôle de
+   `pnpm verifier:prefixes` tout en laissant les utilitaires Tailwind
+   inopérants — c'est-à-dire qu'on perdrait précisément le contrôle qui nous
+   avertit. */
+header {
+  backdrop-filter: blur(var(--blur-verre-fin)) saturate(140%);
+  background: oklch(from var(--color-base-100) l c h / 0.35);
+  border-bottom: 1px solid oklch(100% 0 0 / 0.08);
+}
+
+/* Le titre ne se sélectionne pas : un double-clic sur une barre de titre
+   maximise la fenêtre, il ne surligne pas du texte. */
+header {
+  user-select: none;
+  cursor: default;
+}

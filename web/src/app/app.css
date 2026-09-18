@@ -1,0 +1,34 @@
+/* La coque.
+
+   `:host { display: block }` en premier : un élément de composant est `inline`
+   tant qu'on ne le dit pas, et `h-screen` sur un enfant d'un hôte `inline` se
+   comporte mal. */
+:host {
+  display: block;
+  color: var(--color-base-content);
+  /* Au-dessus du voile de `body`, qui est en z-index 0. */
+  position: relative;
+  z-index: 1;
+}
+
+/* Le flou d'incident.
+
+   Il porte sur la zone de CONTENU. Flouter la coque entière flouterait
+   l'overlay avec elle — un élément ne peut pas se flouter sans se flouter — et
+   flouter `body` ne ferait rien du fond, puisque le fond EST `body`.
+
+   `pointer-events: none` avec : un contenu flouté ne doit pas rester
+   cliquable, sans quoi un clic mal placé lancerait une partie derrière une
+   erreur qu'on n'a pas encore lue. */
+[data-flou] {
+  filter: blur(3px) saturate(0.85);
+  pointer-events: none;
+  transition: filter 0.22s ease;
+}
+
+/* Sans transition pour qui n'en veut pas. */
+@media (prefers-reduced-motion: reduce) {
+  [data-flou] {
+    transition: none;
+  }
+}

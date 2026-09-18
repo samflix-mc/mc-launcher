@@ -5,7 +5,6 @@
 //! messages d'erreur lisibles — et pose les quelques gardes qu'une fenêtre
 //! exige et qu'un terminal n'a pas besoin d'avoir.
 
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use mc_auth::{Auth, DeviceCode, Session};
@@ -13,7 +12,10 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_opener::OpenerExt;
 
-use crate::cinematique;
+pub mod nouvelles;
+pub mod pack;
+pub mod reglages;
+
 use crate::marque::Marque;
 use crate::phase::Phase;
 use crate::suivi::Suivi;
@@ -38,9 +40,6 @@ pub struct Etat {
     /// pas ce problème : on n'y lance pas deux fois la même commande dans le
     /// même processus.
     en_cours: AtomicBool,
-    /// Ce qu'a produit la dernière installation réussie. Tant qu'il est vide,
-    /// le jeu ne peut pas être lancé — et le bouton reste éteint.
-    pub installation: Mutex<Option<Installation>>,
 }
 
 /// Rend `en_cours` à `false` quoi qu'il arrive.
@@ -105,47 +104,6 @@ impl From<&DeviceCode> for CodeAppareil {
             code: code.user_code.clone(),
             url: code.verification_uri.clone(),
             url_directe: code.verification_uri_directe.clone(),
-        }
-    }
-}
-
-/// Ce qu'une installation a posé, pour le compte rendu.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Installation {
-    pub instance: String,
-    pub minecraft: String,
-    pub neoforge: String,
-    pub java: String,
-    pub mods: usize,
-    /// Les mods que la résolution n'a pas trouvés. Le pack s'installe quand
-    /// même, mais NeoForge refusera de démarrer s'ils lui manquent : c'est à
-    /// dire tout de suite, pas au premier lancement.
-    pub introuvables: Vec<String>,
-    /// Ce par quoi l'installation s'écarte du verrou publié. Vide quand les
-    /// deux coïncident un pour un.
-    pub ecarts: Vec<String>,
-    /// Le pack distant était injoignable et la copie locale a servi : ce que
-    /// le joueur installe peut ne plus correspondre aux serveurs.
-    pub hors_ligne: bool,
-}
-
-impl From<&mc_pack::Outcome> for Installation {
-    fn from(outcome: &mc_pack::Outcome) -> Self {
-        Self {
-            instance: outcome.instance.name.clone(),
-            minecraft: outcome.lock.minecraft.clone(),
-            neoforge: outcome.neoforge.clone(),
-            java: outcome.java.version.full.clone(),
-            mods: outcome.client_mods,
-            introuvables: outcome
-                .lock
-                .unresolved
-                .iter()
-                .map(|manque| format!("{} (exigé par {})", manque.mod_id, manque.required_by))
-                .collect(),
-            ecarts: outcome.ecarts.clone(),
-            hors_ligne: outcome.from_cache,
         }
     }
 }
@@ -255,59 +213,13 @@ pub async fn connexion(app: AppHandle, etat: State<'_, Etat>) -> Result<Compte, 
 #[tauri::command]
 pub fn deconnexion(etat: State<'_, Etat>) -> Result<(), Erreur> {
     mc_auth::effacer()?;
-    // Ce qui a été installé reste sur le disque, mais plus personne n'est
-    // connecté pour le lancer : laisser le bouton allumé promettrait une
-    // partie qu'aucune session ne peut ouvrir.
-    *etat.installation.lock().expect("installation") = None;
+    // Ce qui est installé reste sur le disque : c'est LUI que le bouton lit
+    // désormais, et non un champ peuplé par la session courante. Un joueur qui
+    // se déconnecte puis se reconnecte retrouve donc son pack posé, là où
+    // l'ancienne version lui proposait de tout réinstaller.
     etat.suivi.phase(Phase::Connexion);
     tracing::info!("session oubliée");
     Ok(())
-}
-
-/// Installe le pack — la partie longue.
-///
-/// Rend la main quand tout est en place. L'avancement ne passe pas par la
-/// valeur de retour mais par l'événement de la cinématique, émis cinq fois par
-/// seconde pendant tout ce temps.
-#[tauri::command]
-pub async fn installer(app: AppHandle, etat: State<'_, Etat>) -> Result<Installation, Erreur> {
-    let Some(_jeton) = etat.reserver() else {
-        return Err(Erreur("une installation est déjà en cours".to_string()));
-    };
-
-    let outcome = cinematique::installer(&app, &etat.suivi).await?;
-
-    let installation = Installation::from(&outcome);
-    *etat.installation.lock().expect("installation") = Some(installation.clone());
-
-    tracing::info!(
-        instance = %installation.instance,
-        mods = installation.mods,
-        introuvables = installation.introuvables.len(),
-        "pack installé"
-    );
-    Ok(installation)
-}
-
-/// Ce que la dernière installation de cette session a posé, s'il y en a eu une.
-#[tauri::command]
-pub fn installation(etat: State<'_, Etat>) -> Option<Installation> {
-    etat.installation.lock().expect("installation").clone()
-}
-
-/// Lance le jeu avec le compte connecté.
-///
-/// N'installe rien : `docs/lancement.md` pose que les deux gestes restent
-/// séparés, et les enchaîner ferait attendre huit cents mégaoctets à qui
-/// voulait seulement jouer.
-#[tauri::command]
-pub async fn lancer_jeu(app: AppHandle, etat: State<'_, Etat>) -> Result<String, Erreur> {
-    let Some(_jeton) = etat.reserver() else {
-        return Err(Erreur("une installation est en cours".to_string()));
-    };
-
-    let rapport = cinematique::jouer(&app, &etat.suivi).await?;
-    Ok(verdict(&rapport))
 }
 
 /// Ce que le jeu a laissé en s'arrêtant, dit en une phrase.
@@ -315,7 +227,7 @@ pub async fn lancer_jeu(app: AppHandle, etat: State<'_, Etat>) -> Result<String,
 /// Fermer sa fenêtre n'est pas une panne, et un signal non plus : seul un code
 /// de sortie non nul en est une. Les confondre ferait clignoter un bandeau
 /// rouge à chaque fin de partie.
-fn verdict(rapport: &mc_instance::launch::Report) -> String {
+pub(crate) fn verdict(rapport: &mc_instance::launch::Report) -> String {
     match &rapport.outcome {
         mc_instance::launch::Outcome::Normal => "Partie terminée.".to_string(),
         mc_instance::launch::Outcome::Interrupted { .. } => "Jeu fermé.".to_string(),

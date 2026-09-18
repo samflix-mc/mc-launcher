@@ -1,0 +1,90 @@
+:host {
+  display: block;
+}
+
+p,
+ul {
+  margin: 0 0 0.75rem;
+}
+
+p:last-child,
+ul:last-child {
+  margin-bottom: 0;
+}
+
+h2,
+h3,
+h4 {
+  margin: 1.25rem 0 0.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+h2 {
+  font-size: 1.15rem;
+}
+h3 {
+  font-size: 1.05rem;
+}
+h4 {
+  font-size: 1rem;
+}
+
+/* Le premier titre d'un billet ne prend pas de marge haute : le titre du
+   billet est juste au-dessus, et deux espacements empilés font un trou. */
+h2:first-child,
+h3:first-child,
+h4:first-child {
+  margin-top: 0;
+}
+
+ul {
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+li {
+  margin-bottom: 0.25rem;
+}
+
+code {
+  padding: 0.1em 0.35em;
+  border-radius: 0.3rem;
+  background: oklch(100% 0 0 / 0.1);
+  font-size: 0.9em;
+  /* Un extrait de code est fait pour être recopié. */
+  user-select: text;
+}
+
+hr {
+  margin: 1.25rem 0;
+  border: none;
+  border-top: 1px solid oklch(100% 0 0 / 0.12);
+}
+
+/* Les liens sont des BOUTONS — voir le gabarit : un `href` ferait naviguer la
+   fenêtre, ce que le greffon de navigation refuserait. Il faut donc leur
+   redonner l'apparence d'un lien, qu'un bouton n'a pas. */
+.lien {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.lien:hover {
+  color: var(--color-secondary);
+}
+
+/* Et le focus visible : un bouton sans contour au clavier est un bouton qu'on
+   ne peut pas atteindre au clavier. */
+.lien:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}

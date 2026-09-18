@@ -22,10 +22,22 @@
 //! son compte n'a pas le jeu serait une faute. La licence est donc vérifiée
 //! avant d'installer quoi que ce soit, et c'est le seul écart avec le CLI.
 //!
-//! ## Installer et jouer restent deux gestes
+//! ## Dans la fenêtre, installer et jouer sont UN SEUL geste
 //!
-//! `docs/lancement.md` le pose : les enchaîner ferait attendre huit cents
-//! mégaoctets à qui voulait seulement jouer. La fenêtre le respecte.
+//! `docs/lancement.md` posait le contraire, avec un motif juste : enchaîner les
+//! deux ferait attendre huit cents mégaoctets à qui voulait seulement jouer.
+//!
+//! Ce module RÉSOUT ce motif au lieu de le contredire. Depuis qu'une
+//! comparaison d'empreintes coûte quelques dizaines de kilooctets, le cas
+//! courant — rien n'a bougé — ne fait plus attendre personne. Et le cas où
+//! quelque chose a bougé est précisément celui où ne rien faire donnerait une
+//! éjection à la connexion, sans message utile : un joueur qui clique JOUER sur
+//! un pack périmé n'a pas choisi de jouer avec un pack périmé, il a choisi de
+//! jouer.
+//!
+//! La ligne de commande, elle, garde ses deux commandes. `install` et `launch`
+//! sont des usages d'outilleur, où l'on veut décider soi-même de ce qui se
+//! passe — et où l'on n'est pas surpris qu'une commande fasse ce qu'elle dit.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -112,65 +124,66 @@ fn ou_installer() -> (mc_pack::source::Source, mc_pack::Options) {
     (source, options)
 }
 
-/// Installe le pack, en racontant où l'on en est.
-pub async fn installer(app: &AppHandle, suivi: &Arc<Suivi>) -> Result<mc_pack::Outcome> {
+/// Ce que le pack a de particulier, sans rien installer.
+///
+/// Ne touche ni au disque ni au cache : quelques dizaines de kilooctets de
+/// réseau pour savoir si le bouton doit dire INSTALLER ou JOUER.
+pub async fn etat_du_pack() -> Result<mc_pack::EtatDuPack> {
     let (source, options) = ou_installer();
+    let dl = mc_dl::Downloader::new(mc_dl::USER_AGENT).context("client HTTP")?;
+    Ok(mc_pack::comparer(&source, &options, &dl).await)
+}
+
+/// LE geste : vérifier, rattraper s'il le faut, puis jouer.
+///
+/// ## La garde d'émission est en TÊTE, et c'est le point
+///
+/// Elle vivait dans `installer`, et `jouer` n'en posait aucune. Or c'est
+/// pendant la COMPARAISON que la fenêtre a l'air figée : quelques centaines de
+/// millisecondes de réseau pendant lesquelles aucune étape ne s'allume, avant
+/// même qu'on sache s'il y aura une installation. La poser après la
+/// comparaison laisserait exactement ce trou.
+pub async fn mettre_a_jour_et_jouer(
+    app: &AppHandle,
+    suivi: &Arc<Suivi>,
+) -> Result<mc_pack::Deroulement> {
+    let (source, options) = ou_installer();
+
+    // AVANT tout le reste.
+    let _emission = emettre(app.clone(), Arc::clone(suivi));
+
     let rapport: Arc<dyn mc_pack::Rapport> = Arc::new(VersLaFenetre {
         suivi: Arc::clone(suivi),
     });
 
-    // La boucle d'émission vit le temps de l'installation et pas au-delà : le
-    // `drop` du garde l'arrête, y compris si l'installation échoue.
-    let _emission = emettre(app.clone(), Arc::clone(suivi));
-
-    let outcome = mc_pack::install(&source, &options, rapport)
-        .await
-        .context("installation du pack")?;
-
-    suivi.termine(Phase::Pret);
-    pousser(app, suivi);
-    Ok(outcome)
-}
-
-/// Prépare la partie et lance le jeu.
-///
-/// Rien n'est réassemblé ici : `mc_pack::jeu::preparer` relit le pack posé sur
-/// la machine, reprend le Java du verrou, vérifie que l'instance correspond
-/// bien à ce verrou, et construit la ligne de commande. Le refaire à la main
-/// aurait sauté la vérification de cohérence — et le serveur aurait tranché
-/// par une éjection qui ne nomme pas sa cause.
-pub async fn jouer(app: &AppHandle, suivi: &Arc<Suivi>) -> Result<mc_instance::launch::Report> {
-    let (source, options) = ou_installer();
-
-    // La préparation lit des descripteurs et crée des répertoires : c'est du
-    // disque, et le tenir sur l'exécuteur figerait les autres tâches — dont la
-    // boucle qui rafraîchit la fenêtre.
-    // Le même rapport que l'installation : si le Java du verrou manque, sa
-    // pose se raconte dans la fenêtre au lieu de la figer deux minutes.
-    let vers_la_fenetre: Arc<dyn mc_pack::Rapport> = Arc::new(VersLaFenetre {
-        suivi: Arc::clone(suivi),
-    });
-
-    let partie = mc_pack::jeu::preparer(
+    let deroulement = mc_pack::mettre_a_jour_et_jouer(
         &source,
         &options,
         mc_pack::Identite::Microsoft,
         None,
         confort_du_joueur(),
-        vers_la_fenetre,
+        rapport,
     )
     .await
-    .context("préparation de la partie")?;
-
-    suivi.phase(Phase::Lancement);
-    suivi.note(&format!("Le jeu démarre — {}", partie.instance.name));
-    pousser(app, suivi);
-
-    let rapport = mc_pack::jeu::jouer(&partie).await;
+    .context("lancement de la partie")?;
 
     suivi.termine(Phase::Pret);
     pousser(app, suivi);
-    rapport.context("exécution du jeu")
+    Ok(deroulement)
+}
+
+/// Vérifie les fichiers de l'instance posée, sans rien télécharger.
+///
+/// Le geste de la section « Avancé ». Il a quitté l'écran principal avec la
+/// refonte, et c'est ici qu'il réapparaît — sans quoi il n'aurait plus de porte
+/// d'entrée graphique du tout.
+///
+/// `profond` décide de ce qu'on compare : le nom et la taille, ou l'empreinte
+/// de chaque fichier. La seconde relit plusieurs centaines de mégaoctets, et
+/// c'est pour cela que la page le demande explicitement.
+pub fn verifier(profond: bool) -> Result<Vec<String>> {
+    let (source, options) = ou_installer();
+    mc_pack::verify(&source, &options, profond).context("vérification de l'instance")
 }
 
 /// Émet une photo de l'avancement à cadence fixe, jusqu'à ce qu'on la lâche.

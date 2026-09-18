@@ -1,0 +1,14 @@
+:host {
+  display: block;
+}
+
+.verre {
+  backdrop-filter: blur(var(--blur-verre-fin)) saturate(140%);
+}
+
+code {
+  padding: 0.1em 0.35em;
+  border-radius: 0.3rem;
+  background: oklch(100% 0 0 / 0.1);
+  font-size: 0.9em;
+}

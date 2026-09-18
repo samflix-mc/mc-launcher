@@ -1,0 +1,87 @@
+<section class="grid h-full place-items-center p-6" data-test="connexion">
+  <div class="card w-full max-w-md border border-white/10 bg-base-100/40 verre">
+    <div class="card-body gap-4">
+      @if (sansLicence()) {
+        <!--
+          Connecté, mais le compte n'a pas le jeu. Un ÉTAT et non une
+          redirection : les deux gardes lisent le même prédicat pour que ce cas
+          ne rebondisse pas entre elles.
+        -->
+        <h1 class="card-title text-warning" data-test="sans-licence">
+          Ce compte ne possède pas Minecraft
+        </h1>
+        <p class="text-sm opacity-80">
+          La connexion Microsoft a réussi — le compte
+          <strong>{{ compte()?.pseudo }}</strong> est valide — mais il n'a pas de licence
+          Minecraft&nbsp;: Java Edition. Aucun serveur en ligne ne l'acceptera.
+        </p>
+        <p class="text-sm opacity-60">
+          Rien n'a été téléchargé&nbsp;: il n'y aurait aucun intérêt à installer huit cents
+          mégaoctets pour l'apprendre ensuite.
+        </p>
+        <div class="card-actions justify-end">
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            (click)="deconnecter()"
+            [disabled]="occupe()"
+            data-test="changer-de-compte"
+          >
+            Utiliser un autre compte
+          </button>
+        </div>
+      } @else if (code(); as attente) {
+        <!-- Le code d'appareil, pendant que Rust attend Microsoft. -->
+        <h1 class="card-title" data-test="attente-code">Autorisez la connexion</h1>
+        <p class="text-sm opacity-80">
+          Une page Microsoft s'est ouverte. Saisissez-y ce code&nbsp;:
+        </p>
+
+        <!-- Sélectionnable : c'est exactement ce qu'on demande de recopier. -->
+        <p class="selectionnable text-center font-mono text-3xl tracking-widest" data-test="code">
+          {{ attente.code }}
+        </p>
+
+        <p class="text-sm opacity-60">
+          Si la page ne s'est pas ouverte, elle est à cette adresse&nbsp;:
+        </p>
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          (click)="ouvrirLaPage(attente.urlDirecte)"
+          data-test="rouvrir"
+        >
+          {{ attente.url }}
+        </button>
+
+        <p class="text-xs opacity-50">
+          Le launcher attend ici jusqu'à ce que vous ayez autorisé, ou que le code expire.
+        </p>
+      } @else {
+        <h1 class="card-title" data-test="titre">Connexion</h1>
+        <p class="text-sm opacity-80">
+          Le launcher a besoin de votre compte Microsoft pour vérifier votre licence Minecraft et
+          lancer le jeu sous votre pseudo.
+        </p>
+        <p class="text-xs opacity-50">
+          Aucun mot de passe ne transite par le launcher&nbsp;: Microsoft donne un code, vous
+          l'autorisez dans votre navigateur.
+        </p>
+        <div class="card-actions justify-end">
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="connecter()"
+            [disabled]="occupe()"
+            data-test="connecter"
+          >
+            @if (occupe()) {
+              <span class="loading loading-spinner loading-sm"></span>
+            }
+            Se connecter avec Microsoft
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</section>

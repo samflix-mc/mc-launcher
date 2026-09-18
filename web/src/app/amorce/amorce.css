@@ -1,0 +1,32 @@
+/* L'amorce occupe la zone de contenu, et rien de plus.
+
+   `:host { display: block; height: 100% }` : sans la déclaration d'affichage,
+   l'hôte serait `inline` et la hauteur ne ferait rien — le contenu se
+   tasserait en haut de la zone au lieu d'être centré. */
+:host {
+  display: block;
+  height: 100%;
+  position: relative;
+  z-index: 5;
+}
+
+/* Une entrée en douceur, mais seulement pour qui la veut : `prefers-reduced-motion`
+   est respecté, et l'amorce apparaît alors d'un coup. Une animation de moins
+   d'une seconde sur un écran qu'on regarde à peine ne vaut pas de contrarier
+   quelqu'un que le mouvement gêne. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-test='amorce'] > div {
+    animation: apparition 220ms ease-out;
+  }
+}
+
+@keyframes apparition {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

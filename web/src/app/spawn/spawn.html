@@ -1,0 +1,163 @@
+<section class="flex h-full flex-col gap-5 p-6" data-test="spawn">
+  <!-- --- L'état du pack, en une carte --------------------------------- -->
+  <div class="card border border-white/10 bg-base-100/40 verre" data-test="carte-etat">
+    <div class="card-body gap-3 py-4">
+      <div class="flex flex-wrap items-center gap-2">
+        @if (etat(); as vu) {
+          @if (vu.version) {
+            <span class="badge badge-sm badge-outline" data-test="version">{{ vu.version }}</span>
+          }
+          @if (vu.mods > 0) {
+            <span class="badge badge-sm badge-ghost" data-test="mods">{{ vu.mods }} mods</span>
+          }
+          @if (vu.java) {
+            <span class="badge badge-sm badge-ghost" data-test="java">Java {{ vu.java }}</span>
+          }
+          @if (vu.horsLigne) {
+            <span class="badge badge-sm badge-warning" data-test="hors-ligne">hors ligne</span>
+          }
+        }
+      </div>
+
+      @if (resume(); as phrase) {
+        <p class="text-sm opacity-75" data-test="resume">{{ phrase }}</p>
+      }
+    </div>
+  </div>
+
+  <!-- --- La cinématique ------------------------------------------------
+       Conservée : elle est ce qui distingue « on en est à la moitié » de
+       « il se passe quelque chose », et docs/interface.md la décrit. -->
+  @if (etapes().length > 0) {
+    <ol class="flex flex-wrap gap-x-4 gap-y-1 text-xs" data-test="chemin">
+      @for (etape of etapes(); track etape.phase) {
+        <li [attr.data-etat]="etape.etat" data-test="etape">{{ etape.libelle }}</li>
+      }
+    </ol>
+  }
+
+  <!-- --- La jauge, pendant le travail ---------------------------------- -->
+  @if (avancement(); as vu) {
+    <div class="flex flex-col gap-2" data-test="jauge">
+      @if (etapeCourante(); as courante) {
+        <p class="text-sm" data-test="etape-courante">
+          {{ courante.numero }} / {{ courante.total }} · {{ courante.libelle }}
+        </p>
+      }
+
+      <!--
+        `[attr.value]` et NON `[value]`.
+
+        Le setter IDL de `<progress>` pose l'attribut même pour `null`, coercé
+        en zéro : la barre afficherait donc zéro pour cent au lieu d'être
+        indéterminée. Avec `attr.`, `null` retire l'attribut, ce qui est la
+        seule façon d'obtenir une barre indéterminée.
+      -->
+      <progress
+        class="progress progress-primary"
+        max="100"
+        [attr.value]="vu.actif ? progression() : null"
+        data-test="progress"
+      ></progress>
+
+      <div class="flex flex-wrap gap-x-4 text-xs opacity-70">
+        @if (vu.fichier) {
+          <span data-test="fichier">{{ vu.fichier }}</span>
+        }
+        @if (vu.actif) {
+          <span data-test="pourcent">{{ pourcent() }} %</span>
+          <span data-test="octets">{{ octets(vu.octets) }} / {{ octets(vu.total) }}</span>
+          <span data-test="debit">{{ debit(vu.debit) }}</span>
+          @if (vu.restant !== null) {
+            <span data-test="restant">{{ duree(vu.restant) }}</span>
+          }
+        }
+      </div>
+
+      @if (vu.note) {
+        <p class="text-xs opacity-60" data-test="note">{{ vu.note }}</p>
+      }
+    </div>
+  }
+
+  <!-- --- Les notes de la dernière partie -------------------------------- -->
+  @if (purge().length > 0) {
+    <div class="alert alert-info alert-soft text-sm" data-test="purge">
+      <span>
+        Réinstallation complète : {{ purge().join(', ') }} ont été remis à neuf. Vos mondes, vos
+        configurations et vos captures n'ont pas été touchés.
+      </span>
+    </div>
+  }
+
+  @if (introuvables().length > 0) {
+    <div class="alert alert-warning alert-soft text-sm" data-test="introuvables">
+      <div>
+        <p class="font-medium">Des mods n'ont pas été trouvés :</p>
+        <ul class="list-inside list-disc">
+          @for (manque of introuvables(); track manque) {
+            <li>{{ manque }}</li>
+          }
+        </ul>
+      </div>
+    </div>
+  }
+
+  @if (ecarts().length > 0) {
+    <div class="alert alert-warning alert-soft text-sm" data-test="ecarts">
+      <div>
+        <p class="font-medium">L'installation s'écarte de ce qui était attendu :</p>
+        <ul class="list-inside list-disc">
+          @for (ecart of ecarts(); track ecart) {
+            <li>{{ ecart }}</li>
+          }
+        </ul>
+      </div>
+    </div>
+  }
+
+  @if (partie(); as vu) {
+    <p class="text-sm opacity-75" data-test="verdict">{{ vu.verdict }}</p>
+  }
+
+  <!-- --- La dernière nouvelle ------------------------------------------- -->
+  @if (derniereNouvelle(); as billet) {
+    <app-carte-nouvelle [billet]="billet" />
+  }
+
+  <!-- --- Le bas de l'écran ---------------------------------------------- -->
+  <div class="mt-auto flex items-end gap-4">
+    <!-- LE bouton. Vert, grand, et seul. -->
+    <button
+      type="button"
+      class="btn btn-primary btn-lg flex-1 text-lg tracking-wide"
+      [disabled]="!actif()"
+      [attr.data-etat]="bouton()"
+      (click)="jouer()"
+      data-test="bouton"
+    >
+      @if (bouton() === 'occupe' || bouton() === 'inconnu') {
+        <span class="loading loading-spinner loading-sm"></span>
+      }
+      {{ libelle() }}
+    </button>
+
+    <!--
+      Le pseudo À GAUCHE de la tête, en bas à droite de l'écran — comme
+      demandé.
+    -->
+    @if (compte(); as joueur) {
+      <div class="flex items-center gap-3" data-test="joueur">
+        <span class="text-sm font-medium" data-test="pseudo">{{ joueur.pseudo }}</span>
+        <img
+          [src]="tete(joueur.uuid)"
+          [alt]="'Tête de ' + joueur.pseudo"
+          width="40"
+          height="40"
+          class="size-10 rounded-box"
+          data-test="tete"
+        />
+      </div>
+    }
+  </div>
+</section>
