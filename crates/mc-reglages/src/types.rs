@@ -199,3 +199,7 @@ impl Default for Apparence {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "types.test.rs"]
+mod tests;

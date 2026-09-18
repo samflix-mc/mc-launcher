@@ -5,11 +5,25 @@ use std::path::{Path, PathBuf};
 
 /// Le nom sous lequel le launcher apparaît dans les répertoires du système.
 ///
-/// Le nom du RÉSEAU et non celui de l'application, et c'est délibéré : les
-/// données posées ici l'ont été sous ce nom depuis le début, et le changer
-/// reviendrait à abandonner huit cents mégaoctets sur le disque de chaque
-/// joueur sans rien lui dire. Il ne bouge pas.
-pub const SEGMENT: &str = "samflix-mc";
+/// **L'identifiant de l'application, et non le nom du réseau.** C'est
+/// exactement ce que `app_data_dir()` et `app_config_dir()` de Tauri
+/// composent : les deux moitiés du programme — la fenêtre, qui interroge le
+/// résolveur, et la ligne de commande, qui dérive de l'environnement —
+/// aboutissent donc au même répertoire par deux chemins différents.
+///
+/// Ce segment valait `samflix-mc` jusqu'au 18 septembre 2026, et l'argument
+/// était bon : ne pas abandonner ce qui était déjà posé. Il a été renversé
+/// délibérément, pour une raison plus forte — un launcher qui range ses
+/// affaires ailleurs que là où son propre framework les attend est un piège
+/// qui se redécouvre à chaque lecture du code, et le doute revient à chaque
+/// fois. Le coût du renversement est payé UNE fois, par un déplacement de
+/// répertoire ; celui du doute se paie à chaque passage.
+///
+/// **Ce qui n'a PAS changé** : le service du trousseau s'appelle toujours
+/// `samflix-mc`. Ce n'est pas un chemin, c'est une clé du gestionnaire de
+/// secrets — la renommer déconnecterait les sessions ouvertes sans rien
+/// apporter.
+pub const SEGMENT: &str = "mc.samflix.launcher";
 
 /// Les quatre racines dont le launcher a besoin.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -28,13 +28,16 @@
 //!
 //! ## Ce que fait la déduction, et ce qu'elle ne fait pas
 //!
-//! On prend de Tauri les RACINES, et on laisse `mc-chemins` en DÉDUIRE
-//! l'arborescence. C'est la seule répartition qui tienne : les racines peuvent
-//! diverger d'une plateforme à l'autre — c'est leur métier — mais la
-//! déduction, elle, n'est que des `join`, et la même des deux côtés. Prendre
-//! aussi le `app_log_dir()` de Tauri romprait cette symétrie : il range sous
-//! `~/Library/Logs` sous macOS, donc hors de ce qu'il suffit de supprimer pour
-//! repartir de zéro.
+//! On prend de Tauri les répertoires d'APPLICATION — `app_data_dir()` et
+//! `app_config_dir()`, qui composent eux-mêmes l'identifiant — et on laisse
+//! `mc-chemins` en DÉDUIRE l'arborescence. C'est la seule répartition qui
+//! tienne : les racines peuvent diverger d'une plateforme à l'autre, c'est
+//! leur métier, mais la déduction n'est que des `join`, et la même des deux
+//! côtés.
+//!
+//! Prendre aussi le `app_log_dir()` de Tauri romprait cette symétrie : il
+//! range sous `~/Library/Logs` sous macOS, donc hors de ce qu'il suffit de
+//! supprimer pour repartir de zéro. Les journaux restent `<données>/logs`.
 
 use tauri::{App, Manager};
 
@@ -55,7 +58,7 @@ pub fn poser(app: &App) {
     let racine =
         |resolu: Result<std::path::PathBuf, tauri::Error>, defaut: &std::path::Path, quoi: &str| {
             match resolu {
-                Ok(chemin) => chemin.join(mc_chemins::SEGMENT),
+                Ok(chemin) => chemin,
                 Err(erreur) => {
                     // Avant `mc_log::init` : `eprintln!` est tout ce qu'on a, et
                     // dans une application graphique il n'ira nulle part. C'est
@@ -67,24 +70,34 @@ pub fn poser(app: &App) {
             }
         };
 
-    // `data_dir()` et NON `app_data_dir()`, et c'est la ligne la plus
-    // dangereuse du fichier.
+    // `app_data_dir()` et `app_config_dir()`, c'est-à-dire les répertoires
+    // d'APPLICATION de Tauri : ils composent eux-mêmes l'`identifier` de
+    // tauri.conf.json, et rendent donc `<data>/mc.samflix.launcher`.
     //
-    // `app_data_dir()` rend `<data>/mc.samflix.launcher`, d'après
-    // l'`identifier` de tauri.conf.json. Y joindre notre segment donnerait
-    // `~/.local/share/mc.samflix.launcher/samflix-mc` — un chemin NEUF, à côté
-    // du `~/.local/share/samflix-mc` où huit cents mégaoctets et la session
-    // d'un joueur existent déjà. Le launcher se croirait sur un poste vierge,
-    // retéléchargerait tout, et laisserait l'ancienne arborescence orpheline
-    // sur le disque sans un mot.
+    // La version précédente prenait les racines NUES et y joignait un segment
+    // maison, `samflix-mc`, pour ne pas abandonner ce qui était déjà posé.
+    // L'argument était bon et il a été renversé sciemment : un launcher qui
+    // range ses affaires ailleurs que là où son propre framework les attend
+    // est un piège qui se redécouvre à chaque lecture. Le déplacement se paie
+    // une fois ; le doute se paie à chaque passage.
     //
-    // On prend donc les racines NUES et l'on y joint le segment nous-mêmes :
-    // le résultat est, au caractère près, ce que les crates calculaient déjà.
-    // C'est la décision « aucune migration ».
+    // `mc_chemins::SEGMENT` vaut désormais le même identifiant : la ligne de
+    // commande, qui n'a pas de résolveur Tauri et dérive de l'environnement,
+    // aboutit donc AU MÊME répertoire par un autre chemin. C'est ce que la
+    // comparaison ci-dessous vérifie à chaque démarrage.
+    //
+    // Le temporaire fait exception, parce que Tauri n'a pas d'`app_temp_dir` :
+    // on y joint le segment nous-mêmes, ce qui donne le même résultat.
     let bases = mc_chemins::Bases {
-        donnees: racine(resolveur.data_dir(), &secours.donnees, "données"),
-        config: racine(resolveur.config_dir(), &secours.config, "config"),
-        temporaire: racine(resolveur.temp_dir(), &secours.temporaire, "temporaire"),
+        donnees: racine(resolveur.app_data_dir(), &secours.donnees, "données"),
+        config: racine(resolveur.app_config_dir(), &secours.config, "config"),
+        temporaire: match resolveur.temp_dir() {
+            Ok(chemin) => chemin.join(mc_chemins::SEGMENT),
+            Err(erreur) => {
+                eprintln!("[chemins] temporaire introuvable ({erreur}), repli sur l'environnement");
+                secours.temporaire.clone()
+            }
+        },
     };
 
     let voulus = mc_chemins::depuis_bases(bases);

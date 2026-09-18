@@ -22,7 +22,7 @@ cargo run -p mc-log --example panique # éprouve la chaîne complète, panique c
 RUST_LOG=mc_mods=debug mc-pack lock ../mc-content/launcher/samflix.json
 ```
 
-Les journaux vivent dans `~/.local/share/samflix-mc/logs/`.
+Les journaux vivent dans `~/.local/share/mc.samflix.launcher/logs/`.
 
 ## Ce qui ne sort pas
 

@@ -69,6 +69,21 @@ exclude_re = [
     # donc la boucle sort par son `break`. Une itération de plus qui ne fait
     # rien et n'écrit rien.
     "mot_cle\\.rs.*replace < with <= in redact_after_keywords",
+
+    # `if reglages.schema != SCHEMA` en `==` — la branche n'écrit qu'une ligne
+    # de journal, et ne change RIEN à ce que `charger` rend : `#[serde(default)]`
+    # fait que les champs d'un schéma voisin se relisent de toute façon. Le
+    # mutant déplace donc une ligne d'information d'un cas vers l'autre, et
+    # aucun test ne peut distinguer les deux sans capturer la sortie de
+    # `tracing` — c'est-à-dire sans ajouter une dépendance pour éprouver un
+    # message.
+    #
+    # La comparaison a été traitée AUTREMENT là où elle comptait : dans
+    # `mc-nouvelles`, un fil servi sous un autre schéma entre dans `ecartes`,
+    # que la page affiche. Le fait y est observable, donc il y est testé. Ici,
+    # les réglages n'ont pas de compte rendu, et leur en donner un pour ce seul
+    # message coûterait plus que la ligne ne rapporte.
+    "lecture\\.rs.*replace != with == in charger",
 ]
 
 # Le temps par mutant se déduit de la suite non mutée. Le multiplicateur par

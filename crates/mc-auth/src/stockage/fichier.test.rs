@@ -35,8 +35,14 @@ fn la_session_n_est_lisible_que_par_son_proprietaire() {
 /// reconstruit pas, et un nettoyage des données ne doit pas déconnecter.
 #[test]
 fn la_session_vit_a_cote_de_la_configuration() {
+    // Exprimé par rapport au SEGMENT plutôt qu'en dur : ce qui compte ici est
+    // que la session soit sous la configuration du launcher, pas le nom que
+    // ce répertoire porte — lequel a déjà changé une fois.
     let chemin = chemin();
-    assert!(chemin.ends_with("samflix-mc/session.json"), "{chemin:?}");
+    assert!(
+        chemin.ends_with(format!("{}/session.json", mc_chemins::SEGMENT)),
+        "{chemin:?}"
+    );
 }
 
 #[test]
@@ -137,7 +143,7 @@ fn les_operations_sur_le_fichier_designent_le_meme_emplacement() {
 
     let etat = serde_json::json!({"refresh_token": "M.R3_BAY.secret"});
     enregistrer_dans(&chemin(), &etat).expect("écriture");
-    assert_eq!(chemin(), dir.join("samflix-mc").join("session.json"));
+    assert_eq!(chemin(), dir.join(mc_chemins::SEGMENT).join("session.json"));
     assert_eq!(charger_depuis(&chemin()), Some(etat));
     effacer_de(&chemin()).expect("suppression");
     assert!(charger_depuis(&chemin()).is_none());

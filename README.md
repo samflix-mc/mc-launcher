@@ -65,18 +65,29 @@ sait de quel environnement il vient, et c'est cela qui choisit le pack — voir
 ## Où vivent les fichiers
 
 ```
-~/.local/share/samflix-mc/
+~/.local/share/mc.samflix.launcher/
   shared/            versions/, libraries/, assets/ — forme d'un .minecraft
   instances/<nom>/minecraft/   mods, config, saves
   instances/<nom>/server/mods/ les mods du côté serveur
+  instances/<nom>/etat.json    ce que ce poste porte : empreinte du verrou, génération
   runtime/temurin-21/
   cache/mods/
-~/.config/samflix-mc/session.json      la session, si la machine n'a pas de trousseau
+  logs/
+~/.config/mc.samflix.launcher/
+  reglages.json                les préférences du joueur
+  session.json                 la session, si la machine n'a pas de trousseau
 ```
 
 Bibliothèques et assets pèsent près d'un gigaoctet et ne dépendent que de la
 version du jeu : ils sont partagés entre instances. `shared/` a la forme d'un
 `.minecraft` parce que l'installateur NeoForge l'exige.
+
+Le segment est l'**identifiant de l'application**, `mc.samflix.launcher` : c'est
+exactement ce que composent `app_data_dir()` et `app_config_dir()` de Tauri, de
+sorte que la fenêtre et la ligne de commande ne puissent pas ranger à deux
+endroits différents. Il valait `samflix-mc` avant le 18 septembre 2026 — voir
+[authentification.md](docs/authentification.md) pour le pourquoi du
+changement.
 
 ## Les crates
 

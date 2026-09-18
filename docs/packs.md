@@ -232,8 +232,8 @@ publié :
 T=$(mktemp -d)
 # Les gros fichiers sont partagés par version, pas par pack : les copier
 # évite huit cents mégaoctets de retéléchargement.
-cp -a ~/.local/share/samflix-mc/shared  "$T/donnees/samflix-mc/"
-cp -a ~/.local/share/samflix-mc/runtime "$T/donnees/samflix-mc/"
+cp -a ~/.local/share/mc.samflix.launcher/shared  "$T/donnees/mc.samflix.launcher/"
+cp -a ~/.local/share/mc.samflix.launcher/runtime "$T/donnees/mc.samflix.launcher/"
 
 # Un hôte à soi, qui sert le manifeste et le verrou de mc-content.
 cp ../mc-content/launcher/samflix*.json "$T/site/"

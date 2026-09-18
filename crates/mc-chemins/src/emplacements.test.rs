@@ -75,8 +75,14 @@ fn linux_respecte_la_convention_du_systeme() {
         tmp(),
     );
 
-    assert_eq!(bases.donnees, PathBuf::from("/ailleurs/partage/samflix-mc"));
-    assert_eq!(bases.config, PathBuf::from("/ailleurs/reglages/samflix-mc"));
+    assert_eq!(
+        bases.donnees,
+        PathBuf::from(format!("/ailleurs/partage/{SEGMENT}"))
+    );
+    assert_eq!(
+        bases.config,
+        PathBuf::from(format!("/ailleurs/reglages/{SEGMENT}"))
+    );
 }
 
 /// Une variable POSÉE MAIS VIDE ne désigne rien. La traiter comme une racine
@@ -92,11 +98,11 @@ fn linux_ignore_une_variable_vide() {
 
     assert_eq!(
         bases.donnees,
-        PathBuf::from("/maison/joueur/.local/share/samflix-mc")
+        PathBuf::from(format!("/maison/joueur/.local/share/{SEGMENT}"))
     );
     assert_eq!(
         bases.config,
-        PathBuf::from("/maison/joueur/.config/samflix-mc")
+        PathBuf::from(format!("/maison/joueur/.config/{SEGMENT}"))
     );
 }
 
@@ -107,11 +113,11 @@ fn linux_retombe_sur_les_defauts_xdg() {
 
     assert_eq!(
         bases.donnees,
-        PathBuf::from("/maison/joueur/.local/share/samflix-mc")
+        PathBuf::from(format!("/maison/joueur/.local/share/{SEGMENT}"))
     );
     assert_eq!(
         bases.config,
-        PathBuf::from("/maison/joueur/.config/samflix-mc")
+        PathBuf::from(format!("/maison/joueur/.config/{SEGMENT}"))
     );
 }
 
@@ -124,7 +130,7 @@ fn linux_sans_home_ne_panique_pas() {
 
     assert_eq!(
         bases.donnees,
-        PathBuf::from("./.local/share/samflix-mc"),
+        PathBuf::from(format!("./.local/share/{SEGMENT}")),
         "{:?}",
         bases.donnees
     );
@@ -150,7 +156,9 @@ fn macos_range_tout_sous_application_support() {
 
     assert_eq!(
         bases.donnees,
-        PathBuf::from("/maison/joueur/Library/Application Support/samflix-mc")
+        PathBuf::from(format!(
+            "/maison/joueur/Library/Application Support/{SEGMENT}"
+        ))
     );
     assert_eq!(bases.config, bases.donnees);
 }

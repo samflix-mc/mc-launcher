@@ -127,3 +127,22 @@ fn le_repertoire_est_cree_au_besoin() {
     enregistrer(&profond, &Reglages::default()).expect("écriture");
     assert!(profond.is_file());
 }
+
+/// Le fichier de réglages porte un nom, et il est sous la CONFIG.
+///
+/// Rien ne le vérifiait : `chemin()` pouvait rendre un chemin vide sans qu'un
+/// test bronche. Le symptôme serait un launcher qui n'enregistre rien et
+/// relit les défauts à chaque ouverture — sans erreur, puisque `charger` ne
+/// rend jamais d'erreur.
+#[test]
+fn les_reglages_ont_un_chemin_sous_la_config() {
+    let ou = super::chemin();
+
+    assert!(ou.is_absolute(), "{}", ou.display());
+    assert!(ou.ends_with("reglages.json"), "{}", ou.display());
+    assert!(
+        ou.starts_with(mc_chemins::courants().config),
+        "les réglages doivent être sous la config, pas ailleurs : {}",
+        ou.display()
+    );
+}

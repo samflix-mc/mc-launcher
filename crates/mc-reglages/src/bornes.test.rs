@@ -273,3 +273,39 @@ fn le_plancher_reste_un_voile() {
         );
     }
 }
+
+// --- La fonction qui borne, éprouvée pour elle-même ------------------------
+
+/// `borner` aux BORNES EXACTES, et de part et d'autre.
+///
+/// Les tests de ce fichier éprouvaient chaque réglage, mais aucun n'éprouvait
+/// la fonction qui les borne tous : ses deux comparaisons survivaient à la
+/// mutation, `<` devenant `<=` et `>` devenant `>=` sans qu'un test bronche.
+/// Le symptôme aurait été muet — une valeur À la borne ramenée à la borne,
+/// c'est-à-dire rien de visible — jusqu'au jour où la borne aurait changé de
+/// sens.
+#[test]
+fn borner_rend_la_valeur_a_la_borne_exacte() {
+    use super::borner;
+
+    // Dedans : rien ne bouge.
+    assert_eq!(borner(5, (1, 10)), 5);
+    // AUX bornes : rien ne bouge non plus — c'est ce que `<` et `>` disent,
+    // et ce que `<=` et `>=` diraient autrement.
+    assert_eq!(borner(1, (1, 10)), 1);
+    assert_eq!(borner(10, (1, 10)), 10);
+    // Juste au-delà, des deux côtés.
+    assert_eq!(borner(0, (1, 10)), 1);
+    assert_eq!(borner(11, (1, 10)), 10);
+}
+
+/// Et sur des flottants, puisque le voile en est un.
+#[test]
+fn borner_vaut_aussi_pour_les_flottants() {
+    use super::borner;
+
+    assert_eq!(borner(0.44_f32, (0.44, 1.0)), 0.44);
+    assert_eq!(borner(1.0_f32, (0.44, 1.0)), 1.0);
+    assert_eq!(borner(0.43_f32, (0.44, 1.0)), 0.44);
+    assert_eq!(borner(1.01_f32, (0.44, 1.0)), 1.0);
+}
