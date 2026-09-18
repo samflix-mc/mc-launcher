@@ -75,7 +75,8 @@ pub async fn charger(url_du_pack: &str, cache: &Path, dl: &mc_dl::Downloader) ->
         }
         Err(erreur) => {
             tracing::warn!(url, erreur = %erreur, "fil injoignable, repli sur la copie");
-            let copie_lue = std::fs::read(&copie)
+            let copie_lue = mc_dl::lire_hors_du_fil(&copie)
+                .await
                 .with_context(|| format!("fil {url} injoignable, et aucune copie"))?;
             let mut fil = lire(&copie_lue, &url)?;
             fil.hors_ligne = true;

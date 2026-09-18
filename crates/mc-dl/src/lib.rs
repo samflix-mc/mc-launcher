@@ -25,7 +25,7 @@ mod telechargement;
 pub use check::{Check, Fetched};
 pub use checksum::{Checksum, sha1_of_file, sha512_of_bytes, sha512_of_file};
 pub use progression::{Avancement, Observateur};
-pub use telechargement::fichier::{ecrire_hors_du_fil, write_atomic};
+pub use telechargement::fichier::{ecrire_hors_du_fil, lire_hors_du_fil, write_atomic};
 pub use telechargement::{Absent, Downloader};
 
 /// Agent annoncé à toutes les API contactées.

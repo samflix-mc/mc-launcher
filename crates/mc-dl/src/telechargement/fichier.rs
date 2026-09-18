@@ -28,6 +28,20 @@ impl Downloader {
             // n'en publie pas, et sans elle un fichier déjà là ne ferait pas
             // avancer la barre — une réinstallation resterait à zéro de bout
             // en bout.
+            //
+            // `std::fs::metadata` et NON `tokio::fs::metadata`, dans une
+            // fonction pourtant `async`, et c'est délibéré. Ce chemin est
+            // celui d'un fichier DÉJÀ conforme : il s'exécute plusieurs
+            // milliers de fois à chaque vérification — un `stat` par objet
+            // d'assets. Un `stat` coûte quelques microsecondes ; l'envoyer sur
+            // le pool de `spawn_blocking` coûterait la création et
+            // l'ordonnancement d'une tâche, soit davantage que l'appel
+            // lui-même, et multiplié par trois mille.
+            //
+            // La règle générique — « pas d'appel bloquant dans une fonction
+            // asynchrone » — vise les opérations dont la durée est
+            // imprévisible : lire ou écrire un contenu. C'est pour cela que
+            // l'ÉCRITURE, juste en dessous, passe par `ecrire_hors_du_fil`.
             self.signaler(Avancement::Fini {
                 fichier: &nom,
                 etat: Fetched::AlreadyPresent,
@@ -121,6 +135,20 @@ pub async fn ecrire_hors_du_fil(dest: &Path, octets: Vec<u8>) -> Result<()> {
     tokio::task::spawn_blocking(move || write_atomic(&dest, &octets))
         .await
         .context("l'écriture détachée n'a pas abouti")?
+}
+
+/// Lire un fichier, hors du fil d'exécution asynchrone.
+///
+/// Le pendant d'[`ecrire_hors_du_fil`], et pour la même raison : une lecture
+/// bloque le worker de tokio, pas seulement la tâche. Elle vit ici plutôt que
+/// chez ses appelants pour que `mc-nouvelles` — dont la moitié pure n'a aucune
+/// dépendance asynchrone — n'ait pas à gagner tokio pour une ligne.
+pub async fn lire_hors_du_fil(source: &Path) -> std::io::Result<Vec<u8>> {
+    let source = source.to_path_buf();
+    match tokio::task::spawn_blocking(move || std::fs::read(source)).await {
+        Ok(resultat) => resultat,
+        Err(erreur) => Err(std::io::Error::other(erreur)),
+    }
 }
 
 #[cfg(test)]
