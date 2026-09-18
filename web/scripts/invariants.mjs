@@ -124,6 +124,88 @@ for (const invariant of INVARIANTS) {
   }
 }
 
+/**
+ * Every `hm-*` class a template names must exist in a stylesheet.
+ *
+ * This one is a CROSS-CHECK and not a pattern, because the failure it
+ * catches cannot be seen in a single file. A class the template writes and
+ * no stylesheet declares is not an error anywhere: the HTML is valid, the
+ * CSS is valid, the build is green, and the rule simply never applies. The
+ * window then renders with one layout rule missing — and the symptom is a
+ * black band, or a nav glued to the content, which nobody traces back to a
+ * spelling.
+ *
+ * It is written after a real occurrence: translating the code base to
+ * English renamed `.hm-window--system` to `.hm-window--system` in the
+ * stylesheet and left the template spelling untouched. That class carries
+ * `width: 100%; height: 100%`. Three screens shipped with a black band
+ * below the content, and every test stayed green — the tests asserted the
+ * template's class name against itself, never against the CSS.
+ *
+ * Only `hm-*` is checked: those come from the design system and are the
+ * ones a rename can silently detach. Utility and component classes are
+ * owned by the file that uses them.
+ */
+const HOOKS_WITHOUT_RULES = new Set([
+  // Declared on the button so that a theme can reach it; only `--close`
+  // needs a rule of its own, for its red hover.
+  'hm-winctl__btn--min',
+  'hm-winctl__btn--max',
+]);
+
+function declaredClasses() {
+  const declared = new Set();
+  for (const path of allFiles.filter((p) => p.endsWith('.css'))) {
+    const text = readFileSync(path, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const [, name] of text.matchAll(/\.([a-zA-Z][\w-]*)/g)) {
+      declared.add(name);
+    }
+  }
+  return declared;
+}
+
+function usedClasses() {
+  const used = [];
+  for (const path of allFiles) {
+    if (!path.endsWith('.html') && !path.endsWith('.ts')) continue;
+    if (path.endsWith('.spec.ts')) continue;
+    const text = readFileSync(path, 'utf8');
+    const found = new Set();
+    for (const [, group] of text.matchAll(/class="([^"]*)"/g)) {
+      for (const name of group.split(/\s+/)) found.add(name);
+    }
+    // `[class.hm-window--maximized]="maximized()"` — a binding, invisible
+    // to the plain `class="..."` scan, and exactly how one of them hid.
+    for (const [, name] of text.matchAll(/\[class\.([\w-]+)\]/g)) found.add(name);
+    for (const [, name] of text.matchAll(/['"`](hm-[\w-]+)['"`]/g)) found.add(name);
+    for (const name of found) {
+      // A trailing `--` is a concatenation base: `'hm-status--' + variant()`.
+      if (name.startsWith('hm-') && !name.endsWith('--')) {
+        used.push([name, relative(ROOT, path)]);
+      }
+    }
+  }
+  return used;
+}
+
+const declared = declaredClasses();
+const orphans = usedClasses().filter(
+  ([name]) => !declared.has(name) && !HOOKS_WITHOUT_RULES.has(name),
+);
+
+if (orphans.length === 0) {
+  console.log('  \u2713 every hm-* class used has a rule');
+} else {
+  failures += 1;
+  console.error('\n  \u2717 hm-* class used with no rule anywhere');
+  console.error('    A template names a design-system class that no stylesheet');
+  console.error('    declares. The rule never applies, and nothing reports it.');
+  console.error('');
+  for (const [name, where] of orphans) {
+    console.error(`    ${where}: ${name}`);
+  }
+}
+
 if (failures > 0) {
   console.error(`\n${failures} invariant(s) broken.`);
   process.exit(1);

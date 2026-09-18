@@ -84,7 +84,7 @@ describe('App', () => {
     await goTo(fixture, '/spawn');
 
     const page = fixture.nativeElement.querySelector('[data-test="page"]');
-    expect(page.classList.contains('hm-page--trois-rangs')).toBe(true);
+    expect(page.classList.contains('hm-page--three-rows')).toBe(true);
     expect(fixture.nativeElement.querySelector('[data-test="nav"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-test="playbar"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-test="player-badge"]')).not.toBeNull();
@@ -110,7 +110,7 @@ describe('App', () => {
     await goTo(fixture, '/settings');
 
     const page = fixture.nativeElement.querySelector('[data-test="page"]');
-    expect(page.classList.contains('hm-page--deux-rangs')).toBe(true);
+    expect(page.classList.contains('hm-page--two-rows')).toBe(true);
     expect(fixture.nativeElement.querySelector('[data-test="bottom-bar"]')).toBeNull();
   });
 

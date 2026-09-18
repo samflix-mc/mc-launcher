@@ -243,8 +243,9 @@ export class Playbar {
 
     const segments: string[] = [];
 
-    if (seen.file) {
-      segments.push(fileName(seen.file));
+    const name = seen.file ? fileName(seen.file) : null;
+    if (name) {
+      segments.push(name);
     }
     if (seen.filesTotal > 0) {
       segments.push(`${seen.files} of ${seen.filesTotal} files`);
@@ -392,7 +393,31 @@ export class Playbar {
  * on anything from the component, and that's what makes it testable on its
  * own.
  */
-export function fileName(path: string): string {
+export function fileName(path: string): string | null {
   const parts = path.split(/[\\/]/);
-  return parts[parts.length - 1] || path;
+  const name = parts[parts.length - 1] || path;
+  return isDigest(name) ? null : name;
+}
+
+/**
+ * Is this "name" in fact a digest?
+ *
+ * Minecraft addresses its assets by their SHA-1: the three thousand nine
+ * hundred objects of a version live under `objects/ab/ab3f9e…`, and their
+ * file name IS the digest. Announcing it shows forty hexadecimal
+ * characters that change five times a second and say nothing — the batch
+ * counter, the rate and the time remaining, all sitting right next to it,
+ * say everything it doesn't.
+ *
+ * The rule is on the DISPLAY side rather than in Rust because that's what
+ * it is: a decision about what a human can read. Rust announces the name
+ * of what it writes, which is correct and is what the log needs.
+ *
+ * Thirty-two characters as the floor: MD5 is the shortest digest the
+ * launcher meets, and no jar or library is named with thirty-two
+ * hexadecimal characters and nothing else — they all carry a version, a
+ * dash or an extension.
+ */
+function isDigest(name: string): boolean {
+  return /^[0-9a-f]{32,}$/.test(name);
 }

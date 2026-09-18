@@ -308,4 +308,28 @@ describe('fileName', () => {
   it('a path ending in a separator returns the path', () => {
     expect(fileName('/a/b/')).toBe('/a/b/');
   });
+
+  /**
+   * **A digest is not a name.** Minecraft addresses its assets by their
+   * SHA-1, so the file name of each of the three thousand nine hundred
+   * objects IS forty hexadecimal characters. Showing them gives a line that
+   * churns five times a second and teaches nothing; `null` drops the
+   * segment and leaves the counter, the rate and the time remaining, which
+   * do teach something.
+   */
+  it('a digest is not shown', () => {
+    expect(fileName('objects/ab/ab3f9e2c1d4b5a6f7e8d9c0b1a2f3e4d5c6b7a89')).toBeNull();
+    expect(fileName('d41d8cd98f00b204e9800998ecf8427e')).toBeNull();
+  });
+
+  /**
+   * The rule must not swallow real names. A jar always carries a version,
+   * a dash or an extension — never thirty-two hexadecimal characters and
+   * nothing else.
+   */
+  it('a real name that looks hexadecimal is kept', () => {
+    expect(fileName('deadbeef.jar')).toBe('deadbeef.jar');
+    expect(fileName('abcdef0123456789')).toBe('abcdef0123456789');
+    expect(fileName('neoforge-21.1.250-universal.jar')).toBe('neoforge-21.1.250-universal.jar');
+  });
 });

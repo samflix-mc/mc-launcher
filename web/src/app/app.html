@@ -1,13 +1,13 @@
 <!--
   The window, as the design system draws it.
 
-  `.hm-window--systeme`: here the window IS NOT a rectangle in a page, it's
+  `.hm-window--system`: here the window IS NOT a rectangle in a page, it's
   the desktop window itself. No radius, no shadow — with an opaque,
   decoration-less window, rounded corners would show black.
 -->
 <div
-  class="hm-window hm-window--systeme"
-  [class.hm-window--maximisee]="maximized()"
+  class="hm-window hm-window--system"
+  [class.hm-window--maximized]="maximized()"
   data-test="shell"
 >
   <!--
@@ -34,11 +34,11 @@
     <div class="hm-bords" aria-hidden="true" data-test="edges">
       <span class="hm-bords__n"></span>
       <span class="hm-bords__s"></span>
-      <span class="hm-bords__o"></span>
+      <span class="hm-bords__w"></span>
       <span class="hm-bords__e"></span>
-      <span class="hm-bords__no"></span>
+      <span class="hm-bords__nw"></span>
       <span class="hm-bords__ne"></span>
-      <span class="hm-bords__so"></span>
+      <span class="hm-bords__sw"></span>
       <span class="hm-bords__se"></span>
     </div>
   }
@@ -80,8 +80,8 @@
   } @else {
     <div
       class="hm-page"
-      [class.hm-page--trois-rangs]="threeRows()"
-      [class.hm-page--deux-rangs]="!threeRows()"
+      [class.hm-page--three-rows]="threeRows()"
+      [class.hm-page--two-rows]="!threeRows()"
       data-test="page"
     >
       <div class="hm-topbar">
